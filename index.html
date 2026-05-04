@@ -89,6 +89,11 @@
                 <button class="db" data-pc="b" id="pcB" onclick="setPlayerColor(this)">Black</button>
             </div>
         </div>
+        <div>
+            <div class="drow">
+                <button class="db" onclick="restoreGame()">Restore Game</button>
+            </div>
+        </div>
     </div>
     <div id="gu">
         <div id="top">
@@ -113,7 +118,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
     // ══════════════════════════════════════════
-    //  CHESS ENGINE & 3D SCENE – DEEP RED PIECES
+    //  CHESS ENGINE & 3D SCENE – TIMER RESTORE FIXED
     // ══════════════════════════════════════════
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh';
@@ -366,6 +371,41 @@
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
 
+    const BACKUP_KEY = 'chess3d_backup';
+
+    function saveBackup(){
+        if(over) return;
+        try {
+            const state = {
+                brd: brd.slice(),
+                turn,
+                cas: {...cas},
+                ep,
+                hist: hist.map(h => ({brd: h.brd.slice(), turn: h.turn, cas: {...h.cas}, ep: h.ep, capW: h.capW.slice(), capB: h.capB.slice(), mlog: h.mlog.map(m=>({...m}))})),
+                capW: capW.slice(),
+                capB: capB.slice(),
+                mlog: mlog.map(m => ({...m})),
+                timerW, timerB,
+                playerColor,
+                aiDepth,
+                gameMode
+            };
+            localStorage.setItem(BACKUP_KEY, JSON.stringify(state));
+        } catch(e){}
+    }
+
+    function clearBackup(){
+        localStorage.removeItem(BACKUP_KEY);
+    }
+
+    function loadBackup(){
+        try {
+            const raw = localStorage.getItem(BACKUP_KEY);
+            if(!raw) return null;
+            return JSON.parse(raw);
+        } catch(e){ return null; }
+    }
+
     function getAiColor(){return playerColor==='w'?'b':'w';}
     function resetState(){
         brd=initBrd();turn='w';cas={wK:true,wQ:true,bK:true,bQ:true};ep=null;hist=[];capW=[];capB=[];mlog=[];
@@ -375,6 +415,7 @@
         over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle;
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
+        clearBackup();
     }
     function scheduleAI(delay=80){
         if(over||aiThink)return;aiThink=true;document.getElementById('thkstrip').classList.add('on');document.getElementById('smsg').textContent='Thinking…';
@@ -415,6 +456,7 @@
             if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
             if(gameMode==='ai'&&turn===getAiColor()&&!over)scheduleAI(100);
+            saveBackup();
         });
     }
     function showPromo(pc){const el=document.getElementById('po');el.innerHTML='';['Q','R','B','N'].forEach(t=>{const b=document.createElement('div');b.className='po-b';b.textContent=GLS[pc+t];b.onclick=()=>{document.getElementById('pm').classList.remove('on');const mv={...pendP,promo:t};pendP=null;execMove(mv);};el.appendChild(b);});document.getElementById('pm').classList.add('on');}
@@ -424,9 +466,11 @@
     function updateTimerUI(){document.getElementById('tvW').textContent=fmt(timerW);document.getElementById('tvB').textContent=fmt(timerB);document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');}
     function renderUI(){document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';updateTimerUI();}
 
+    // ── Global functions ──
     window.newGame=function(){
         resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');document.getElementById('thkstrip').classList.remove('on');renderUI();
         if(gameMode==='ai'&&playerColor==='b'){timerActive=true;lastTick=performance.now();scheduleAI(500);}
+        clearBackup();
     };
     window.undoMove=function(){
         if(isAnim||aiThink||!hist.length)return;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
@@ -435,12 +479,66 @@
         if(turn==='w')timerW=60;else timerB=60;timerActive=hist.length>0;lastTick=timerActive?performance.now():null;
         lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on');syncAll(brd);updHL();renderUI();
         if(gameMode==='ai'&&turn===getAiColor()&&!over&&hist.length>0){timerActive=true;lastTick=performance.now();scheduleAI(400);}
+        saveBackup();
     };
     window.setDiff=function(btn){document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selDiff=parseInt(btn.dataset.d);};
     window.setPlayerColor=function(btn){document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));btn.classList.add('on');playerColor=btn.dataset.pc;};
-    window.startGame=function(mode){gameMode=mode;aiDepth=selDiff;document.getElementById('ms').style.display='none';document.getElementById('gu').style.display='block';started=true;if(!boardBuilt){buildBoard();boardBuilt=true;}newGame();};
+    window.startGame=function(mode){
+        gameMode=mode;aiDepth=selDiff;document.getElementById('ms').style.display='none';document.getElementById('gu').style.display='block';started=true;if(!boardBuilt){buildBoard();boardBuilt=true;}
+        newGame();
+    };
     let boardBuilt=false;
-    window.backToMenu=function(){timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');document.getElementById('gu').style.display='none';document.getElementById('ms').style.display='flex';document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');};
+    window.backToMenu=function(){
+        // Save the current timers before going to menu
+        saveBackup();
+        timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
+        document.getElementById('gu').style.display='none';document.getElementById('ms').style.display='flex';
+        document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
+    };
+    window.restoreGame=function(){
+        const backup = loadBackup();
+        if(!backup){
+            toast('No backup found, press New Game to start playing', 3000);
+            return;
+        }
+        gameMode = backup.gameMode;
+        aiDepth = backup.aiDepth;
+        playerColor = backup.playerColor;
+        brd = backup.brd;
+        turn = backup.turn;
+        cas = backup.cas;
+        ep = backup.ep;
+        hist = backup.hist;
+        capW = backup.capW;
+        capB = backup.capB;
+        mlog = backup.mlog;
+        timerW = backup.timerW;
+        timerB = backup.timerB;
+        selDiff = aiDepth;
+        document.getElementById('ms').style.display='none';
+        document.getElementById('gu').style.display='block';
+        started = true;
+        if(!boardBuilt){buildBoard();boardBuilt=true;}
+        syncAll(brd);
+        clearDots();clearTints();
+        lastMv=null;selSq=null;curLM=[];over=false;pendP=null;isAnim=false;aiThink=false;
+        timerActive = true;
+        lastTick = performance.now();
+        document.getElementById('go').classList.remove('on');
+        document.getElementById('pm').classList.remove('on');
+        document.getElementById('thkstrip').classList.remove('on');
+        updHL();
+        renderUI();
+        document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));
+        const diffBtn = document.querySelector(`#ms .db[data-d="${aiDepth}"]`);
+        if(diffBtn) diffBtn.classList.add('on');
+        document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));
+        document.getElementById('pc' + (playerColor==='w'?'W':'B')).classList.add('on');
+        if(gameMode==='ai' && turn===getAiColor() && !over){
+            scheduleAI(300);
+        }
+    };
+    function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
 
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0;let touchStart=null,touchDrag=0,pinchStart=0;
     function pickAt(cx,cy){const rect=CV.getBoundingClientRect();mp2.x=((cx-rect.left)/rect.width)*2-1;mp2.y=-((cy-rect.top)/rect.height)*2+1;ray.setFromCamera(mp2,camera);const flatObjs=[...SQ3D.filter(Boolean),...DOTS];const flatHits=ray.intersectObjects(flatObjs,false);if(flatHits.length){const si=flatHits[0].object.userData.si;if(si!=null){onSq(si);return;}}const pMeshes=[];P3D.forEach(g=>{if(g)g.traverse(m=>{if(m.isMesh)pMeshes.push(m);});});const pHits=ray.intersectObjects(pMeshes,false);if(pHits.length){const si=pHits[0].object.userData.si;if(si!=null)onSq(si);}}
