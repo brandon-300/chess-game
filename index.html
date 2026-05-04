@@ -85,17 +85,17 @@
         <div>
             <div class="dlbl">Play as (vs Computer)</div>
             <div class="drow">
-                <button class="db on" data-pc="w" id="pcW" onclick="setPlayerColor(this)">White</button>
+                <button class="db on" data-pc="w" id="pcW" onclick="setPlayerColor(this)">Red</button>
                 <button class="db" data-pc="b" id="pcB" onclick="setPlayerColor(this)">Black</button>
             </div>
         </div>
     </div>
     <div id="gu">
         <div id="top">
-            <div class="tpill"><div class="tdot w" id="tdot"></div><span id="tlbl">White</span></div>
+            <div class="tpill"><div class="tdot w" id="tdot"></div><span id="tlbl">Red</span></div>
             <span id="smsg"></span>
             <div class="timers">
-                <div class="tmr active" id="tmrW"><div class="tn">White</div><div class="tv" id="tvW">1:00</div></div>
+                <div class="tmr active" id="tmrW"><div class="tn">Red</div><div class="tv" id="tvW">1:00</div></div>
                 <div class="tmr" id="tmrB"><div class="tn">Black</div><div class="tv" id="tvB">1:00</div></div>
             </div>
             <div class="thkstrip" id="thkstrip"></div>
@@ -312,7 +312,6 @@
         const m=new THREE.Mesh(new THREE.PlaneGeometry(0.4,0.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2),transparent:true}));m.rotation.x=-Math.PI/2;m.position.set(x,y,z);scene.add(m);
     }
 
-    // Pieces: DEEP RED for "white", dark brown for black
     function pMat(isLight){
         return new THREE.MeshPhongMaterial({
             color: isLight ? 0xcc0000 : 0x1a0e06,
@@ -385,7 +384,7 @@
             const mv = getBestMove(brd,cas,ep,aiDepth,aiColor);
             aiThink=false;document.getElementById('thkstrip').classList.remove('on');
             if(mv)execMove(mv);
-            else{const ck=inCk(brd,turn),winner=turn==='w'?'Black':'White';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);}
+            else{const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);}
         },delay);
     }
     function onSq(si){
@@ -413,17 +412,17 @@
         isAnim=true;updHL();renderUI();
         startAnim(pg,tr,tc,()=>{isAnim=false;updHL();renderUI();
             const am2=allM(brd,turn,cas,ep);
-            if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'White';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
+            if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
             if(gameMode==='ai'&&turn===getAiColor()&&!over)scheduleAI(100);
         });
     }
     function showPromo(pc){const el=document.getElementById('po');el.innerHTML='';['Q','R','B','N'].forEach(t=>{const b=document.createElement('div');b.className='po-b';b.textContent=GLS[pc+t];b.onclick=()=>{document.getElementById('pm').classList.remove('on');const mv={...pendP,promo:t};pendP=null;execMove(mv);};el.appendChild(b);});document.getElementById('pm').classList.add('on');}
     function tickTimer(){if(!timerActive||over||isAnim||aiThink||!started)return;const now=performance.now();if(lastTick===null){lastTick=now;return;}const dt=(now-lastTick)/1000;lastTick=now;if(turn==='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}}else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}}updateTimerUI();}
-    function timeOut(loser){const winner=loser==='w'?'Black':'White';endGame(winner+' Wins on Time',(loser==='w'?'White':'Black')+' ran out of time',SFX.lose);}
+    function timeOut(loser){const winner=loser==='w'?'Black':'Red';endGame(winner+' Wins on Time',(loser==='w'?'Red':'Black')+' ran out of time',SFX.lose);}
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){document.getElementById('tvW').textContent=fmt(timerW);document.getElementById('tvB').textContent=fmt(timerB);document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');}
-    function renderUI(){document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');document.getElementById('tlbl').textContent=turn==='w'?'White':'Black';if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';updateTimerUI();}
+    function renderUI(){document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';updateTimerUI();}
 
     window.newGame=function(){
         resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');document.getElementById('thkstrip').classList.remove('on');renderUI();
