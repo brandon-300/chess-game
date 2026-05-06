@@ -6,9 +6,6 @@
     <title>Chess 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <style>
-        /* All the CSS is unchanged from the previous version */
-        /* (your full original styles + online menus + chat + red dot fix) */
-        /* I'll include it compactly for clarity */
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{--gold:#c9a84c;--gold-d:#7a6230;--cream:#f0e6ce;--muted:#6b5f4e;--surf:rgba(10,7,4,0.92)}
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
@@ -74,13 +71,25 @@
         .menu-card{background:rgba(20,14,8,.95);border:1px solid var(--gold-d);padding:30px;text-align:center;max-width:350px;width:90%}
         .menu-btn{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.15em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:12px 24px;cursor:pointer;transition:.2s;margin:10px 5px;text-transform:uppercase;width:100%}
         .menu-btn:active{background:rgba(201,168,76,.18)}
-        .menu-input{background:rgba(255,255,255,0.05);border:1px solid var(--gold-d);color:var(--cream);padding:10px;font-family:'Cinzel',serif;font-size:18px;letter-spacing:.1em;text-align:center;width:100%;outline:none}
+        .menu-input{
+            background:rgba(255,255,255,0.05);
+            border:1px solid var(--gold-d);
+            color:var(--cream);
+            padding:10px;
+            font-family:'Cinzel',serif;
+            font-size:18px;
+            letter-spacing:.1em;
+            text-align:center;
+            width:100%;
+            outline:none;
+            text-transform:none;           /* prevent uppercase forcing */
+        }
         #chat-panel{position:fixed;right:10px;top:100px;width:220px;max-height:300px;background:var(--surf);backdrop-filter:blur(12px);border:1px solid var(--gold-d);display:none;flex-direction:column;z-index:200;font-family:'Cinzel',serif}
         #chat-panel.on{display:flex}
         #chat-messages{flex:1;overflow-y:auto;padding:8px;font-size:11px;color:var(--cream);max-height:200px}
         #chat-messages div{margin-bottom:6px;line-height:1.3}
         #chat-input-row{display:flex;border-top:1px solid var(--gold-d)}
-        #chat-input{flex:1;background:transparent;border:none;color:var(--cream);padding:8px;font-family:inherit}
+        #chat-input{flex:1;background:transparent;border:none;color:var(--cream);padding:8px;font-family:inherit;text-transform:none;}
         #chat-send{background:transparent;border:none;color:var(--gold);padding:8px 12px;cursor:pointer;font-family:inherit}
         #chat-toggle{position:fixed;right:10px;top:70px;z-index:201;font-family:'Cinzel',serif;background:var(--surf);border:1px solid var(--gold-d);color:var(--gold);padding:6px 12px;cursor:pointer;backdrop-filter:blur(12px);display:none}
         #chat-toggle.on{display:block}
@@ -158,7 +167,7 @@
     <div id="code-prompt">
         <div class="menu-card">
             <h2 id="code-prompt-title" style="color:var(--gold); margin-bottom:16px;"></h2>
-            <input type="text" id="code-input" class="menu-input" maxlength="20" placeholder="Code" autocomplete="off">
+            <input type="text" id="code-input" class="menu-input" maxlength="20" placeholder="Code" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
             <div style="margin-top:16px;">
                 <button class="menu-btn" onclick="submitCode()">OK</button>
                 <button class="menu-btn" onclick="hideCodePrompt()">Cancel</button>
@@ -177,7 +186,7 @@
     <div id="chat-panel">
         <div id="chat-messages"></div>
         <div id="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Message..." autocomplete="off">
+            <input type="text" id="chat-input" placeholder="Message..." autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
             <button id="chat-send" onclick="sendChat()">Send</button>
         </div>
     </div>
@@ -364,11 +373,18 @@
     const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
     const BOARD_CENTER=new THREE.Vector3(4,0,4);
     let camTheta=0,camPhi=0.78,camDist=14;
+    let boardFlipped = false;
+
     function updateCamera(){
-        const x=BOARD_CENTER.x+camDist*Math.sin(camPhi)*Math.sin(camTheta);
-        const y=BOARD_CENTER.y+camDist*Math.cos(camPhi);
-        const z=BOARD_CENTER.z+camDist*Math.sin(camPhi)*Math.cos(camTheta);
-        camera.position.set(x,y,z);camera.lookAt(BOARD_CENTER);
+        let effectiveTheta = camTheta;
+        if (boardFlipped) {
+            effectiveTheta = camTheta + Math.PI;
+        }
+        const x = BOARD_CENTER.x + camDist * Math.sin(camPhi) * Math.sin(effectiveTheta);
+        const y = BOARD_CENTER.y + camDist * Math.cos(camPhi);
+        const z = BOARD_CENTER.z + camDist * Math.sin(camPhi) * Math.cos(effectiveTheta);
+        camera.position.set(x, y, z);
+        camera.lookAt(BOARD_CENTER);
     }
     updateCamera();
 
@@ -467,10 +483,7 @@
     let pendingCreateType = null;
     let hostColor = 'w';
 
-    // Auto-save interval (every 2 seconds)
     let autoSaveInterval = null;
-
-    // General retry state
     let retryCount = 0;
     const MAX_RETRIES = 5;
     let retryTimer = null;
@@ -498,7 +511,6 @@
         } catch(e){ return null; }
     }
 
-    // Periodic saving
     function startAutoSave() {
         stopAutoSave();
         autoSaveInterval = setInterval(() => {
@@ -643,7 +655,7 @@
         updateTimerUI();
     }
 
-    // Online menus & waiting
+    // Online menus & connection
     function showOnlineMenu() {
         document.getElementById('ms').style.display = 'none';
         document.getElementById('online-menu').classList.add('on');
@@ -727,11 +739,10 @@
         sendJoinRoom(type, code);
     }
 
-    // Functions to send room messages with retry
     function sendCreateRoom(type, code) {
         retryCount = 0;
         showStatus('Connecting...', 0);
-        disconnectOnline(); // clear any old ws
+        disconnectOnline();
         attemptCreateRoom(type, code);
     }
     function attemptCreateRoom(type, code) {
@@ -748,18 +759,14 @@
                 : JSON.stringify({ type: 'create_private', game: 'chess', code, color: hostColor });
             ws.send(msg);
             showStatus('Waiting for opponent...', 0);
-            retryCount = 0; // success
-            // set the long timeout after connection established
+            retryCount = 0;
             clearWaitingTimer();
             waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
         };
         ws.onmessage = handleWSMessage;
-        ws.onerror = () => {
-            // ignore, will be handled by onclose
-        };
+        ws.onerror = () => {};
         ws.onclose = (event) => {
             if (waitingMode === 'create' && !onlineMyColor) {
-                // connection closed before game started – retry
                 retryCount++;
                 const delay = Math.min(2000 * retryCount, 10000);
                 showStatus(`Retrying in ${Math.round(delay/1000)}s...`, 0);
@@ -867,6 +874,9 @@
             playerColor = onlineMyColor;
             turn = 'w';
             resetState();
+            // Flip board for Black player
+            boardFlipped = (onlineMyColor === 'b');
+            updateCamera();
             syncAll(brd);
             clearDots(); clearTints();
             document.getElementById('ms').style.display = 'none';
@@ -931,6 +941,8 @@
         onlineMyColor = null;
         clearWaitingTimer();
         document.getElementById('cancel-waiting').style.display = 'none';
+        boardFlipped = false;
+        updateCamera();
         if (mode === 'online') { showOnlineMenu(); return; }
         aiDepth = selDiff;
         document.getElementById('ms').style.display = 'none';
@@ -999,6 +1011,8 @@
         hist = backup.hist; capW = backup.capW; capB = backup.capB; mlog = backup.mlog;
         timerW = backup.timerW; timerB = backup.timerB;
         selDiff = aiDepth;
+        boardFlipped = false;
+        updateCamera();
         document.getElementById('ms').style.display='none';document.getElementById('gu').style.display='block';
         started=true;if(!boardBuilt){buildBoard();boardBuilt=true;}
         syncAll(brd);clearDots();clearTints();
