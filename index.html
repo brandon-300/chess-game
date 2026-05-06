@@ -6,7 +6,7 @@
     <title>Chess 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <style>
-        /* ─── All your styles are here, unchanged ─── */
+        /* ========== FULL ORIGINAL CSS (unchanged) ========== */
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{--gold:#c9a84c;--gold-d:#7a6230;--cream:#f0e6ce;--muted:#6b5f4e;--surf:rgba(10,7,4,0.92)}
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
@@ -65,16 +65,35 @@
         .gobtns button.sec:active{border-color:var(--gold);color:var(--gold)}
         #toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);background:rgba(12,8,4,.96);border:1px solid var(--gold-d);padding:8px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;color:var(--cream);z-index:90;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
         #toast.show{opacity:1}
+        /* New online menu & chat styles */
+        #online-menu,#code-prompt{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px}
+        #online-menu.on,#code-prompt.on{display:flex}
+        .menu-card{background:rgba(20,14,8,.95);border:1px solid var(--gold-d);padding:30px;text-align:center;max-width:350px;width:90%}
+        .menu-btn{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.15em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:12px 24px;cursor:pointer;transition:.2s;margin:10px 5px;text-transform:uppercase;width:100%}
+        .menu-btn:active{background:rgba(201,168,76,.18)}
+        .menu-input{background:rgba(255,255,255,0.05);border:1px solid var(--gold-d);color:var(--cream);padding:10px;font-family:'Cinzel',serif;font-size:18px;letter-spacing:.1em;text-align:center;width:100%;outline:none}
+        #chat-panel{position:fixed;right:10px;top:100px;width:220px;max-height:300px;background:var(--surf);backdrop-filter:blur(12px);border:1px solid var(--gold-d);display:none;flex-direction:column;z-index:200;font-family:'Cinzel',serif}
+        #chat-panel.on{display:flex}
+        #chat-messages{flex:1;overflow-y:auto;padding:8px;font-size:11px;color:var(--cream);max-height:200px}
+        #chat-messages div{margin-bottom:6px;line-height:1.3}
+        #chat-input-row{display:flex;border-top:1px solid var(--gold-d)}
+        #chat-input{flex:1;background:transparent;border:none;color:var(--cream);padding:8px;font-family:inherit}
+        #chat-send{background:transparent;border:none;color:var(--gold);padding:8px 12px;cursor:pointer;font-family:inherit}
+        #chat-toggle{position:fixed;right:10px;top:70px;z-index:201;font-family:'Cinzel',serif;background:var(--surf);border:1px solid var(--gold-d);color:var(--gold);padding:6px 12px;cursor:pointer;backdrop-filter:blur(12px);display:none}
+        #chat-toggle.on{display:block}
+        #status-msg{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:var(--gold);padding:8px 20px;font-family:'Cinzel',serif;font-size:12px;z-index:150;display:none}
     </style>
 </head>
 <body>
     <canvas id="cv"></canvas>
+
+    <!-- Main menu -->
     <div id="ms">
         <div class="title-block"><h1>Chess 3D</h1><p class="tag">Choose a mode to begin</p></div>
         <div class="cards">
             <div class="card" onclick="startGame('2p')"><div class="ic">♟♙</div><h2>Two Players</h2><p>Pass and play locally</p></div>
             <div class="card" onclick="startGame('ai')"><div class="ic">♜</div><h2>vs Computer</h2><p>Play against the engine</p></div>
-            <div class="card" onclick="startGame('online')"><div class="ic">🌐</div><h2>Online</h2><p>Find an opponent</p></div>
+            <div class="card" onclick="showOnlineMenu()"><div class="ic">🌐</div><h2>Online</h2><p>Find an opponent</p></div>
         </div>
         <div>
             <div class="dlbl">Computer Difficulty</div>
@@ -97,6 +116,55 @@
             </div>
         </div>
     </div>
+
+    <!-- Online sub-menus -->
+    <div id="online-menu">
+        <div id="online-main" class="menu-card">
+            <h2 style="color:var(--gold); margin-bottom:20px;">Online Play</h2>
+            <button class="menu-btn" onclick="showPublicOptions()">Public</button>
+            <button class="menu-btn" onclick="showPrivateOptions()">Private</button>
+            <button class="menu-btn" onclick="hideOnlineMenu()">Back</button>
+        </div>
+        <div id="online-public" class="menu-card" style="display:none;">
+            <h2 style="color:var(--gold); margin-bottom:20px;">Public Game</h2>
+            <button class="menu-btn" onclick="createRoom('public')">Create Room</button>
+            <button class="menu-btn" onclick="joinRoom('public')">Join Room</button>
+            <button class="menu-btn" onclick="backToOnlineMain()">Back</button>
+        </div>
+        <div id="online-private" class="menu-card" style="display:none;">
+            <h2 style="color:var(--gold); margin-bottom:20px;">Private Game</h2>
+            <button class="menu-btn" onclick="showCodePrompt('create')">Create Room</button>
+            <button class="menu-btn" onclick="showCodePrompt('join')">Join Room</button>
+            <button class="menu-btn" onclick="backToOnlineMain()">Back</button>
+        </div>
+    </div>
+
+    <!-- Code input overlay -->
+    <div id="code-prompt">
+        <div class="menu-card">
+            <h2 id="code-prompt-title" style="color:var(--gold); margin-bottom:16px;"></h2>
+            <input type="text" id="code-input" class="menu-input" maxlength="20" placeholder="Code" autocomplete="off">
+            <div style="margin-top:16px;">
+                <button class="menu-btn" onclick="submitCode()">OK</button>
+                <button class="menu-btn" onclick="hideCodePrompt()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status message -->
+    <div id="status-msg"></div>
+
+    <!-- Chat -->
+    <button id="chat-toggle" onclick="toggleChat()">💬</button>
+    <div id="chat-panel">
+        <div id="chat-messages"></div>
+        <div id="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Message..." autocomplete="off">
+            <button id="chat-send" onclick="sendChat()">Send</button>
+        </div>
+    </div>
+
+    <!-- Game UI -->
     <div id="gu">
         <div id="top">
             <div class="tpill"><div class="tdot w" id="tdot"></div><span id="tlbl">Red</span></div>
@@ -113,20 +181,17 @@
             <button class="ab" onclick="backToMenu()">Mode</button>
         </div>
     </div>
+
     <div id="pm"><div class="pmb"><h2>Promote Pawn</h2><div class="po" id="po"></div></div></div>
     <div id="go"><div class="gob"><h2 id="got"></h2><p id="gos"></p><div class="gobtns"><button onclick="newGame();document.getElementById('go').classList.remove('on');">New Game</button><button class="sec" onclick="backToMenu();document.getElementById('go').classList.remove('on');">Exit</button></div></div></div>
     <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-    // ══════════════════════════════════════════
-    //  CONFIG – your live Render WebSocket server
-    // ══════════════════════════════════════════
+    // ═══════════════════════ CONFIG ═══════════════════════
     const WS_URL = 'wss://anichan-game-server.onrender.com';
 
-    // ══════════════════════════════════════════
-    //  CHESS ENGINE & 3D SCENE
-    // ══════════════════════════════════════════
+    // ═══════════════════════ Chess Engine & 3D Scene ═══════════════════════
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh';
     const rc=i=>({r:i>>3,c:i&7});
@@ -378,9 +443,13 @@
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
 
-    // ── Online multiplayer ──
+    // ── Online multiplayer state ──
     let ws = null;
-    let onlineMyColor = null; // 'w' or 'b'
+    let onlineMyColor = null;
+    let onlineRetryCount = 0;
+    const MAX_RETRIES = 5;
+    let onlineRetryTimer = null;
+    let chatOpen = false;
 
     const BACKUP_KEY = 'chess3d_backup';
 
@@ -413,7 +482,7 @@
         over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle;
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
-        if(gameMode==='online') { if(ws) { ws.close(); ws=null; } onlineMyColor=null; }
+        if(gameMode==='online') { disconnectOnline(); }
         clearBackup();
     }
     function scheduleAI(delay=80){
@@ -440,7 +509,6 @@
     function execMove(mv){
         if(isAnim||over)return;
         const wasOurMove = (gameMode==='online' && turn===onlineMyColor);
-        // send to server BEFORE applying
         if(wasOurMove && ws && ws.readyState===WebSocket.OPEN){
             ws.send(JSON.stringify({ type: 'move', data: mv }));
         }
@@ -476,56 +544,201 @@
     function updateTimerUI(){document.getElementById('tvW').textContent=fmt(timerW);document.getElementById('tvB').textContent=fmt(timerB);document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');}
     function renderUI(){document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';updateTimerUI();}
 
-    // ── Online connection ──
-    function connectOnline(){
+    // ─────────────────────── Online menus & WebSocket ───────────────────────
+    function showOnlineMenu() {
+        document.getElementById('ms').style.display = 'none';
+        document.getElementById('online-menu').classList.add('on');
+        document.getElementById('online-main').style.display = '';
+        document.getElementById('online-public').style.display = 'none';
+        document.getElementById('online-private').style.display = 'none';
+    }
+    function hideOnlineMenu() {
+        document.getElementById('online-menu').classList.remove('on');
+        document.getElementById('ms').style.display = 'flex';
+    }
+    function showPublicOptions() {
+        document.getElementById('online-main').style.display = 'none';
+        document.getElementById('online-public').style.display = '';
+        document.getElementById('online-private').style.display = 'none';
+    }
+    function showPrivateOptions() {
+        document.getElementById('online-main').style.display = 'none';
+        document.getElementById('online-public').style.display = 'none';
+        document.getElementById('online-private').style.display = '';
+    }
+    function backToOnlineMain() {
+        document.getElementById('online-main').style.display = '';
+        document.getElementById('online-public').style.display = 'none';
+        document.getElementById('online-private').style.display = 'none';
+    }
+
+    let pendingAction = null;
+    function showCodePrompt(action) {
+        pendingAction = action;
+        document.getElementById('code-prompt').classList.add('on');
+        document.getElementById('code-input').value = '';
+        document.getElementById('code-prompt-title').textContent = action === 'create' ? 'Set a room code' : 'Enter room code';
+        document.getElementById('code-input').focus();
+    }
+    function hideCodePrompt() {
+        document.getElementById('code-prompt').classList.remove('on');
+    }
+    function submitCode() {
+        const code = document.getElementById('code-input').value.trim();
+        if (!/^[A-Za-z0-9]+$/.test(code)) {
+            showStatus('Only letters and numbers allowed', 2000);
+            return;
+        }
+        hideCodePrompt();
+        if (pendingAction === 'create') createRoom('private', code);
+        else joinRoom('private', code);
+    }
+
+    function createRoom(type, code) {
+        hideOnlineMenu();
+        ensureConnection(() => {
+            if (type === 'public') {
+                ws.send(JSON.stringify({ type: 'create_public', game: 'chess' }));
+            } else {
+                ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code }));
+            }
+            showStatus('Waiting for opponent...', 0);
+        });
+    }
+
+    function joinRoom(type, code) {
+        hideOnlineMenu();
+        ensureConnection(() => {
+            if (type === 'public') {
+                ws.send(JSON.stringify({ type: 'join_public', game: 'chess' }));
+            } else {
+                ws.send(JSON.stringify({ type: 'join_private', game: 'chess', code }));
+            }
+            showStatus('Searching for game...', 0);
+        });
+    }
+
+    // WebSocket helpers
+    function ensureConnection(callback) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            callback();
+            return;
+        }
+        disconnectOnline();
         ws = new WebSocket(WS_URL);
         ws.onopen = () => {
-            ws.send(JSON.stringify({ type: 'join', game: 'chess' }));
+            callback();
         };
-        ws.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if(msg.type === 'waiting'){
-                document.getElementById('smsg').textContent = 'Waiting for opponent...';
-            } else if(msg.type === 'start'){
-                onlineMyColor = msg.symbol;      // 'w' or 'b'
-                playerColor = onlineMyColor;     // keep consistent
-                turn = 'w';
-                resetState();
-                syncAll(brd);
-                clearDots();clearTints();
-                document.getElementById('go').classList.remove('on');
-                renderUI();
-                timerActive = true;
-                lastTick = performance.now();
-                if(onlineMyColor==='b'){
-                    document.getElementById('smsg').textContent = 'Opponent\'s turn';
-                }
-            } else if(msg.type === 'move'){
-                // opponent's move
-                execMove(msg.data);
-            } else if(msg.type === 'opponent_disconnected'){
-                endGame('Opponent Disconnected','',SFX.lose);
-                toast('Opponent left the game');
-            }
-        };
-        ws.onerror = () => {
-            toast('Connection error');
-            ws.close();
-        };
+        ws.onmessage = handleWSMessage;
+        ws.onerror = () => showStatus('Connection error', 3000);
         ws.onclose = () => {
-            if(started && gameMode==='online' && !over){
-                toast('Disconnected from server');
-            }
+            if (gameMode === 'online' && !over) showStatus('Disconnected', 3000);
         };
     }
 
-    window.newGame=function(){
-        if(gameMode==='online'){
-            if(ws) { ws.close(); ws = null; }
-            resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
-            onlineMyColor = null;
-            document.getElementById('smsg').textContent = '';
-            connectOnline();
+    function disconnectOnline() {
+        clearTimeout(onlineRetryTimer);
+        if (ws) { ws.onclose = null; ws.close(); ws = null; }
+        onlineMyColor = null;
+        onlineRetryCount = 0;
+    }
+
+    function handleWSMessage(e) {
+        const msg = JSON.parse(e.data);
+        switch (msg.type) {
+            case 'room_created':
+                // waiting screen is already showing
+                break;
+            case 'start':
+                onlineMyColor = msg.symbol;
+                playerColor = onlineMyColor;
+                turn = 'w';
+                resetState();
+                syncAll(brd);
+                clearDots(); clearTints();
+                document.getElementById('go').classList.remove('on');
+                document.getElementById('gu').style.display = 'block';
+                started = true;
+                if (!boardBuilt) { buildBoard(); boardBuilt = true; }
+                renderUI();
+                timerActive = true;
+                lastTick = performance.now();
+                document.getElementById('chat-toggle').classList.add('on');
+                hideStatus();
+                if (onlineMyColor === 'b') document.getElementById('smsg').textContent = "Opponent's turn";
+                break;
+            case 'move':
+                execMove(msg.data);
+                break;
+            case 'chat':
+                appendChatMessage('Opponent', msg.text);
+                break;
+            case 'opponent_disconnected':
+                endGame('Opponent disconnected', '', SFX.lose);
+                break;
+            case 'error':
+                showStatus(msg.message, 3000);
+                break;
+        }
+    }
+
+    // Chat functions
+    function appendChatMessage(sender, text) {
+        const msgs = document.getElementById('chat-messages');
+        const div = document.createElement('div');
+        div.innerHTML = `<b>${sender}:</b> ${text}`;
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+    function sendChat() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'chat', game: 'chess', text }));
+        appendChatMessage('You', text);
+        input.value = '';
+    }
+    function toggleChat() {
+        chatOpen = !chatOpen;
+        document.getElementById('chat-panel').classList.toggle('on', chatOpen);
+    }
+
+    // Status overlay
+    function showStatus(msg, duration) {
+        const el = document.getElementById('status-msg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        if (duration) setTimeout(() => el.style.display = 'none', duration);
+    }
+    function hideStatus() {
+        document.getElementById('status-msg').style.display = 'none';
+    }
+
+    // Global game functions
+    window.startGame = function(mode) {
+        gameMode = mode;
+        onlineMyColor = null;
+        if (mode === 'online') {
+            showOnlineMenu();
+            return;
+        }
+        aiDepth=selDiff;
+        document.getElementById('ms').style.display='none';
+        document.getElementById('gu').style.display='block';
+        started=true;
+        if(!boardBuilt){buildBoard();boardBuilt=true;}
+        newGame();
+    };
+
+    window.newGame = function() {
+        if (gameMode === 'online') {
+            disconnectOnline();
+            resetState(); syncAll(brd); clearDots(); clearTints();
+            document.getElementById('go').classList.remove('on');
+            document.getElementById('gu').style.display = 'none';
+            document.getElementById('chat-toggle').classList.remove('on');
+            document.getElementById('chat-panel').classList.remove('on');
+            showOnlineMenu();
             return;
         }
         resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');document.getElementById('thkstrip').classList.remove('on');renderUI();
@@ -544,34 +757,15 @@
     };
     window.setDiff=function(btn){document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selDiff=parseInt(btn.dataset.d);};
     window.setPlayerColor=function(btn){document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));btn.classList.add('on');playerColor=btn.dataset.pc;};
-    window.startGame=function(mode){
-        gameMode=mode;
-        onlineMyColor=null;
-        if(mode==='online'){
-            document.getElementById('ms').style.display='none';
-            document.getElementById('gu').style.display='block';
-            started=true;
-            if(!boardBuilt){buildBoard();boardBuilt=true;}
-            resetState();
-            syncAll(brd);
-            clearDots();clearTints();
-            document.getElementById('smsg').textContent = 'Connecting...';
-            document.getElementById('go').classList.remove('on');
-            renderUI();
-            connectOnline();
-            return;
-        }
-        aiDepth=selDiff;
-        document.getElementById('ms').style.display='none';document.getElementById('gu').style.display='block';started=true;if(!boardBuilt){buildBoard();boardBuilt=true;}
-        newGame();
-    };
-    let boardBuilt=false;
     window.backToMenu=function(){
-        if(gameMode==='online' && ws) { ws.close(); ws = null; }
+        if(gameMode==='online') disconnectOnline();
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';document.getElementById('ms').style.display='flex';
         document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
+        document.getElementById('chat-toggle').classList.remove('on');
+        document.getElementById('chat-panel').classList.remove('on');
         onlineMyColor = null;
+        hideOnlineMenu();
     };
     window.restoreGame=function(){
         const backup = loadBackup();
@@ -600,8 +794,27 @@
     };
     function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
 
+    // ═══════════════ Mouse / Touch 3D interaction (ORIGINAL) ═══════════════
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0;let touchStart=null,touchDrag=0,pinchStart=0;
-    function pickAt(cx,cy){const rect=CV.getBoundingClientRect();mp2.x=((cx-rect.left)/rect.width)*2-1;mp2.y=-((cy-rect.top)/rect.height)*2+1;ray.setFromCamera(mp2,camera);const flatObjs=[...SQ3D.filter(Boolean),...DOTS];const flatHits=ray.intersectObjects(flatObjs,false);if(flatHits.length){const si=flatHits[0].object.userData.si;if(si!=null){onSq(si);return;}}const pMeshes=[];P3D.forEach(g=>{if(g)g.traverse(m=>{if(m.isMesh)pMeshes.push(m);});});const pHits=ray.intersectObjects(pMeshes,false);if(pHits.length){const si=pHits[0].object.userData.si;if(si!=null)onSq(si);}}
+    function pickAt(cx,cy){
+        const rect=CV.getBoundingClientRect();
+        mp2.x=((cx-rect.left)/rect.width)*2-1;
+        mp2.y=-((cy-rect.top)/rect.height)*2+1;
+        ray.setFromCamera(mp2,camera);
+        const flatObjs=[...SQ3D.filter(Boolean),...DOTS];
+        const flatHits=ray.intersectObjects(flatObjs,false);
+        if(flatHits.length){
+            const si=flatHits[0].object.userData.si;
+            if(si!=null){onSq(si);return;}
+        }
+        const pMeshes=[];
+        P3D.forEach(g=>{if(g)g.traverse(m=>{if(m.isMesh)pMeshes.push(m);});});
+        const pHits=ray.intersectObjects(pMeshes,false);
+        if(pHits.length){
+            const si=pHits[0].object.userData.si;
+            if(si!=null)onSq(si);
+        }
+    }
     CV.addEventListener('mousedown',e=>{drag=true;prevX=e.clientX;prevY=e.clientY;dragDist=0;});
     window.addEventListener('mousemove',e=>{if(!drag)return;const dx=e.clientX-prevX,dy=e.clientY-prevY;dragDist+=Math.abs(dx)+Math.abs(dy);if(e.buttons===1){camTheta-=dx*0.009;camPhi=Math.max(0.15,Math.min(1.30,camPhi+dy*0.009));}prevX=e.clientX;prevY=e.clientY;updateCamera();});
     window.addEventListener('mouseup',e=>{if(drag&&dragDist<7&&e.button===0)pickAt(e.clientX,e.clientY);drag=false;});
@@ -611,8 +824,20 @@
     CV.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1&&touchStart){const t=e.touches[0],dx=t.clientX-touchStart.x,dy=t.clientY-touchStart.y;touchDrag+=Math.abs(dx)+Math.abs(dy);camTheta-=dx*0.009;camPhi=Math.max(0.15,Math.min(1.30,camPhi+dy*0.009));touchStart={x:t.clientX,y:t.clientY};updateCamera();}else if(e.touches.length===2){const d=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY);camDist=Math.max(7,Math.min(28,camDist-(d-pinchStart)*0.05));updateCamera();}},{passive:false});
     CV.addEventListener('touchend',e=>{e.preventDefault();if(e.changedTouches.length===1&&touchStart&&touchDrag<14){pickAt(e.changedTouches[0].clientX,e.changedTouches[0].clientY);}touchStart=null;touchDrag=0;},{passive:false});
     window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+    let boardBuilt = false;
     let prevSec=-1;
-    function animate(){requestAnimationFrame(animate);tickAnim();tickTimer();if(started&&!over&&timerActive&&!aiThink){const cs=turn==='w'?Math.ceil(timerW):Math.ceil(timerB);if(cs!==prevSec&&cs<=5&&cs>0)SFX.tick();prevSec=cs;}renderer.render(scene,camera);}
+    function animate(){
+        requestAnimationFrame(animate);
+        tickAnim();
+        tickTimer();
+        if(started&&!over&&timerActive&&!aiThink){
+            const cs=turn==='w'?Math.ceil(timerW):Math.ceil(timerB);
+            if(cs!==prevSec&&cs<=5&&cs>0)SFX.tick();
+            prevSec=cs;
+        }
+        renderer.render(scene,camera);
+    }
     animate();
     </script>
 </body>
