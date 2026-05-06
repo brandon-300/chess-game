@@ -6,6 +6,9 @@
     <title>Chess 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <style>
+        /* All the CSS is unchanged from the previous version */
+        /* (your full original styles + online menus + chat + red dot fix) */
+        /* I'll include it compactly for clarity */
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{--gold:#c9a84c;--gold-d:#7a6230;--cream:#f0e6ce;--muted:#6b5f4e;--surf:rgba(10,7,4,0.92)}
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
@@ -467,6 +470,11 @@
     // Auto-save interval (every 2 seconds)
     let autoSaveInterval = null;
 
+    // General retry state
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    let retryTimer = null;
+
     function saveBackup(){
         if(over || gameMode==='online') return;
         try {
@@ -490,14 +498,13 @@
         } catch(e){ return null; }
     }
 
-    // Start periodic saving
+    // Periodic saving
     function startAutoSave() {
         stopAutoSave();
         autoSaveInterval = setInterval(() => {
             if (!over && started && gameMode !== 'online') saveBackup();
         }, 2000);
     }
-
     function stopAutoSave() {
         if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; }
     }
@@ -513,7 +520,7 @@
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
         if(gameMode==='online') disconnectOnline();
         clearBackup();
-        stopAutoSave();  // no more saving after game over
+        stopAutoSave();
     }
     function scheduleAI(delay=80){
         if(over||aiThink||gameMode!=='ai'||turn!==getAiColor())return;
@@ -563,7 +570,7 @@
             if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
             if(gameMode==='ai'&&turn===getAiColor()&&!over)scheduleAI(100);
-            if(gameMode!=='online') saveBackup();  // immediate save after each move too
+            if(gameMode!=='online') saveBackup();
         });
     }
     function showPromo(pc){
@@ -599,7 +606,6 @@
         updateTimerUI();
     }
     function timeOut(loser){
-        // For local modes, just forfeit turn, don't end game
         if (gameMode !== 'online') {
             turn = op(loser);
             if (turn === 'w') {
@@ -617,7 +623,7 @@
             if (gameMode === 'ai' && turn === getAiColor()) {
                 scheduleAI(300);
             }
-            saveBackup();  // save after turn forfeit
+            saveBackup();
         } else {
             const winner = loser === 'w' ? 'Black' : 'Red';
             endGame(winner + ' Wins on Time', (loser === 'w' ? 'Red' : 'Black') + ' ran out of time', SFX.lose);
@@ -687,11 +693,7 @@
         if (pendingAction === 'create') {
             waitingSubMenu = 'private';
             showWaitingScreen('Waiting for opponent...');
-            ensureConnection(() => {
-                ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code, color: hostColor }));
-                clearWaitingTimer();
-                waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
-            });
+            sendCreateRoom('private', code);
         } else {
             joinRoom('private', code);
         }
@@ -708,11 +710,7 @@
         if (pendingCreateType === 'public') {
             waitingSubMenu = 'public';
             showWaitingScreen('Waiting for opponent...');
-            ensureConnection(() => {
-                ws.send(JSON.stringify({ type: 'create_public', game: 'chess', color: hostColor }));
-                clearWaitingTimer();
-                waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
-            });
+            sendCreateRoom('public');
         } else if (pendingCreateType === 'private') {
             showCodePrompt('create');
         }
@@ -726,18 +724,90 @@
     function joinRoom(type, code) {
         waitingSubMenu = type;
         showWaitingScreen('Searching for game...');
-        ensureConnection(() => {
-            if (type === 'public') ws.send(JSON.stringify({ type: 'join_public', game: 'chess' }));
-            else ws.send(JSON.stringify({ type: 'join_private', game: 'chess', code }));
+        sendJoinRoom(type, code);
+    }
+
+    // Functions to send room messages with retry
+    function sendCreateRoom(type, code) {
+        retryCount = 0;
+        showStatus('Connecting...', 0);
+        disconnectOnline(); // clear any old ws
+        attemptCreateRoom(type, code);
+    }
+    function attemptCreateRoom(type, code) {
+        if (retryCount >= MAX_RETRIES) {
+            hideStatus();
+            toast('Could not connect to server.');
+            cancelWaiting();
+            return;
+        }
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+            const msg = type === 'public'
+                ? JSON.stringify({ type: 'create_public', game: 'chess', color: hostColor })
+                : JSON.stringify({ type: 'create_private', game: 'chess', code, color: hostColor });
+            ws.send(msg);
+            showStatus('Waiting for opponent...', 0);
+            retryCount = 0; // success
+            // set the long timeout after connection established
+            clearWaitingTimer();
+            waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
+        };
+        ws.onmessage = handleWSMessage;
+        ws.onerror = () => {
+            // ignore, will be handled by onclose
+        };
+        ws.onclose = (event) => {
+            if (waitingMode === 'create' && !onlineMyColor) {
+                // connection closed before game started – retry
+                retryCount++;
+                const delay = Math.min(2000 * retryCount, 10000);
+                showStatus(`Retrying in ${Math.round(delay/1000)}s...`, 0);
+                retryTimer = setTimeout(() => attemptCreateRoom(type, code), delay);
+            }
+        };
+    }
+
+    function sendJoinRoom(type, code) {
+        retryCount = 0;
+        showStatus('Connecting...', 0);
+        disconnectOnline();
+        attemptJoinRoom(type, code);
+    }
+    function attemptJoinRoom(type, code) {
+        if (retryCount >= MAX_RETRIES) {
+            hideStatus();
+            toast('Could not connect to server.');
+            cancelWaiting();
+            return;
+        }
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+            const msg = type === 'public'
+                ? JSON.stringify({ type: 'join_public', game: 'chess' })
+                : JSON.stringify({ type: 'join_private', game: 'chess', code });
+            ws.send(msg);
+            showStatus('Searching for game...', 0);
+            retryCount = 0;
             clearWaitingTimer();
             waitingTimer = setTimeout(() => {
                 if (waitingMode === 'join') {
                     cancelWaiting();
-                    if (type === 'private') toast('No such room found for that pairing code. Check the code and try again.');
+                    if (type === 'private') toast('No such room found for that pairing code.');
                     else toast('No opponent found.');
                 }
             }, 600000);
-        });
+        };
+        ws.onmessage = handleWSMessage;
+        ws.onerror = () => {};
+        ws.onclose = (event) => {
+            if (waitingMode === 'join' && !onlineMyColor) {
+                retryCount++;
+                const delay = Math.min(2000 * retryCount, 10000);
+                showStatus(`Retrying in ${Math.round(delay/1000)}s...`, 0);
+                retryTimer = setTimeout(() => attemptJoinRoom(type, code), delay);
+            }
+        };
     }
 
     function showWaitingScreen(msg) {
@@ -746,11 +816,11 @@
         document.getElementById('color-picker').classList.remove('on');
         document.getElementById('code-prompt').classList.remove('on');
         document.getElementById('cancel-waiting').style.display = 'block';
-        showStatus(msg, 0);
-        waitingMode = (waitingSubMenu === 'public' || waitingSubMenu === 'private') ? (msg.includes('Searching') ? 'join' : 'create') : waitingMode;
+        waitingMode = (msg.includes('Waiting') ? 'create' : 'join');
     }
 
     function cancelWaiting() {
+        clearTimeout(retryTimer);
         clearWaitingTimer();
         waitingMode = null;
         document.getElementById('cancel-waiting').style.display = 'none';
@@ -773,20 +843,12 @@
         if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
     }
 
-    function ensureConnection(callback) {
-        if (ws && ws.readyState === WebSocket.OPEN) { callback(); return; }
-        disconnectOnline();
-        ws = new WebSocket(WS_URL);
-        ws.onopen = () => callback();
-        ws.onmessage = handleWSMessage;
-        ws.onerror = () => showStatus('Connection error', 3000);
-        ws.onclose = () => { if (gameMode === 'online' && !over) showStatus('Disconnected', 3000); };
-    }
-
     function disconnectOnline() {
+        clearTimeout(retryTimer);
         clearWaitingTimer();
         if (ws) { ws.onclose = null; ws.close(); ws = null; }
         onlineMyColor = null;
+        retryCount = 0;
     }
 
     function handleWSMessage(e) {
@@ -797,6 +859,7 @@
             return;
         }
         if (msg.type === 'start') {
+            clearTimeout(retryTimer);
             clearWaitingTimer();
             waitingMode = null;
             document.getElementById('cancel-waiting').style.display = 'none';
@@ -876,7 +939,6 @@
         started = true;
         if (!boardBuilt) { buildBoard(); boardBuilt = true; }
         newGame();
-        // Start auto-save for local games
         startAutoSave();
     };
     window.newGame = function() {
@@ -951,7 +1013,7 @@
         document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));
         document.getElementById('pc' + (playerColor==='w'?'W':'B')).classList.add('on');
         if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(300);
-        startAutoSave();  // resume periodic saving
+        startAutoSave();
     };
     function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
 
