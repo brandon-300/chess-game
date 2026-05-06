@@ -28,7 +28,8 @@
         #top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;padding:6px 10px;gap:8px;background:var(--surf);backdrop-filter:blur(16px);border-bottom:1px solid rgba(201,168,76,.15);pointer-events:auto}
         .tpill{display:flex;align-items:center;gap:7px;flex-shrink:0}
         .tdot{width:11px;height:11px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
-        .tdot.w{background:#fafaf8;box-shadow:0 0 8px rgba(250,250,248,.65)}.tdot.b{background:#1c0e06}
+        .tdot.w{background:#cc0000;box-shadow:0 0 8px rgba(204,0,0,.65)}
+        .tdot.b{background:#1c0e06}
         #tlbl{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.12em;color:var(--cream)}
         #smsg{font-size:11px;color:var(--gold);font-style:italic;flex:1;text-align:center;overflow:hidden;white-space:nowrap}
         .timers{display:flex;gap:5px;flex-shrink:0}
@@ -65,8 +66,8 @@
         #toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);background:rgba(12,8,4,.96);border:1px solid var(--gold-d);padding:8px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;color:var(--cream);z-index:90;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
         #toast.show{opacity:1}
         /* Online menus & chat */
-        #online-menu,#code-prompt{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px}
-        #online-menu.on,#code-prompt.on{display:flex}
+        #online-menu,#code-prompt,#color-picker{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px}
+        #online-menu.on,#code-prompt.on,#color-picker.on{display:flex}
         .menu-card{background:rgba(20,14,8,.95);border:1px solid var(--gold-d);padding:30px;text-align:center;max-width:350px;width:90%}
         .menu-btn{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.15em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:12px 24px;cursor:pointer;transition:.2s;margin:10px 5px;text-transform:uppercase;width:100%}
         .menu-btn:active{background:rgba(201,168,76,.18)}
@@ -81,7 +82,6 @@
         #chat-toggle{position:fixed;right:10px;top:70px;z-index:201;font-family:'Cinzel',serif;background:var(--surf);border:1px solid var(--gold-d);color:var(--gold);padding:6px 12px;cursor:pointer;backdrop-filter:blur(12px);display:none}
         #chat-toggle.on{display:block}
         #status-msg{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:var(--gold);padding:8px 20px;font-family:'Cinzel',serif;font-size:12px;z-index:150;display:none}
-        /* Cancel button in waiting screen */
         #cancel-waiting{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:200;font-family:'Cinzel',serif;background:transparent;border:1px solid var(--gold-d);color:var(--muted);padding:10px 30px;cursor:pointer;text-transform:uppercase;letter-spacing:.14em}
         #cancel-waiting:active{color:var(--gold);border-color:var(--gold)}
     </style>
@@ -135,9 +135,19 @@
         </div>
         <div id="online-private" class="menu-card" style="display:none;">
             <h2 style="color:var(--gold); margin-bottom:20px;">Private Game</h2>
-            <button class="menu-btn" onclick="showCodePrompt('create')">Create Room</button>
+            <button class="menu-btn" onclick="createRoom('private')">Create Room</button>
             <button class="menu-btn" onclick="showCodePrompt('join')">Join Room</button>
             <button class="menu-btn" onclick="backToOnlineMain()">Back</button>
+        </div>
+    </div>
+
+    <!-- Color picker for host -->
+    <div id="color-picker">
+        <div class="menu-card">
+            <h2 style="color:var(--gold); margin-bottom:16px;">Choose your colour</h2>
+            <button class="menu-btn" onclick="selectHostColor('w')">Red</button>
+            <button class="menu-btn" onclick="selectHostColor('b')">Black</button>
+            <button class="menu-btn" onclick="cancelHostColor()">Back</button>
         </div>
     </div>
 
@@ -194,7 +204,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
     const WS_URL = 'wss://anichan-game-server.onrender.com';
-    // ---------- Complete original chess engine and 3D scene (no stubs) ----------
+    // ---------- Complete original chess engine and 3D scene ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh';
     const rc=i=>({r:i>>3,c:i&7});
@@ -446,12 +456,16 @@
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
 
-    // Online + waiting state
     let ws = null, onlineMyColor = null;
-    let waitingTimer = null;      // timeout for auto-cancel
-    let waitingMode = null;       // 'create'/'join'
+    let waitingTimer = null, waitingMode = null, waitingSubMenu = null;
     let chatOpen = false;
     const BACKUP_KEY = 'chess3d_backup';
+
+    let pendingCreateType = null;
+    let hostColor = 'w';
+
+    // Auto-save interval (every 2 seconds)
+    let autoSaveInterval = null;
 
     function saveBackup(){
         if(over || gameMode==='online') return;
@@ -476,6 +490,18 @@
         } catch(e){ return null; }
     }
 
+    // Start periodic saving
+    function startAutoSave() {
+        stopAutoSave();
+        autoSaveInterval = setInterval(() => {
+            if (!over && started && gameMode !== 'online') saveBackup();
+        }, 2000);
+    }
+
+    function stopAutoSave() {
+        if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; }
+    }
+
     function getAiColor(){return playerColor==='w'?'b':'w';}
     function resetState(){
         brd=initBrd();turn='w';cas={wK:true,wQ:true,bK:true,bQ:true};ep=null;hist=[];capW=[];capB=[];mlog=[];
@@ -485,8 +511,9 @@
         over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle;
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
-        if(gameMode==='online') { disconnectOnline(); }
+        if(gameMode==='online') disconnectOnline();
         clearBackup();
+        stopAutoSave();  // no more saving after game over
     }
     function scheduleAI(delay=80){
         if(over||aiThink||gameMode!=='ai'||turn!==getAiColor())return;
@@ -513,7 +540,7 @@
         if(isAnim||over)return;
         const wasOurMove = (gameMode==='online' && turn===onlineMyColor);
         if(wasOurMove && ws && ws.readyState===WebSocket.OPEN){
-            ws.send(JSON.stringify({ type: 'move', data: mv }));
+            ws.send(JSON.stringify({ type: 'move', game: 'chess', data: mv }));
         }
         const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to);
         hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))});
@@ -536,7 +563,7 @@
             if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
             if(gameMode==='ai'&&turn===getAiColor()&&!over)scheduleAI(100);
-            if(gameMode!=='online') saveBackup();
+            if(gameMode!=='online') saveBackup();  // immediate save after each move too
         });
     }
     function showPromo(pc){
@@ -572,8 +599,29 @@
         updateTimerUI();
     }
     function timeOut(loser){
-        const winner=loser==='w'?'Black':'Red';
-        endGame(winner+' Wins on Time',(loser==='w'?'Red':'Black')+' ran out of time',SFX.lose);
+        // For local modes, just forfeit turn, don't end game
+        if (gameMode !== 'online') {
+            turn = op(loser);
+            if (turn === 'w') {
+                timerW = 60;
+                timerB = 60;
+            } else {
+                timerW = 60;
+                timerB = 60;
+            }
+            timerActive = true;
+            lastTick = performance.now();
+            selSq = null; curLM = [];
+            updHL();
+            renderUI();
+            if (gameMode === 'ai' && turn === getAiColor()) {
+                scheduleAI(300);
+            }
+            saveBackup();  // save after turn forfeit
+        } else {
+            const winner = loser === 'w' ? 'Black' : 'Red';
+            endGame(winner + ' Wins on Time', (loser === 'w' ? 'Red' : 'Black') + ' ran out of time', SFX.lose);
+        }
     }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){
@@ -589,7 +637,7 @@
         updateTimerUI();
     }
 
-    // ═══════════════ ONLINE MENUS & WAITING LOGIC (ALL FIXED) ═══════════════
+    // Online menus & waiting
     function showOnlineMenu() {
         document.getElementById('ms').style.display = 'none';
         document.getElementById('online-menu').classList.add('on');
@@ -599,6 +647,7 @@
     }
     function hideOnlineMenu() {
         document.getElementById('online-menu').classList.remove('on');
+        document.getElementById('ms').style.display = 'flex';
     }
     function showPublicOptions() {
         document.getElementById('online-main').style.display = 'none';
@@ -616,7 +665,6 @@
         document.getElementById('online-private').style.display = 'none';
     }
 
-    let pendingAction = null;
     function showCodePrompt(action) {
         pendingAction = action;
         document.getElementById('code-prompt').classList.add('on');
@@ -636,50 +684,70 @@
             return;
         }
         hideCodePrompt();
-        if (pendingAction === 'create') createRoom('private', code);
-        else joinRoom('private', code);
+        if (pendingAction === 'create') {
+            waitingSubMenu = 'private';
+            showWaitingScreen('Waiting for opponent...');
+            ensureConnection(() => {
+                ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code, color: hostColor }));
+                clearWaitingTimer();
+                waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
+            });
+        } else {
+            joinRoom('private', code);
+        }
     }
 
-    function createRoom(type, code) {
-        hideOnlineMenu();
-        document.getElementById('cancel-waiting').style.display = 'block';
-        waitingMode = 'create';
-        ensureConnection(() => {
-            if (type === 'public') ws.send(JSON.stringify({ type: 'create_public', game: 'chess' }));
-            else ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code }));
-            showStatus('Waiting for opponent...', 0);
-            // auto-cancel after 10 seconds
-            clearWaitingTimer();
-            waitingTimer = setTimeout(() => {
-                if (waitingMode === 'create') {
-                    cancelWaiting();
-                    toast('No opponent joined, matchmaking was auto cancelled.');
-                }
-            }, 10000);
-        });
+    function createRoom(type) {
+        pendingCreateType = type;
+        document.getElementById('color-picker').classList.add('on');
+        document.getElementById('online-menu').classList.remove('on');
+    }
+    function selectHostColor(color) {
+        hostColor = color;
+        document.getElementById('color-picker').classList.remove('on');
+        if (pendingCreateType === 'public') {
+            waitingSubMenu = 'public';
+            showWaitingScreen('Waiting for opponent...');
+            ensureConnection(() => {
+                ws.send(JSON.stringify({ type: 'create_public', game: 'chess', color: hostColor }));
+                clearWaitingTimer();
+                waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
+            });
+        } else if (pendingCreateType === 'private') {
+            showCodePrompt('create');
+        }
+    }
+    function cancelHostColor() {
+        document.getElementById('color-picker').classList.remove('on');
+        document.getElementById('online-menu').classList.add('on');
+        pendingCreateType = null;
     }
 
     function joinRoom(type, code) {
-        hideOnlineMenu();
-        document.getElementById('cancel-waiting').style.display = 'block';
-        waitingMode = 'join';
+        waitingSubMenu = type;
+        showWaitingScreen('Searching for game...');
         ensureConnection(() => {
             if (type === 'public') ws.send(JSON.stringify({ type: 'join_public', game: 'chess' }));
             else ws.send(JSON.stringify({ type: 'join_private', game: 'chess', code }));
-            showStatus('Searching for game...', 0);
-            // auto-cancel after 5 seconds for join
             clearWaitingTimer();
             waitingTimer = setTimeout(() => {
                 if (waitingMode === 'join') {
                     cancelWaiting();
-                    if (type === 'private') {
-                        toast('No such room found for that pairing code. Check the code and try again.');
-                    } else {
-                        toast('No opponent found.');
-                    }
+                    if (type === 'private') toast('No such room found for that pairing code. Check the code and try again.');
+                    else toast('No opponent found.');
                 }
-            }, 5000);
+            }, 600000);
         });
+    }
+
+    function showWaitingScreen(msg) {
+        document.getElementById('ms').style.display = 'none';
+        document.getElementById('online-menu').classList.remove('on');
+        document.getElementById('color-picker').classList.remove('on');
+        document.getElementById('code-prompt').classList.remove('on');
+        document.getElementById('cancel-waiting').style.display = 'block';
+        showStatus(msg, 0);
+        waitingMode = (waitingSubMenu === 'public' || waitingSubMenu === 'private') ? (msg.includes('Searching') ? 'join' : 'create') : waitingMode;
     }
 
     function cancelWaiting() {
@@ -691,10 +759,16 @@
             ws.send(JSON.stringify({ type: 'leave_room', game: 'chess' }));
         }
         disconnectOnline();
-        // return to online menu
-        showOnlineMenu();
+        if (waitingSubMenu === 'public') {
+            showPublicOptions();
+            document.getElementById('online-menu').classList.add('on');
+        } else if (waitingSubMenu === 'private') {
+            showPrivateOptions();
+            document.getElementById('online-menu').classList.add('on');
+        } else {
+            showOnlineMenu();
+        }
     }
-
     function clearWaitingTimer() {
         if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
     }
@@ -717,10 +791,7 @@
 
     function handleWSMessage(e) {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'room_created') {
-            // keep waiting screen visible
-            return;
-        }
+        if (msg.type === 'room_created') return;
         if (msg.type === 'room_cancelled') {
             cancelWaiting();
             return;
@@ -738,6 +809,7 @@
             document.getElementById('ms').style.display = 'none';
             document.getElementById('online-menu').classList.remove('on');
             document.getElementById('code-prompt').classList.remove('on');
+            document.getElementById('color-picker').classList.remove('on');
             document.getElementById('gu').style.display = 'block';
             document.getElementById('go').classList.remove('on');
             started = true;
@@ -756,10 +828,6 @@
             endGame('Opponent disconnected', '', SFX.lose);
         } else if (msg.type === 'error') {
             showStatus(msg.message, 3000);
-            // if in join mode, auto-cancel after the error (the timer will handle it or immediately if already running)
-            if (waitingMode === 'join') {
-                // let the timer fire naturally; it will show the correct message
-            }
         }
     }
 
@@ -808,6 +876,8 @@
         started = true;
         if (!boardBuilt) { buildBoard(); boardBuilt = true; }
         newGame();
+        // Start auto-save for local games
+        startAutoSave();
     };
     window.newGame = function() {
         clearWaitingTimer();
@@ -820,11 +890,13 @@
             document.getElementById('chat-toggle').classList.remove('on');
             document.getElementById('chat-panel').classList.remove('on');
             showOnlineMenu();
+            stopAutoSave();
             return;
         }
         resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');document.getElementById('thkstrip').classList.remove('on');renderUI();
         if(gameMode==='ai'&&playerColor==='b'){timerActive=true;lastTick=performance.now();scheduleAI(500);}
         clearBackup();
+        startAutoSave();
     };
     window.undoMove=function(){
         if(isAnim||aiThink||!hist.length||gameMode==='online')return;
@@ -843,12 +915,17 @@
         document.getElementById('cancel-waiting').style.display = 'none';
         if(gameMode==='online') disconnectOnline();
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
-        document.getElementById('gu').style.display='none';document.getElementById('ms').style.display='flex';
+        document.getElementById('gu').style.display='none';
         document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
         document.getElementById('chat-toggle').classList.remove('on');
         document.getElementById('chat-panel').classList.remove('on');
         document.getElementById('online-menu').classList.remove('on');
+        document.getElementById('color-picker').classList.remove('on');
+        document.getElementById('code-prompt').classList.remove('on');
+        document.getElementById('status-msg').style.display = 'none';
         onlineMyColor = null;
+        document.getElementById('ms').style.display = 'flex';
+        stopAutoSave();
     };
     window.restoreGame=function(){
         const backup = loadBackup();
@@ -874,10 +951,11 @@
         document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));
         document.getElementById('pc' + (playerColor==='w'?'W':'B')).classList.add('on');
         if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(300);
+        startAutoSave();  // resume periodic saving
     };
     function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
 
-    // 3D interaction (complete)
+    // 3D interaction
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0;let touchStart=null,touchDrag=0,pinchStart=0;
     function pickAt(cx,cy){
         const rect=CV.getBoundingClientRect();
