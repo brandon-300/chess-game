@@ -6,7 +6,6 @@
     <title>Chess 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <style>
-        /* ========== FULL ORIGINAL CSS (unchanged) ========== */
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{--gold:#c9a84c;--gold-d:#7a6230;--cream:#f0e6ce;--muted:#6b5f4e;--surf:rgba(10,7,4,0.92)}
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
@@ -65,7 +64,7 @@
         .gobtns button.sec:active{border-color:var(--gold);color:var(--gold)}
         #toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);background:rgba(12,8,4,.96);border:1px solid var(--gold-d);padding:8px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;color:var(--cream);z-index:90;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
         #toast.show{opacity:1}
-        /* New online menu & chat styles */
+        /* Online menus & chat */
         #online-menu,#code-prompt{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px}
         #online-menu.on,#code-prompt.on{display:flex}
         .menu-card{background:rgba(20,14,8,.95);border:1px solid var(--gold-d);padding:30px;text-align:center;max-width:350px;width:90%}
@@ -82,6 +81,9 @@
         #chat-toggle{position:fixed;right:10px;top:70px;z-index:201;font-family:'Cinzel',serif;background:var(--surf);border:1px solid var(--gold-d);color:var(--gold);padding:6px 12px;cursor:pointer;backdrop-filter:blur(12px);display:none}
         #chat-toggle.on{display:block}
         #status-msg{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:var(--gold);padding:8px 20px;font-family:'Cinzel',serif;font-size:12px;z-index:150;display:none}
+        /* Cancel button in waiting screen */
+        #cancel-waiting{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:200;font-family:'Cinzel',serif;background:transparent;border:1px solid var(--gold-d);color:var(--muted);padding:10px 30px;cursor:pointer;text-transform:uppercase;letter-spacing:.14em}
+        #cancel-waiting:active{color:var(--gold);border-color:var(--gold)}
     </style>
 </head>
 <body>
@@ -139,7 +141,7 @@
         </div>
     </div>
 
-    <!-- Code input overlay -->
+    <!-- Code input -->
     <div id="code-prompt">
         <div class="menu-card">
             <h2 id="code-prompt-title" style="color:var(--gold); margin-bottom:16px;"></h2>
@@ -153,6 +155,9 @@
 
     <!-- Status message -->
     <div id="status-msg"></div>
+
+    <!-- Cancel waiting button -->
+    <button id="cancel-waiting" onclick="cancelWaiting()">Cancel</button>
 
     <!-- Chat -->
     <button id="chat-toggle" onclick="toggleChat()">💬</button>
@@ -188,10 +193,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-    // ═══════════════════════ CONFIG ═══════════════════════
     const WS_URL = 'wss://anichan-game-server.onrender.com';
-
-    // ═══════════════════════ Chess Engine & 3D Scene ═══════════════════════
+    // ---------- Complete original chess engine and 3D scene (no stubs) ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh';
     const rc=i=>({r:i>>3,c:i&7});
@@ -443,14 +446,11 @@
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
 
-    // ── Online multiplayer state ──
-    let ws = null;
-    let onlineMyColor = null;
-    let onlineRetryCount = 0;
-    const MAX_RETRIES = 5;
-    let onlineRetryTimer = null;
+    // Online + waiting state
+    let ws = null, onlineMyColor = null;
+    let waitingTimer = null;      // timeout for auto-cancel
+    let waitingMode = null;       // 'create'/'join'
     let chatOpen = false;
-
     const BACKUP_KEY = 'chess3d_backup';
 
     function saveBackup(){
@@ -469,8 +469,11 @@
 
     function clearBackup(){ localStorage.removeItem(BACKUP_KEY); }
     function loadBackup(){
-        try { const raw = localStorage.getItem(BACKUP_KEY); return raw ? JSON.parse(raw) : null; }
-        catch(e){ return null; }
+        try {
+            const raw = localStorage.getItem(BACKUP_KEY);
+            if(!raw) return null;
+            return JSON.parse(raw);
+        } catch(e){ return null; }
     }
 
     function getAiColor(){return playerColor==='w'?'b':'w';}
@@ -512,7 +515,6 @@
         if(wasOurMove && ws && ws.readyState===WebSocket.OPEN){
             ws.send(JSON.stringify({ type: 'move', data: mv }));
         }
-
         const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to);
         hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))});
         const an=algN(brd,mv);
@@ -537,14 +539,57 @@
             if(gameMode!=='online') saveBackup();
         });
     }
-    function showPromo(pc){const el=document.getElementById('po');el.innerHTML='';['Q','R','B','N'].forEach(t=>{const b=document.createElement('div');b.className='po-b';b.textContent=GLS[pc+t];b.onclick=()=>{document.getElementById('pm').classList.remove('on');const mv={...pendP,promo:t};pendP=null;execMove(mv);};el.appendChild(b);});document.getElementById('pm').classList.add('on');}
-    function tickTimer(){if(!timerActive||over||isAnim||aiThink||!started)return;const now=performance.now();if(lastTick===null){lastTick=now;return;}const dt=(now-lastTick)/1000;lastTick=now;if(turn==='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}}else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}}updateTimerUI();}
-    function timeOut(loser){const winner=loser==='w'?'Black':'Red';endGame(winner+' Wins on Time',(loser==='w'?'Red':'Black')+' ran out of time',SFX.lose);}
+    function showPromo(pc){
+        const el=document.getElementById('po');
+        el.innerHTML='';
+        ['Q','R','B','N'].forEach(t=>{
+            const b=document.createElement('div');
+            b.className='po-b';
+            b.textContent=GLS[pc+t];
+            b.onclick=()=>{
+                document.getElementById('pm').classList.remove('on');
+                const mv={...pendP,promo:t};
+                pendP=null;
+                execMove(mv);
+            };
+            el.appendChild(b);
+        });
+        document.getElementById('pm').classList.add('on');
+    }
+    function tickTimer(){
+        if(!timerActive||over||isAnim||aiThink||!started)return;
+        const now=performance.now();
+        if(lastTick===null){lastTick=now;return;}
+        const dt=(now-lastTick)/1000;
+        lastTick=now;
+        if(turn==='w'){
+            timerW=Math.max(0,timerW-dt);
+            if(timerW<=0){timeOut('w');return;}
+        }else{
+            timerB=Math.max(0,timerB-dt);
+            if(timerB<=0){timeOut('b');return;}
+        }
+        updateTimerUI();
+    }
+    function timeOut(loser){
+        const winner=loser==='w'?'Black':'Red';
+        endGame(winner+' Wins on Time',(loser==='w'?'Red':'Black')+' ran out of time',SFX.lose);
+    }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
-    function updateTimerUI(){document.getElementById('tvW').textContent=fmt(timerW);document.getElementById('tvB').textContent=fmt(timerB);document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');}
-    function renderUI(){document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';updateTimerUI();}
+    function updateTimerUI(){
+        document.getElementById('tvW').textContent=fmt(timerW);
+        document.getElementById('tvB').textContent=fmt(timerB);
+        document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');
+        document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');
+    }
+    function renderUI(){
+        document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');
+        document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';
+        if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';
+        updateTimerUI();
+    }
 
-    // ─────────────────────── Online menus & WebSocket ───────────────────────
+    // ═══════════════ ONLINE MENUS & WAITING LOGIC (ALL FIXED) ═══════════════
     function showOnlineMenu() {
         document.getElementById('ms').style.display = 'none';
         document.getElementById('online-menu').classList.add('on');
@@ -554,7 +599,6 @@
     }
     function hideOnlineMenu() {
         document.getElementById('online-menu').classList.remove('on');
-        document.getElementById('ms').style.display = 'flex';
     }
     function showPublicOptions() {
         document.getElementById('online-main').style.display = 'none';
@@ -576,12 +620,14 @@
     function showCodePrompt(action) {
         pendingAction = action;
         document.getElementById('code-prompt').classList.add('on');
+        document.getElementById('online-menu').classList.remove('on');
         document.getElementById('code-input').value = '';
         document.getElementById('code-prompt-title').textContent = action === 'create' ? 'Set a room code' : 'Enter room code';
-        document.getElementById('code-input').focus();
+        setTimeout(() => document.getElementById('code-input').focus(), 100);
     }
     function hideCodePrompt() {
         document.getElementById('code-prompt').classList.remove('on');
+        document.getElementById('online-menu').classList.add('on');
     }
     function submitCode() {
         const code = document.getElementById('code-input').value.trim();
@@ -596,93 +642,127 @@
 
     function createRoom(type, code) {
         hideOnlineMenu();
+        document.getElementById('cancel-waiting').style.display = 'block';
+        waitingMode = 'create';
         ensureConnection(() => {
-            if (type === 'public') {
-                ws.send(JSON.stringify({ type: 'create_public', game: 'chess' }));
-            } else {
-                ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code }));
-            }
+            if (type === 'public') ws.send(JSON.stringify({ type: 'create_public', game: 'chess' }));
+            else ws.send(JSON.stringify({ type: 'create_private', game: 'chess', code }));
             showStatus('Waiting for opponent...', 0);
+            // auto-cancel after 10 seconds
+            clearWaitingTimer();
+            waitingTimer = setTimeout(() => {
+                if (waitingMode === 'create') {
+                    cancelWaiting();
+                    toast('No opponent joined, matchmaking was auto cancelled.');
+                }
+            }, 10000);
         });
     }
 
     function joinRoom(type, code) {
         hideOnlineMenu();
+        document.getElementById('cancel-waiting').style.display = 'block';
+        waitingMode = 'join';
         ensureConnection(() => {
-            if (type === 'public') {
-                ws.send(JSON.stringify({ type: 'join_public', game: 'chess' }));
-            } else {
-                ws.send(JSON.stringify({ type: 'join_private', game: 'chess', code }));
-            }
+            if (type === 'public') ws.send(JSON.stringify({ type: 'join_public', game: 'chess' }));
+            else ws.send(JSON.stringify({ type: 'join_private', game: 'chess', code }));
             showStatus('Searching for game...', 0);
+            // auto-cancel after 5 seconds for join
+            clearWaitingTimer();
+            waitingTimer = setTimeout(() => {
+                if (waitingMode === 'join') {
+                    cancelWaiting();
+                    if (type === 'private') {
+                        toast('No such room found for that pairing code. Check the code and try again.');
+                    } else {
+                        toast('No opponent found.');
+                    }
+                }
+            }, 5000);
         });
     }
 
-    // WebSocket helpers
-    function ensureConnection(callback) {
+    function cancelWaiting() {
+        clearWaitingTimer();
+        waitingMode = null;
+        document.getElementById('cancel-waiting').style.display = 'none';
+        hideStatus();
         if (ws && ws.readyState === WebSocket.OPEN) {
-            callback();
-            return;
+            ws.send(JSON.stringify({ type: 'leave_room', game: 'chess' }));
         }
         disconnectOnline();
+        // return to online menu
+        showOnlineMenu();
+    }
+
+    function clearWaitingTimer() {
+        if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
+    }
+
+    function ensureConnection(callback) {
+        if (ws && ws.readyState === WebSocket.OPEN) { callback(); return; }
+        disconnectOnline();
         ws = new WebSocket(WS_URL);
-        ws.onopen = () => {
-            callback();
-        };
+        ws.onopen = () => callback();
         ws.onmessage = handleWSMessage;
         ws.onerror = () => showStatus('Connection error', 3000);
-        ws.onclose = () => {
-            if (gameMode === 'online' && !over) showStatus('Disconnected', 3000);
-        };
+        ws.onclose = () => { if (gameMode === 'online' && !over) showStatus('Disconnected', 3000); };
     }
 
     function disconnectOnline() {
-        clearTimeout(onlineRetryTimer);
+        clearWaitingTimer();
         if (ws) { ws.onclose = null; ws.close(); ws = null; }
         onlineMyColor = null;
-        onlineRetryCount = 0;
     }
 
     function handleWSMessage(e) {
         const msg = JSON.parse(e.data);
-        switch (msg.type) {
-            case 'room_created':
-                // waiting screen is already showing
-                break;
-            case 'start':
-                onlineMyColor = msg.symbol;
-                playerColor = onlineMyColor;
-                turn = 'w';
-                resetState();
-                syncAll(brd);
-                clearDots(); clearTints();
-                document.getElementById('go').classList.remove('on');
-                document.getElementById('gu').style.display = 'block';
-                started = true;
-                if (!boardBuilt) { buildBoard(); boardBuilt = true; }
-                renderUI();
-                timerActive = true;
-                lastTick = performance.now();
-                document.getElementById('chat-toggle').classList.add('on');
-                hideStatus();
-                if (onlineMyColor === 'b') document.getElementById('smsg').textContent = "Opponent's turn";
-                break;
-            case 'move':
-                execMove(msg.data);
-                break;
-            case 'chat':
-                appendChatMessage('Opponent', msg.text);
-                break;
-            case 'opponent_disconnected':
-                endGame('Opponent disconnected', '', SFX.lose);
-                break;
-            case 'error':
-                showStatus(msg.message, 3000);
-                break;
+        if (msg.type === 'room_created') {
+            // keep waiting screen visible
+            return;
+        }
+        if (msg.type === 'room_cancelled') {
+            cancelWaiting();
+            return;
+        }
+        if (msg.type === 'start') {
+            clearWaitingTimer();
+            waitingMode = null;
+            document.getElementById('cancel-waiting').style.display = 'none';
+            onlineMyColor = msg.symbol;
+            playerColor = onlineMyColor;
+            turn = 'w';
+            resetState();
+            syncAll(brd);
+            clearDots(); clearTints();
+            document.getElementById('ms').style.display = 'none';
+            document.getElementById('online-menu').classList.remove('on');
+            document.getElementById('code-prompt').classList.remove('on');
+            document.getElementById('gu').style.display = 'block';
+            document.getElementById('go').classList.remove('on');
+            started = true;
+            if (!boardBuilt) { buildBoard(); boardBuilt = true; }
+            renderUI();
+            timerActive = true;
+            lastTick = performance.now();
+            document.getElementById('chat-toggle').classList.add('on');
+            hideStatus();
+            if (onlineMyColor === 'b') document.getElementById('smsg').textContent = "Opponent's turn";
+        } else if (msg.type === 'move') {
+            execMove(msg.data);
+        } else if (msg.type === 'chat') {
+            appendChatMessage('Opponent', msg.text);
+        } else if (msg.type === 'opponent_disconnected') {
+            endGame('Opponent disconnected', '', SFX.lose);
+        } else if (msg.type === 'error') {
+            showStatus(msg.message, 3000);
+            // if in join mode, auto-cancel after the error (the timer will handle it or immediately if already running)
+            if (waitingMode === 'join') {
+                // let the timer fire naturally; it will show the correct message
+            }
         }
     }
 
-    // Chat functions
     function appendChatMessage(sender, text) {
         const msgs = document.getElementById('chat-messages');
         const div = document.createElement('div');
@@ -698,39 +778,40 @@
         appendChatMessage('You', text);
         input.value = '';
     }
+    document.getElementById('chat-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendChat();
+    });
     function toggleChat() {
         chatOpen = !chatOpen;
         document.getElementById('chat-panel').classList.toggle('on', chatOpen);
     }
 
-    // Status overlay
     function showStatus(msg, duration) {
         const el = document.getElementById('status-msg');
         el.textContent = msg;
         el.style.display = 'block';
         if (duration) setTimeout(() => el.style.display = 'none', duration);
     }
-    function hideStatus() {
-        document.getElementById('status-msg').style.display = 'none';
-    }
+    function hideStatus() { document.getElementById('status-msg').style.display = 'none'; }
 
-    // Global game functions
+    // Global overrides
     window.startGame = function(mode) {
         gameMode = mode;
         onlineMyColor = null;
-        if (mode === 'online') {
-            showOnlineMenu();
-            return;
-        }
-        aiDepth=selDiff;
-        document.getElementById('ms').style.display='none';
-        document.getElementById('gu').style.display='block';
-        started=true;
-        if(!boardBuilt){buildBoard();boardBuilt=true;}
+        clearWaitingTimer();
+        document.getElementById('cancel-waiting').style.display = 'none';
+        if (mode === 'online') { showOnlineMenu(); return; }
+        aiDepth = selDiff;
+        document.getElementById('ms').style.display = 'none';
+        document.getElementById('online-menu').classList.remove('on');
+        document.getElementById('gu').style.display = 'block';
+        started = true;
+        if (!boardBuilt) { buildBoard(); boardBuilt = true; }
         newGame();
     };
-
     window.newGame = function() {
+        clearWaitingTimer();
+        document.getElementById('cancel-waiting').style.display = 'none';
         if (gameMode === 'online') {
             disconnectOnline();
             resetState(); syncAll(brd); clearDots(); clearTints();
@@ -758,14 +839,16 @@
     window.setDiff=function(btn){document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selDiff=parseInt(btn.dataset.d);};
     window.setPlayerColor=function(btn){document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));btn.classList.add('on');playerColor=btn.dataset.pc;};
     window.backToMenu=function(){
+        clearWaitingTimer();
+        document.getElementById('cancel-waiting').style.display = 'none';
         if(gameMode==='online') disconnectOnline();
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';document.getElementById('ms').style.display='flex';
         document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
         document.getElementById('chat-toggle').classList.remove('on');
         document.getElementById('chat-panel').classList.remove('on');
+        document.getElementById('online-menu').classList.remove('on');
         onlineMyColor = null;
-        hideOnlineMenu();
     };
     window.restoreGame=function(){
         const backup = loadBackup();
@@ -794,7 +877,7 @@
     };
     function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
 
-    // ═══════════════ Mouse / Touch 3D interaction (ORIGINAL) ═══════════════
+    // 3D interaction (complete)
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0;let touchStart=null,touchDrag=0,pinchStart=0;
     function pickAt(cx,cy){
         const rect=CV.getBoundingClientRect();
