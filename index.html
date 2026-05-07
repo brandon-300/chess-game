@@ -15,10 +15,13 @@
         #ms h1{font-family:'Cinzel',serif;font-size:clamp(32px,8vw,58px);font-weight:400;letter-spacing:.28em;color:var(--gold);text-shadow:0 0 20px rgba(201,168,76,0.4)}
         .tag{font-size:clamp(12px,3vw,16px);color:var(--muted);letter-spacing:.14em;font-style:italic;margin-top:8px}
         .cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:460px}
-        .card{flex:1;min-width:130px;max-width:210px;background:rgba(20,14,8,.95);border:1px solid rgba(201,168,76,.22);padding:clamp(18px,4vw,28px) clamp(14px,3vw,22px);text-align:center;cursor:pointer;transition:all .25s}
-        .card:active{border-color:var(--gold);transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.7)}
-        .card .ic{font-size:clamp(38px,9vw,50px);margin-bottom:10px}
-        .card h2{font-family:'Cinzel',serif;font-size:clamp(10px,3vw,13px);letter-spacing:.2em;color:var(--gold);margin-bottom:6px}
+        .card{flex:1;min-width:130px;max-width:210px;background:rgba(20,14,8,.95);padding:clamp(18px,4vw,28px) clamp(14px,3vw,22px);text-align:center;cursor:pointer;transition:all .25s;border:2px solid transparent}
+        /* Bold mode for PvP and AI */
+        .card.local-mode{border-color:var(--gold);box-shadow:0 0 12px rgba(201,168,76,0.25)}
+        .card.local-mode:active{border-color:#fff;transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.7)}
+        /* Fix icon color */
+        .card .ic{font-size:clamp(38px,9vw,50px);margin-bottom:10px;color:var(--gold);}
+        .card h2{font-family:'Cinzel',serif;font-size:clamp(10px,3vw,13px);letter-spacing:.2em;margin-bottom:6px}
         .card p{font-size:clamp(11px,2.5vw,13px);color:var(--muted);line-height:1.5;font-style:italic}
         .dlbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:var(--gold-d);text-transform:uppercase;margin-bottom:10px;text-align:center}
         .drow{display:flex;gap:8px;justify-content:center}
@@ -63,27 +66,8 @@
         .gobtns button:active{background:rgba(201,168,76,.18)}
         .gobtns button.sec{border-color:var(--gold-d);color:var(--muted)}
         .gobtns button.sec:active{border-color:var(--gold);color:var(--gold)}
-        #toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);background:rgba(12,8,4,.96);border:1px solid var(--gold-d);padding:8px 18px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;color:var(--cream);z-index:90;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+        #toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);background:rgba(12,8,4,.96);border:1px solid var(--gold-d);padding:10px 20px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.08em;color:var(--cream);z-index:90;opacity:0;transition:opacity .3s;pointer-events:none;white-space:normal;max-width:85vw;text-align:center;line-height:1.5;}
         #toast.show{opacity:1}
-        /* Online menus & chat */
-        #online-menu,#code-prompt,#color-picker{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px}
-        #online-menu.on,#code-prompt.on,#color-picker.on{display:flex}
-        .menu-card{background:rgba(20,14,8,.95);border:1px solid var(--gold-d);padding:30px;text-align:center;max-width:350px;width:90%}
-        .menu-btn{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.15em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:12px 24px;cursor:pointer;transition:.2s;margin:10px 5px;text-transform:uppercase;width:100%}
-        .menu-btn:active{background:rgba(201,168,76,.18)}
-        .menu-input{background:rgba(255,255,255,0.05);border:1px solid var(--gold-d);color:var(--cream);padding:10px;font-family:'Cinzel',serif;font-size:18px;letter-spacing:.1em;text-align:center;width:100%;outline:none;text-transform:none;}
-        #chat-panel{position:fixed;right:10px;top:100px;width:220px;max-height:300px;background:var(--surf);backdrop-filter:blur(12px);border:1px solid var(--gold-d);display:none;flex-direction:column;z-index:200;font-family:'Cinzel',serif}
-        #chat-panel.on{display:flex}
-        #chat-messages{flex:1;overflow-y:auto;padding:8px;font-size:11px;color:var(--cream);max-height:200px}
-        #chat-messages div{margin-bottom:6px;line-height:1.3}
-        #chat-input-row{display:flex;border-top:1px solid var(--gold-d)}
-        #chat-input{flex:1;background:transparent;border:none;color:var(--cream);padding:8px;font-family:inherit;text-transform:none;}
-        #chat-send{background:transparent;border:none;color:var(--gold);padding:8px 12px;cursor:pointer;font-family:inherit}
-        #chat-toggle{position:fixed;right:10px;top:70px;z-index:201;font-family:'Cinzel',serif;background:var(--surf);border:1px solid var(--gold-d);color:var(--gold);padding:6px 12px;cursor:pointer;backdrop-filter:blur(12px);display:none}
-        #chat-toggle.on{display:block}
-        #status-msg{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:var(--gold);padding:8px 20px;font-family:'Cinzel',serif;font-size:12px;z-index:150;display:none}
-        #cancel-waiting{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:200;font-family:'Cinzel',serif;background:transparent;border:1px solid var(--gold-d);color:var(--muted);padding:10px 30px;cursor:pointer;text-transform:uppercase;letter-spacing:.14em}
-        #cancel-waiting:active{color:var(--gold);border-color:var(--gold)}
     </style>
 </head>
 <body>
@@ -93,9 +77,21 @@
     <div id="ms">
         <div class="title-block"><h1>Chess 3D</h1><p class="tag">Choose a mode to begin</p></div>
         <div class="cards">
-            <div class="card" onclick="startGame('2p')"><div class="ic">♟♙</div><h2>Two Players</h2><p>Pass and play locally</p></div>
-            <div class="card" onclick="startGame('ai')"><div class="ic">♜</div><h2>vs Computer</h2><p>Play against the engine</p></div>
-            <div class="card" onclick="showOnlineMenu()"><div class="ic">🌐</div><h2>Online</h2><p>Find an opponent</p></div>
+            <div class="card local-mode" onclick="startGame('2p')">
+                <div class="ic">♟♙</div>
+                <h2 style="color:var(--gold);">Two Players</h2>
+                <p>Pass and play locally</p>
+            </div>
+            <div class="card local-mode" onclick="startGame('ai')">
+                <div class="ic">♜</div>
+                <h2 style="color:var(--gold);">vs Computer</h2>
+                <p>Play against the engine</p>
+            </div>
+            <div class="card" onclick="toast('COMING SOON – This part of the game is still under construction, check back in future updates.', 5000)">
+                <div class="ic">🌐</div>
+                <h2>Online</h2>
+                <p>Coming Soon</p>
+            </div>
         </div>
         <div>
             <div class="dlbl">Computer Difficulty</div>
@@ -116,66 +112,6 @@
             <div class="drow">
                 <button class="db" onclick="restoreGame()">Restore Game</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Online sub-menus -->
-    <div id="online-menu">
-        <div id="online-main" class="menu-card">
-            <h2 style="color:var(--gold); margin-bottom:20px;">Online Play</h2>
-            <button class="menu-btn" onclick="showPublicOptions()">Public</button>
-            <button class="menu-btn" onclick="showPrivateOptions()">Private</button>
-            <button class="menu-btn" onclick="hideOnlineMenu()">Back</button>
-        </div>
-        <div id="online-public" class="menu-card" style="display:none;">
-            <h2 style="color:var(--gold); margin-bottom:20px;">Public Game</h2>
-            <button class="menu-btn" onclick="createRoom('public')">Create Room</button>
-            <button class="menu-btn" onclick="joinRoom('public')">Join Room</button>
-            <button class="menu-btn" onclick="backToOnlineMain()">Back</button>
-        </div>
-        <div id="online-private" class="menu-card" style="display:none;">
-            <h2 style="color:var(--gold); margin-bottom:20px;">Private Game</h2>
-            <button class="menu-btn" onclick="createRoom('private')">Create Room</button>
-            <button class="menu-btn" onclick="showCodePrompt('join')">Join Room</button>
-            <button class="menu-btn" onclick="backToOnlineMain()">Back</button>
-        </div>
-    </div>
-
-    <!-- Color picker for host -->
-    <div id="color-picker">
-        <div class="menu-card">
-            <h2 style="color:var(--gold); margin-bottom:16px;">Choose your colour</h2>
-            <button class="menu-btn" onclick="selectHostColor('w')">Red</button>
-            <button class="menu-btn" onclick="selectHostColor('b')">Black</button>
-            <button class="menu-btn" onclick="cancelHostColor()">Back</button>
-        </div>
-    </div>
-
-    <!-- Code input -->
-    <div id="code-prompt">
-        <div class="menu-card">
-            <h2 id="code-prompt-title" style="color:var(--gold); margin-bottom:16px;"></h2>
-            <input type="text" id="code-input" class="menu-input" maxlength="20" placeholder="Code" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
-            <div style="margin-top:16px;">
-                <button class="menu-btn" onclick="submitCode()">OK</button>
-                <button class="menu-btn" onclick="hideCodePrompt()">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Status message -->
-    <div id="status-msg"></div>
-
-    <!-- Cancel waiting button -->
-    <button id="cancel-waiting" onclick="cancelWaiting()">Cancel</button>
-
-    <!-- Chat -->
-    <button id="chat-toggle" onclick="toggleChat()">💬</button>
-    <div id="chat-panel">
-        <div id="chat-messages"></div>
-        <div id="chat-input-row">
-            <input type="text" id="chat-input" placeholder="Message..." autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
-            <button id="chat-send" onclick="sendChat()">Send</button>
         </div>
     </div>
 
@@ -203,7 +139,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-    const WS_URL = 'wss://anichan-game-server.onrender.com';
     // ---------- Complete original chess engine and 3D scene ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh';
@@ -361,18 +296,11 @@
     const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,100);
     const BOARD_CENTER=new THREE.Vector3(4,0,4);
     let camTheta=0,camPhi=0.78,camDist=14;
-    let boardFlipped = false;
-
     function updateCamera(){
-        let effectiveTheta = camTheta;
-        if (boardFlipped) {
-            effectiveTheta = camTheta + Math.PI;
-        }
-        const x = BOARD_CENTER.x + camDist * Math.sin(camPhi) * Math.sin(effectiveTheta);
-        const y = BOARD_CENTER.y + camDist * Math.cos(camPhi);
-        const z = BOARD_CENTER.z + camDist * Math.sin(camPhi) * Math.cos(effectiveTheta);
-        camera.position.set(x, y, z);
-        camera.lookAt(BOARD_CENTER);
+        const x=BOARD_CENTER.x+camDist*Math.sin(camPhi)*Math.sin(camTheta);
+        const y=BOARD_CENTER.y+camDist*Math.cos(camPhi);
+        const z=BOARD_CENTER.z+camDist*Math.sin(camPhi)*Math.cos(camTheta);
+        camera.position.set(x,y,z);camera.lookAt(BOARD_CENTER);
     }
     updateCamera();
 
@@ -401,12 +329,35 @@
             const sq=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.12,1.0),mat);sq.position.set(c+0.5,0.06,r+0.5);sq.receiveShadow=true;
             sq.userData={t:'sq',si:i};scene.add(sq);SQ3D[i]=sq;
         }
-        const fls='abcdefgh';for(let c=0;c<8;c++){mkLabel(fls[c],c+0.5,0.03,-0.42);mkLabel(fls[c],c+0.5,0.03,8.42);}for(let r=0;r<8;r++){mkLabel(String(8-r),-0.42,0.03,r+0.5);mkLabel(String(8-r),8.42,0.03,r+0.5);}
+        /* -------- New, clearer board labels -------- */
+        for(let c=0;c<8;c++){
+            mkLabel(FILES[c], c+0.5, 0.06, -0.65);  // bottom (a-h)
+            mkLabel(FILES[c], c+0.5, 0.06, 8.65);   // top (a-h)
+        }
+        for(let r=0;r<8;r++){
+            mkLabel(String(8-r), -0.65, 0.06, r+0.5);  // left (1-8)
+            mkLabel(String(8-r), 8.65, 0.06, r+0.5);   // right (1-8)
+        }
     }
     function mkLabel(text,x,y,z){
-        const cv2=document.createElement('canvas');cv2.width=64;cv2.height=64;const ctx=cv2.getContext('2d');
-        ctx.fillStyle='rgba(201,168,76,0.72)';ctx.font='bold 44px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,32,32);
-        const m=new THREE.Mesh(new THREE.PlaneGeometry(0.4,0.4),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2),transparent:true}));m.rotation.x=-Math.PI/2;m.position.set(x,y,z);scene.add(m);
+        const cv2=document.createElement('canvas');
+        cv2.width=128; cv2.height=128;
+        const ctx=cv2.getContext('2d');
+        ctx.fillStyle='rgba(201,168,76,1)';      // full opacity gold
+        ctx.font='bold 70px serif';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(text,64,64);
+        const tex=new THREE.CanvasTexture(cv2);
+        tex.minFilter=THREE.LinearFilter;
+        const m=new THREE.Mesh(
+            new THREE.PlaneGeometry(0.7,0.7),
+            new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false})
+        );
+        m.rotation.x=-Math.PI/2;   // lay flat on table
+        m.position.set(x,y,z);
+        m.renderOrder=999;
+        scene.add(m);
     }
 
     function pMat(isLight){
@@ -462,22 +413,11 @@
     let brd,turn,cas,ep,hist,capW,capB,mlog;
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
-
-    let ws = null, onlineMyColor = null, isHost = false;     // NEW: track if we created the room
-    let waitingTimer = null, waitingMode = null, waitingSubMenu = null;
-    let chatOpen = false;
     const BACKUP_KEY = 'chess3d_backup';
-
-    let pendingCreateType = null;
-    let hostColor = 'w';
-
     let autoSaveInterval = null;
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-    let retryTimer = null;
 
     function saveBackup(){
-        if(over || gameMode==='online') return;
+        if(over) return;
         try {
             const state = {
                 brd: brd.slice(), turn, cas: {...cas}, ep,
@@ -502,7 +442,7 @@
     function startAutoSave() {
         stopAutoSave();
         autoSaveInterval = setInterval(() => {
-            if (!over && started && gameMode !== 'online') saveBackup();
+            if (!over && started) saveBackup();
         }, 2000);
     }
     function stopAutoSave() {
@@ -518,7 +458,6 @@
         over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle;
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
-        if(gameMode==='online') disconnectOnline();
         clearBackup();
         stopAutoSave();
     }
@@ -537,7 +476,6 @@
     function onSq(si){
         if(over||isAnim||aiThink)return;
         if(gameMode==='ai'&&turn===getAiColor())return;
-        if(gameMode==='online'&&turn!==onlineMyColor)return;
         SFX.select();
         const p=brd[si];if(p&&cl(p)===turn){selSq=si;curLM=legalM(brd,si,cas,ep);updHL();return;}
         if(selSq!==null){const mv=curLM.find(m=>m.to===si);if(mv){if(mv.promo){pendP=mv;showPromo(turn);return;}execMove(mv);return;}}
@@ -545,10 +483,6 @@
     }
     function execMove(mv){
         if(isAnim||over)return;
-        const wasOurMove = (gameMode==='online' && turn===onlineMyColor);
-        if(wasOurMove && ws && ws.readyState===WebSocket.OPEN){
-            ws.send(JSON.stringify({ type: 'move', game: 'chess', data: mv }));
-        }
         const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to);
         hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))});
         const an=algN(brd,mv);
@@ -557,7 +491,6 @@
         const{brd:nb,cas:nc,ep:ne}=applyM(brd,mv,cas,ep);brd=nb;cas=nc;ep=ne;
         if(wt==='w')mlog.push({w:an,b:''});else{if(!mlog.length)mlog.push({w:'',b:''});mlog[mlog.length-1].b=an;}
         turn=op(wt);lastMv=mv;selSq=null;curLM=[];
-        // Reset both timers to 60 after each move to keep them in sync
         timerW=60;timerB=60;timerActive=true;lastTick=performance.now();
         let pg=P3D[mv.from];if(capP)removePiece(mv.to);
         if(mv.ep){const{r,c}=rc(mv.to);removePiece(ix(r+(wt==='w'?1:-1),c));}
@@ -571,7 +504,7 @@
             if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
             if(gameMode==='ai'&&turn===getAiColor()&&!over)scheduleAI(100);
-            if(gameMode!=='online') saveBackup();
+            saveBackup();
         });
     }
     function showPromo(pc){
@@ -607,31 +540,18 @@
         updateTimerUI();
     }
     function timeOut(loser){
-        if (gameMode !== 'online') {
-            turn = op(loser);
-            timerW = 60;
-            timerB = 60;
-            timerActive = true;
-            lastTick = performance.now();
-            selSq = null; curLM = [];
-            updHL();
-            renderUI();
-            if (gameMode === 'ai' && turn === getAiColor()) {
-                scheduleAI(300);
-            }
-            saveBackup();
-        } else {
-            // Online timeout: forfeit turn (same as local)
-            turn = op(loser);
-            timerW = 60;
-            timerB = 60;
-            timerActive = true;
-            lastTick = performance.now();
-            selSq = null; curLM = [];
-            updHL();
-            renderUI();
-            // also send a forfeit move? Not needed; it's just a turn skip.
+        turn = op(loser);
+        timerW = 60;
+        timerB = 60;
+        timerActive = true;
+        lastTick = performance.now();
+        selSq = null; curLM = [];
+        updHL();
+        renderUI();
+        if (gameMode === 'ai' && turn === getAiColor()) {
+            scheduleAI(300);
         }
+        saveBackup();
     }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){
@@ -647,366 +567,75 @@
         updateTimerUI();
     }
 
-    // Online menus & connection
-    function showOnlineMenu() {
-        document.getElementById('ms').style.display = 'none';
-        document.getElementById('online-menu').classList.add('on');
-        document.getElementById('online-main').style.display = '';
-        document.getElementById('online-public').style.display = 'none';
-        document.getElementById('online-private').style.display = 'none';
-    }
-    function hideOnlineMenu() {
-        document.getElementById('online-menu').classList.remove('on');
-        document.getElementById('ms').style.display = 'flex';
-    }
-    function showPublicOptions() {
-        document.getElementById('online-main').style.display = 'none';
-        document.getElementById('online-public').style.display = '';
-        document.getElementById('online-private').style.display = 'none';
-    }
-    function showPrivateOptions() {
-        document.getElementById('online-main').style.display = 'none';
-        document.getElementById('online-public').style.display = 'none';
-        document.getElementById('online-private').style.display = '';
-    }
-    function backToOnlineMain() {
-        document.getElementById('online-main').style.display = '';
-        document.getElementById('online-public').style.display = 'none';
-        document.getElementById('online-private').style.display = 'none';
-    }
-
-    function showCodePrompt(action) {
-        pendingAction = action;
-        document.getElementById('code-prompt').classList.add('on');
-        document.getElementById('online-menu').classList.remove('on');
-        document.getElementById('code-input').value = '';
-        document.getElementById('code-prompt-title').textContent = action === 'create' ? 'Set a room code' : 'Enter room code';
-        setTimeout(() => document.getElementById('code-input').focus(), 100);
-    }
-    function hideCodePrompt() {
-        document.getElementById('code-prompt').classList.remove('on');
-        document.getElementById('online-menu').classList.add('on');
-    }
-    function submitCode() {
-        const code = document.getElementById('code-input').value.trim();
-        if (!/^[A-Za-z0-9]+$/.test(code)) {
-            showStatus('Only letters and numbers allowed', 2000);
-            return;
-        }
-        hideCodePrompt();
-        if (pendingAction === 'create') {
-            waitingSubMenu = 'private';
-            showWaitingScreen('Waiting for opponent...');
-            isHost = true;      // we created the room
-            sendCreateRoom('private', code);
-        } else {
-            isHost = false;     // we are joining
-            joinRoom('private', code);
-        }
-    }
-
-    function createRoom(type) {
-        pendingCreateType = type;
-        document.getElementById('color-picker').classList.add('on');
-        document.getElementById('online-menu').classList.remove('on');
-    }
-    function selectHostColor(color) {
-        hostColor = color;
-        document.getElementById('color-picker').classList.remove('on');
-        if (pendingCreateType === 'public') {
-            waitingSubMenu = 'public';
-            showWaitingScreen('Waiting for opponent...');
-            isHost = true;
-            sendCreateRoom('public');
-        } else if (pendingCreateType === 'private') {
-            showCodePrompt('create');
-        }
-    }
-    function cancelHostColor() {
-        document.getElementById('color-picker').classList.remove('on');
-        document.getElementById('online-menu').classList.add('on');
-        pendingCreateType = null;
-    }
-
-    function joinRoom(type, code) {
-        waitingSubMenu = type;
-        showWaitingScreen('Searching for game...');
-        isHost = false;
-        sendJoinRoom(type, code);
-    }
-
-    function sendCreateRoom(type, code) {
-        retryCount = 0;
-        showStatus('Connecting...', 0);
-        disconnectOnline();
-        attemptCreateRoom(type, code);
-    }
-    function attemptCreateRoom(type, code) {
-        if (retryCount >= MAX_RETRIES) {
-            hideStatus();
-            toast('Could not connect to server.');
-            cancelWaiting();
-            return;
-        }
-        ws = new WebSocket(WS_URL);
-        ws.onopen = () => {
-            const msg = type === 'public'
-                ? JSON.stringify({ type: 'create_public', game: 'chess', color: hostColor })
-                : JSON.stringify({ type: 'create_private', game: 'chess', code, color: hostColor });
-            ws.send(msg);
-            showStatus('Waiting for opponent...', 0);
-            retryCount = 0;
-            clearWaitingTimer();
-            waitingTimer = setTimeout(() => { if (waitingMode==='create') { cancelWaiting(); toast('No opponent joined, matchmaking was auto cancelled.'); } }, 600000);
-        };
-        ws.onmessage = handleWSMessage;
-        ws.onerror = () => {};
-        ws.onclose = (event) => {
-            if (waitingMode === 'create' && !onlineMyColor) {
-                retryCount++;
-                const delay = Math.min(2000 * retryCount, 10000);
-                showStatus(`Retrying in ${Math.round(delay/1000)}s...`, 0);
-                retryTimer = setTimeout(() => attemptCreateRoom(type, code), delay);
-            }
-        };
-    }
-
-    function sendJoinRoom(type, code) {
-        retryCount = 0;
-        showStatus('Connecting...', 0);
-        disconnectOnline();
-        attemptJoinRoom(type, code);
-    }
-    function attemptJoinRoom(type, code) {
-        if (retryCount >= MAX_RETRIES) {
-            hideStatus();
-            toast('Could not connect to server.');
-            cancelWaiting();
-            return;
-        }
-        ws = new WebSocket(WS_URL);
-        ws.onopen = () => {
-            const msg = type === 'public'
-                ? JSON.stringify({ type: 'join_public', game: 'chess' })
-                : JSON.stringify({ type: 'join_private', game: 'chess', code });
-            ws.send(msg);
-            showStatus('Searching for game...', 0);
-            retryCount = 0;
-            clearWaitingTimer();
-            waitingTimer = setTimeout(() => {
-                if (waitingMode === 'join') {
-                    cancelWaiting();
-                    if (type === 'private') toast('No such room found for that pairing code.');
-                    else toast('No opponent found.');
-                }
-            }, 600000);
-        };
-        ws.onmessage = handleWSMessage;
-        ws.onerror = () => {};
-        ws.onclose = (event) => {
-            if (waitingMode === 'join' && !onlineMyColor) {
-                retryCount++;
-                const delay = Math.min(2000 * retryCount, 10000);
-                showStatus(`Retrying in ${Math.round(delay/1000)}s...`, 0);
-                retryTimer = setTimeout(() => attemptJoinRoom(type, code), delay);
-            }
-        };
-    }
-
-    function showWaitingScreen(msg) {
-        document.getElementById('ms').style.display = 'none';
-        document.getElementById('online-menu').classList.remove('on');
-        document.getElementById('color-picker').classList.remove('on');
-        document.getElementById('code-prompt').classList.remove('on');
-        document.getElementById('cancel-waiting').style.display = 'block';
-        waitingMode = (msg.includes('Waiting') ? 'create' : 'join');
-    }
-
-    function cancelWaiting() {
-        clearTimeout(retryTimer);
-        clearWaitingTimer();
-        waitingMode = null;
-        document.getElementById('cancel-waiting').style.display = 'none';
-        hideStatus();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'leave_room', game: 'chess' }));
-        }
-        disconnectOnline();
-        if (waitingSubMenu === 'public') {
-            showPublicOptions();
-            document.getElementById('online-menu').classList.add('on');
-        } else if (waitingSubMenu === 'private') {
-            showPrivateOptions();
-            document.getElementById('online-menu').classList.add('on');
-        } else {
-            showOnlineMenu();
-        }
-    }
-    function clearWaitingTimer() {
-        if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
-    }
-
-    function disconnectOnline() {
-        clearTimeout(retryTimer);
-        clearWaitingTimer();
-        if (ws) { ws.onclose = null; ws.close(); ws = null; }
-        onlineMyColor = null;
-        retryCount = 0;
-        isHost = false;
-    }
-
-    function handleWSMessage(e) {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'room_created') return;
-        if (msg.type === 'room_cancelled') {
-            cancelWaiting();
-            return;
-        }
-        if (msg.type === 'start') {
-            clearTimeout(retryTimer);
-            clearWaitingTimer();
-            waitingMode = null;
-            document.getElementById('cancel-waiting').style.display = 'none';
-            onlineMyColor = msg.symbol;
-            playerColor = onlineMyColor;
-            turn = 'w';
-            resetState();
-            timerW=60;timerB=60;
-            boardFlipped = (onlineMyColor === 'b');
-            updateCamera();
-            syncAll(brd);
-            clearDots(); clearTints();
-            document.getElementById('ms').style.display = 'none';
-            document.getElementById('online-menu').classList.remove('on');
-            document.getElementById('code-prompt').classList.remove('on');
-            document.getElementById('color-picker').classList.remove('on');
-            document.getElementById('gu').style.display = 'block';
-            document.getElementById('go').classList.remove('on');
-            started = true;
-            if (!boardBuilt) { buildBoard(); boardBuilt = true; }
-            renderUI();
-            timerActive = true;
-            lastTick = performance.now();
-            document.getElementById('chat-toggle').classList.add('on');
-            hideStatus();
-            if (onlineMyColor === 'b') document.getElementById('smsg').textContent = "Opponent's turn";
-        } else if (msg.type === 'move') {
-            execMove(msg.data);
-        } else if (msg.type === 'chat') {
-            appendChatMessage('Opponent', msg.text);
-        } else if (msg.type === 'opponent_disconnected') {
-            // Determine who left based on isHost flag
-            if (isHost) {
-                endGame('The opponent has left', '', SFX.lose);
-            } else {
-                endGame('Connection lost, the host has left the match', '', SFX.lose);
-            }
-        } else if (msg.type === 'error') {
-            showStatus(msg.message, 3000);
-        }
-    }
-
-    function appendChatMessage(sender, text) {
-        const msgs = document.getElementById('chat-messages');
-        const div = document.createElement('div');
-        div.innerHTML = `<b>${sender}:</b> ${text}`;
-        msgs.appendChild(div);
-        msgs.scrollTop = msgs.scrollHeight;
-    }
-    function sendChat() {
-        const input = document.getElementById('chat-input');
-        const text = input.value.trim();
-        if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-        ws.send(JSON.stringify({ type: 'chat', game: 'chess', text }));
-        appendChatMessage('You', text);
-        input.value = '';
-    }
-    document.getElementById('chat-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') sendChat();
-    });
-    function toggleChat() {
-        chatOpen = !chatOpen;
-        document.getElementById('chat-panel').classList.toggle('on', chatOpen);
-    }
-
-    function showStatus(msg, duration) {
-        const el = document.getElementById('status-msg');
-        el.textContent = msg;
-        el.style.display = 'block';
-        if (duration) setTimeout(() => el.style.display = 'none', duration);
-    }
-    function hideStatus() { document.getElementById('status-msg').style.display = 'none'; }
-
-    // Global overrides
+    // Global functions
     window.startGame = function(mode) {
         gameMode = mode;
-        onlineMyColor = null;
-        clearWaitingTimer();
-        document.getElementById('cancel-waiting').style.display = 'none';
-        boardFlipped = false;
-        updateCamera();
-        if (mode === 'online') { showOnlineMenu(); return; }
-        aiDepth = selDiff;
         document.getElementById('ms').style.display = 'none';
-        document.getElementById('online-menu').classList.remove('on');
         document.getElementById('gu').style.display = 'block';
         started = true;
         if (!boardBuilt) { buildBoard(); boardBuilt = true; }
         newGame();
-        startAutoSave();
     };
     window.newGame = function() {
-        clearWaitingTimer();
-        document.getElementById('cancel-waiting').style.display = 'none';
-        if (gameMode === 'online') {
-            disconnectOnline();
-            resetState(); syncAll(brd); clearDots(); clearTints();
-            document.getElementById('go').classList.remove('on');
-            document.getElementById('gu').style.display = 'none';
-            document.getElementById('chat-toggle').classList.remove('on');
-            document.getElementById('chat-panel').classList.remove('on');
-            showOnlineMenu();
-            stopAutoSave();
-            return;
+        resetState();
+        syncAll(brd);
+        clearDots();
+        clearTints();
+        document.getElementById('go').classList.remove('on');
+        document.getElementById('pm').classList.remove('on');
+        document.getElementById('thkstrip').classList.remove('on');
+        renderUI();
+        if (gameMode === 'ai' && playerColor === 'b') {
+            timerActive = true;
+            lastTick = performance.now();
+            scheduleAI(500);
         }
-        resetState();syncAll(brd);clearDots();clearTints();document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');document.getElementById('thkstrip').classList.remove('on');renderUI();
-        if(gameMode==='ai'&&playerColor==='b'){timerActive=true;lastTick=performance.now();scheduleAI(500);}
         clearBackup();
         startAutoSave();
     };
-    window.undoMove=function(){
-        if(isAnim||aiThink||!hist.length||gameMode==='online')return;
-        aiThink=false;document.getElementById('thkstrip').classList.remove('on');
-        const steps=(gameMode==='ai'&&hist.length>=2)?2:1;
-        for(let i=0;i<steps;i++){if(!hist.length)break;const s=hist.pop();brd=s.brd;turn=s.turn;cas=s.cas;ep=s.ep;capW=s.capW;capB=s.capB;mlog=s.mlog;}
-        if(turn==='w')timerW=60;else timerB=60;timerActive=hist.length>0;lastTick=timerActive?performance.now():null;
-        lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on');syncAll(brd);updHL();renderUI();
-        if(gameMode==='ai'&&turn===getAiColor()&&!over&&hist.length>0){timerActive=true;lastTick=performance.now();scheduleAI(400);}
+    window.undoMove = function() {
+        if (isAnim || aiThink || !hist.length) return;
+        aiThink = false;
+        document.getElementById('thkstrip').classList.remove('on');
+        const steps = (gameMode === 'ai' && hist.length >= 2) ? 2 : 1;
+        for (let i = 0; i < steps; i++) {
+            if (!hist.length) break;
+            const s = hist.pop();
+            brd = s.brd; turn = s.turn; cas = s.cas; ep = s.ep;
+            capW = s.capW; capB = s.capB; mlog = s.mlog;
+        }
+        timerW = 60; timerB = 60;
+        timerActive = hist.length > 0;
+        lastTick = timerActive ? performance.now() : null;
+        lastMv = null; selSq = null; curLM = [];
+        over = false;
+        document.getElementById('go').classList.remove('on');
+        syncAll(brd); updHL(); renderUI();
+        if (gameMode === 'ai' && turn === getAiColor() && !over && hist.length > 0) {
+            timerActive = true; lastTick = performance.now(); scheduleAI(400);
+        }
         saveBackup();
     };
-    window.setDiff=function(btn){document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');selDiff=parseInt(btn.dataset.d);};
-    window.setPlayerColor=function(btn){document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));btn.classList.add('on');playerColor=btn.dataset.pc;};
-    window.backToMenu=function(){
-        clearWaitingTimer();
-        document.getElementById('cancel-waiting').style.display = 'none';
-        if(gameMode==='online') disconnectOnline();
+    window.setDiff = function(btn) {
+        document.querySelectorAll('#ms .db[data-d]').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        selDiff = parseInt(btn.dataset.d);
+    };
+    window.setPlayerColor = function(btn) {
+        document.querySelectorAll('#pcW,#pcB').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        playerColor = btn.dataset.pc;
+    };
+    window.backToMenu = function() {
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';
         document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
-        document.getElementById('chat-toggle').classList.remove('on');
-        document.getElementById('chat-panel').classList.remove('on');
-        document.getElementById('online-menu').classList.remove('on');
-        document.getElementById('color-picker').classList.remove('on');
-        document.getElementById('code-prompt').classList.remove('on');
-        document.getElementById('status-msg').style.display = 'none';
-        onlineMyColor = null;
-        isHost = false;
-        document.getElementById('ms').style.display = 'flex';
+        document.getElementById('ms').style.display='flex';
         stopAutoSave();
     };
-    window.restoreGame=function(){
+    window.restoreGame = function() {
         const backup = loadBackup();
-        if(!backup){ toast('No backup found', 3000); return; }
+        if (!backup) { toast('No backup found', 3000); return; }
         gameMode = backup.gameMode;
         aiDepth = backup.aiDepth;
         playerColor = backup.playerColor;
@@ -1014,8 +643,6 @@
         hist = backup.hist; capW = backup.capW; capB = backup.capB; mlog = backup.mlog;
         timerW = backup.timerW; timerB = backup.timerB;
         selDiff = aiDepth;
-        boardFlipped = false;
-        updateCamera();
         document.getElementById('ms').style.display='none';document.getElementById('gu').style.display='block';
         started=true;if(!boardBuilt){buildBoard();boardBuilt=true;}
         syncAll(brd);clearDots();clearTints();
@@ -1032,7 +659,12 @@
         if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(300);
         startAutoSave();
     };
-    function toast(msg, dur=2800){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),dur);}
+    function toast(msg, dur=2800){
+        const el=document.getElementById('toast');
+        el.textContent=msg;el.classList.add('show');
+        clearTimeout(el._t);
+        el._t=setTimeout(()=>el.classList.remove('show'),dur);
+    }
 
     // 3D interaction
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0;let touchStart=null,touchDrag=0,pinchStart=0;
