@@ -274,6 +274,8 @@
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
+    let chatChannel = null;
+    let lastTimerSyncTime = 0;
     let myColor = 'w';
 
     // ---------- Chess engine (unchanged) ----------
@@ -518,6 +520,7 @@
     const BACKUP_KEY_2P = 'chess3d_backup_2p';
     let autoSaveInterval = null;
     let matchmakingTimeout = null;
+    let matchmakingChannel = null;
 
     function saveBackup(){
         if(over || gameMode==='online') return;
@@ -798,6 +801,10 @@
                 clearTimeout(matchmakingTimeout);
                 matchmakingTimeout = null;
             }
+            if (matchmakingChannel) {
+                sb.removeChannel(matchmakingChannel);
+                matchmakingChannel = null;
+            }
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
             toast('Search cancelled');
         }
@@ -812,17 +819,18 @@
         currentUserId = user.id;
     }
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
-
-    // Helper to encode room code for channel name (for private rooms)
     function encodeRoomCode(code){ return btoa(code).replace(/[+/=]/g, '_'); }
 
     async function createPrivateRoom(){
-        const code = document.getElementById('private-create-code').value.trim();
+        const codeInput = document.getElementById('private-create-code').value;
+        const code = codeInput.toUpperCase().trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
         if(!currentUserId) await signInAnon();
+        
         const { data: existing } = await sb.from('online_games').select('id').eq('room_code', code).maybeSingle();
-        if (existing) { toast('A room already exists with this code, please create another.'); return; }
+        if (existing) { toast('A room already exists with this code, please choose another.'); return; }
+        
         const hostKey = generatePlayerKey();
         sessionStorage.setItem('online_player_key', hostKey);
         sessionStorage.setItem('online_room_code', code);
@@ -841,178 +849,116 @@
         subscribeToGame(onlineGame.id);
     }
 
-    async function joinPrivateRoom(){
-        const code = document.getElementById('private-room-code').value.trim();
-        if(!code) return;
-        if(!currentUserId) await signInAnon();
-        const { data, error } = await sb.from('online_games').select('*').eq('room_code', code).maybeSingle();
-        if(error || !data){ toast('Room not found.'); return; }
-        if (data.status !== 'waiting_for_joiner') {
-            toast('This room is already filled up and a match has begun, please check the code and retry.');
+    async function joinPrivateRoom() {
+        let codeInput = document.getElementById('private-room-code').value;
+        const sanitizedCode = codeInput.toUpperCase().trim();
+        if (!sanitizedCode) { toast('Please enter a room code'); return; }
+        if (!currentUserId) await signInAnon();
+        
+        const { data: game, error } = await sb.from('online_games')
+            .select('*')
+            .eq('room_code', sanitizedCode)
+            .eq('status', 'waiting_for_joiner')
+            .maybeSingle();
+        if (error || !game) {
+            toast('Room not found or already in progress.');
             return;
         }
         const joinerKey = generatePlayerKey();
-        const { error: updateErr } = await sb.from('online_games').update({
-            joiner_player_id: currentUserId,
-            joiner_player_key: joinerKey,
-            status: 'waiting_for_nicknames'
-        }).eq('id', data.id);
-        if(updateErr){ toast('Join failed'); return; }
-        sessionStorage.setItem('online_player_key', joinerKey);
-        sessionStorage.setItem('online_room_code', code);
-        onlineGame = data;
-        onlineGame.joiner_player_id = currentUserId;
-        onlineGame.joiner_player_key = joinerKey;
-        onlineGame.status = 'waiting_for_nicknames';
-        showNicknamePrompt();
-        subscribeToGame(onlineGame.id);
+        const { data: updatedGame, error: updateErr } = await sb.from('online_games')
+            .update({
+                joiner_player_id: currentUserId,
+                status: 'waiting_for_nicknames'
+            })
+            .eq('id', game.id)
+            .select()
+            .single();
+        if (updateErr) { toast('Join failed: ' + updateErr.message); return; }
+        onlineGame = updatedGame;
+        subscribeToGame(updatedGame.id);
     }
 
-    async function createPublicRoom(){
-        if(!currentUserId) await signInAnon();
-        const { data: existingGame } = await sb.from('online_games').select('*')
-            .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
-            .eq('type','public')
-            .in('status', ['active','frozen','countdown'])
-            .maybeSingle();
-        if (existingGame) {
-            toast('You already have an active public game. Please rejoin that room.');
-            return;
-        }
-        const hostKey = generatePlayerKey();
-        sessionStorage.setItem('online_player_key', hostKey);
-        // Insert into queue
-        const { error: queueErr } = await sb.from('matchmaking_queue').insert({
-            player_id: currentUserId,
-            status: 'searching'
-        });
-        if(queueErr){ toast('Could not enter queue'); return; }
-        showWaitingScreen('Searching for opponent... (max 20 min)');
-        // Watch for queue status change to 'paired'
-        const hostQueueChannel = sb.channel('host-queue-'+currentUserId)
+    async function createPublicRoom() {
+        if (!currentUserId) await signInAnon();
+        const { data: queueRow, error: queueErr } = await sb.from('matchmaking_queue')
+            .insert({ player_id: currentUserId, status: 'searching' })
+            .select()
+            .single();
+        if (queueErr) { toast('Matchmaking error: ' + queueErr.message); return; }
+        showWaitingScreen('Searching for opponent...');
+        
+        matchmakingChannel = sb.channel('matchmaking-' + queueRow.id)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'matchmaking_queue',
-                filter: `player_id=eq.${currentUserId}`
+                filter: `id=eq.${queueRow.id}`
             }, async (payload) => {
                 if (payload.new.status === 'paired') {
-                    // Remove from queue
-                    await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
-                    sb.removeChannel(hostQueueChannel);
-                    // Fetch the newly created game (inserted by joiner)
                     const { data: game } = await sb.from('online_games')
                         .select('*')
                         .eq('host_player_id', currentUserId)
                         .eq('status', 'waiting_for_nicknames')
                         .maybeSingle();
                     if (game) {
-                        // Update the host key in the game row
-                        await sb.from('online_games').update({ host_player_key: hostKey }).eq('id', game.id);
-                        onlineGame = { ...game, host_player_key: hostKey };
-                        showNicknamePrompt();
+                        onlineGame = game;
+                        sb.removeChannel(matchmakingChannel);
+                        matchmakingChannel = null;
                         subscribeToGame(game.id);
                     }
                 }
             })
             .subscribe();
-
-        // Timeout after 20 minutes
-        matchmakingTimeout = setTimeout(() => {
-            sb.removeChannel(hostQueueChannel);
-            sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).then(() => {});
-            toast('No opponent found within 20 minutes. Returning to menu.');
-            hideAllOnlinePanels();
-            document.getElementById('main-cards').style.display='flex';
-            document.getElementById('original-buttons').style.display='';
-            matchmakingTimeout = null;
-        }, 20*60*1000);
     }
 
-    async function joinPublicRoom(){
-        if(!currentUserId) await signInAnon();
-        // Rejoin pending game
-        const playerKey = sessionStorage.getItem('online_player_key');
-        const { data: pending } = await sb.from('online_games').select('*')
-            .eq('type','public')
-            .in('status', ['active','frozen','countdown'])
-            .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
-            .maybeSingle();
-        if (pending) {
-            if ((pending.host_player_id===currentUserId && playerKey===pending.host_player_key) ||
-                (pending.joiner_player_id===currentUserId && playerKey===pending.joiner_player_key)) {
-                onlineGame = pending;
-                subscribeToGame(pending.id);
-                if (pending.status==='active' || pending.status==='frozen') {
-                    document.getElementById('ms').style.display='none';
-                    document.getElementById('gu').style.display='block';
-                    started = true;
-                    if(!boardBuilt){ buildBoard(); boardBuilt=true; }
-                    brd = pending.board_state.brd;
-                    turn = pending.board_state.turn;
-                    cas = pending.board_state.cas;
-                    ep = pending.board_state.ep;
-                    timerW = pending.timer_w; timerB = pending.timer_b;
-                    syncAll(brd); updHL(); renderUI();
-                    timerActive = (pending.status==='active' && turn===myColor);
-                    lastTick = performance.now();
-                    document.getElementById('new-game-btn').style.display='none';
-                    document.getElementById('undo-btn').style.display='none';
-                    document.getElementById('mode-btn').textContent='Exit';
-                    document.getElementById('mode-btn').style.color='#cc0000';
-                    document.getElementById('mode-btn').onclick = confirmExitOnline;
-                    document.getElementById('chat-box').classList.add('show');
-                } else if (pending.status==='countdown') {
-                    showCountdown();
-                } else {
-                    showNicknamePrompt();
-                }
-                return;
-            }
-        }
-        // Find a searching host
+    async function joinPublicRoom() {
+        if (!currentUserId) await signInAnon();
         const { data: hostRows, error: hostErr } = await sb.from('matchmaking_queue')
             .select('*')
             .eq('status', 'searching')
+            .order('created_at', { ascending: true })
             .limit(1);
         if (hostErr || !hostRows || hostRows.length === 0) {
-            toast('No rooms available at the moment.');
+            toast('No opponents found. Try creating a room!');
             return;
         }
         const targetHost = hostRows[0];
-        const joinerKey = generatePlayerKey();
+        const { error: pairErr } = await sb.from('matchmaking_queue')
+            .update({ status: 'paired' })
+            .eq('id', targetHost.id);
+        if (pairErr) { toast('Failed to pair with opponent.'); return; }
         const roomCode = 'PUB_' + Math.random().toString(36).substring(2, 9).toUpperCase();
-        sessionStorage.setItem('online_player_key', joinerKey);
-        sessionStorage.setItem('online_room_code', roomCode);
-        // Update host queue to 'paired'
-        await sb.from('matchmaking_queue').update({ status: 'paired' }).eq('id', targetHost.id);
-        // Create the game row
-        const { data: newGame, error: gameErr } = await sb.from('online_games').insert({
-            room_code: roomCode,
-            type: 'public',
-            host_player_id: targetHost.player_id,
-            joiner_player_id: currentUserId,
-            host_player_key: 'pending',
-            joiner_player_key: joinerKey,
-            status: 'waiting_for_nicknames',
-            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
-            timer_w: 60, timer_b: 60
-        }).select().single();
-        if(gameErr){ toast('Failed to create game.'); return; }
+        const { data: newGame, error: gameErr } = await sb.from('online_games')
+            .insert({
+                room_code: roomCode,
+                host_player_id: targetHost.player_id,
+                joiner_player_id: currentUserId,
+                status: 'waiting_for_nicknames',
+                board_state: { brd: initBrd(), turn: 'w', cas: { wK: true, wQ: true, bK: true, bQ: true }, ep: null },
+                timer_w: 60,
+                timer_b: 60
+            })
+            .select()
+            .single();
+        if (gameErr) { toast('Game creation failed: ' + gameErr.message); return; }
         onlineGame = newGame;
-        showNicknamePrompt();
         subscribeToGame(newGame.id);
     }
 
     function subscribeToGame(gameId){
-        if(onlineChannel) { sb.removeChannel(onlineChannel); }
+        if(onlineChannel) { sb.removeChannel(onlineChannel); onlineChannel = null; }
         onlineChannel = sb.channel('game-'+gameId)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` }, handleGameUpdate)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` }, payload => {
+                if (onlineGame && payload.new.id === onlineGame.id) {
+                    handleGameUpdate(payload);
+                }
+            })
             .subscribe();
+        subscribeChat(gameId);
     }
 
     function handleGameUpdate(payload){
-        if(!onlineGame) return;
+        if(!onlineGame || payload.new.id !== onlineGame.id) return;
         onlineGame = payload.new;
         const g = onlineGame;
         if(g.status==='terminated'){
@@ -1140,10 +1086,12 @@
 
     function resetOnlineState(){
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
+        if(chatChannel){ sb.removeChannel(chatChannel); chatChannel=null; }
         onlineGame=null;
         document.getElementById('gu').style.display='none';
         document.getElementById('ms').style.display='flex';
         document.getElementById('chat-box').classList.remove('show');
+        document.getElementById('chat-messages').innerHTML = '';
         document.getElementById('new-game-btn').style.display='';
         document.getElementById('undo-btn').style.display='';
         document.getElementById('mode-btn').textContent='Exit';
@@ -1166,7 +1114,11 @@
 
     function syncTimersToSupabase(){
         if(!onlineGame) return;
-        sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id);
+        const now = Date.now();
+        if (turn === myColor && (now - lastTimerSyncTime) >= 3000) {
+            sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id);
+            lastTimerSyncTime = now;
+        }
     }
 
     function stopOnlineSync(){ if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; } }
@@ -1217,11 +1169,14 @@
         }).then(()=>{ input.value=''; });
     }
     function subscribeChat(gameId){
-        sb.channel('chat-'+gameId)
+        if(chatChannel){ sb.removeChannel(chatChannel); chatChannel = null; }
+        chatChannel = sb.channel('chat-'+gameId)
             .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => {
-                const box = document.getElementById('chat-messages');
-                box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`;
-                box.scrollTop = box.scrollHeight;
+                if (onlineGame && onlineGame.id === payload.new.game_id) {
+                    const box = document.getElementById('chat-messages');
+                    box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`;
+                    box.scrollTop = box.scrollHeight;
+                }
             }).subscribe();
     }
 
