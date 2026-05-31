@@ -347,7 +347,21 @@
     });
 
     async function loadUserAvatar(uid) {
-        try { const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle(); _avatarUrl = data?.avatar_url || null; } catch(e) { _avatarUrl = null; }
+        try {
+            const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle();
+            const raw = data?.avatar_url || null;
+            if (!raw) { _avatarUrl = null; return; }
+            // If it's already an absolute URL (starts with http/https) use it directly.
+            // Otherwise treat it as a storage path in the 'avatars' bucket.
+            if (/^https?:\/\//i.test(raw)) {
+                _avatarUrl = raw;
+            } else {
+                // Strip any accidental leading slash so getPublicUrl works correctly.
+                const path = raw.replace(/^\/+/, '');
+                const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
+                _avatarUrl = urlData?.publicUrl || null;
+            }
+        } catch(e) { _avatarUrl = null; }
     }
     function renderAvatarBtn() {
         const btn = document.getElementById('avatar-btn');
@@ -355,8 +369,16 @@
         if (currentUserId) {
             btn.style.display = 'flex';
             const img = btn.querySelector('img'), svg = btn.querySelector('svg');
-            if (_avatarUrl) { img.src = _avatarUrl; img.style.display = 'block'; svg.style.display = 'none'; }
-            else { img.style.display = 'none'; svg.style.display = 'block'; }
+            if (_avatarUrl) {
+                img.src = _avatarUrl;
+                img.style.display = 'block';
+                svg.style.display = 'none';
+                // Fallback to SVG icon if the image URL is broken / 404
+                img.onerror = () => { img.style.display = 'none'; svg.style.display = 'block'; img.onerror = null; };
+            } else {
+                img.style.display = 'none';
+                svg.style.display = 'block';
+            }
         } else { btn.style.display = 'none'; }
     }
 
@@ -832,37 +854,63 @@
 
     window.createPrivateRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
+        // Code is used exactly as typed — NO .toUpperCase(), case-sensitive.
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
         try {
-            const { data: existing } = await sb.from('online_games').select('id').eq('room_code', code).maybeSingle();
+            // Check for an existing room with the exact same code (case-sensitive match).
+            const { data: existing } = await sb.from('online_games')
+                .select('id')
+                .eq('room_code', code)      // exact string — no transformation
+                .eq('type', 'private')
+                .maybeSingle();
             if (existing) { toast('A room already exists with this code, please create another.'); return; }
             const hostKey = generatePlayerKey();
             const { data, error } = await sb.from('online_games').insert({
-                room_code: code, type: 'private', host_player_id: currentUserId, host_player_key: hostKey,
-                status: 'waiting_for_joiner', board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
+                room_code: code,            // stored exactly as entered
+                type: 'private',
+                host_player_id: currentUserId,
+                host_player_key: hostKey,
+                status: 'waiting_for_joiner',
+                board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
+                timer_w: 60, timer_b: 60
             }).select().single();
             if(error) throw error;
-            onlineGame = data; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
-            showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
+            onlineGame = data;
+            sessionPlayerKey = hostKey;
+            sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
+            showWaitingScreen('Room created! Share the code: ' + code + '  |  Waiting for opponent…');
             subscribeToGame(onlineGame.id);
         } catch(e) { toast('Failed to create room: ' + e.message); }
     };
 
     window.joinPrivateRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
+        // Code is used exactly as typed — NO .toUpperCase(), case-sensitive.
         const code = document.getElementById('private-room-code').value.trim();
-        if(!code) return;
+        if(!code){ toast('Please enter a room code.'); return; }
         try {
-            const { data, error } = await sb.from('online_games').select('*').eq('room_code', code).maybeSingle();
+            // Exact case-sensitive match; also filter by type:'private' to avoid
+            // accidentally matching a public room that happens to share a code.
+            const { data, error } = await sb.from('online_games')
+                .select('*')
+                .eq('room_code', code)      // exact string — no transformation
+                .eq('type', 'private')
+                .maybeSingle();
             if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
-            if (data.status !== 'waiting_for_joiner') { toast('This room is already filled up and a match has begun. Check the code and try again.'); return; }
+            if(data.status !== 'waiting_for_joiner'){
+                toast('This room is no longer open. The match may have already started.'); return;
+            }
             const joinerKey = generatePlayerKey();
-            const { error: updateErr } = await sb.from('online_games').update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' }).eq('id', data.id);
+            const { error: updateErr } = await sb.from('online_games')
+                .update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' })
+                .eq('id', data.id)
+                .eq('status', 'waiting_for_joiner');  // optimistic lock — prevents double-join
             if(updateErr) throw updateErr;
-            onlineGame = data; onlineGame.joiner_player_id = currentUserId; onlineGame.joiner_player_key = joinerKey; onlineGame.status = 'waiting_for_nicknames';
-            sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
+            onlineGame = { ...data, joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' };
+            sessionPlayerKey = joinerKey;
+            sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
             showNicknamePrompt(); subscribeToGame(onlineGame.id);
         } catch(e) { toast('Join failed: ' + e.message); }
     };
@@ -870,13 +918,26 @@
     window.createPublicRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
+            // Clean up any stale searching entry from a previous session.
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
-            const { data: existingGame } = await sb.from('online_games').select('*').or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).eq('type','public').in('status', ['active','frozen','countdown']).maybeSingle();
-            if (existingGame) { toast('You already have an active public game. Please rejoin that room.'); return; }
+            // Prevent creating a second game while one is already active.
+            const { data: existingGame } = await sb.from('online_games')
+                .select('*')
+                .eq('type', 'public')
+                .in('status', ['active', 'frozen', 'countdown', 'waiting_for_nicknames', 'waiting_for_joiner'])
+                .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
+                .maybeSingle();
+            if(existingGame){ toast('You already have an active public game. Please rejoin that room.'); return; }
+            // Reserve a player key now; it will be written to online_games once the joiner pairs us.
             sessionPlayerKey = generatePlayerKey();
-            const { data, error } = await sb.from('matchmaking_queue').insert({ player_id: currentUserId, status: 'searching' }).select().single();
+            // Insert a 'searching' row into the matchmaking queue.
+            const { data, error } = await sb.from('matchmaking_queue')
+                .insert({ player_id: currentUserId, status: 'searching' })
+                .select()
+                .single();
             if(error) throw error;
-            showWaitingScreen('Searching for opponent... (max 20 min)');
+            showWaitingScreen('Searching for an opponent… (up to 20 min)');
+            // Listen for when the joiner claims this queue entry (status → 'paired').
             checkMatchmaking(data.id);
         } catch(e) { toast('Queue error: ' + e.message); }
     };
@@ -884,41 +945,92 @@
     window.joinPublicRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
-            const { data: pending } = await sb.from('online_games').select('*').eq('type','public').in('status', ['active','frozen','countdown']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
-            if (pending) {
+            // ── 1. Reconnection check ────────────────────────────────────────
+            // Look for an existing public game this user is already part of.
+            const { data: pending } = await sb.from('online_games')
+                .select('*')
+                .eq('type', 'public')
+                .in('status', ['active', 'frozen', 'countdown', 'waiting_for_nicknames'])
+                .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
+                .maybeSingle();
+            if(pending){
                 const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_' + pending.id);
-                if (storedKey) sessionPlayerKey = storedKey;
+                if(storedKey) sessionPlayerKey = storedKey;
                 const pKey = sessionPlayerKey;
-                if ((pending.host_player_id===currentUserId && pKey===pending.host_player_key) || (pending.joiner_player_id===currentUserId && pKey===pending.joiner_player_key)) {
-                    onlineGame = pending; subscribeToGame(pending.id);
-                    if (pending.status==='active' || pending.status==='frozen') {
-                        document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started = true;
-                        if(!boardBuilt){ buildBoard(); boardBuilt=true; }
-                        brd = pending.board_state.brd; turn = pending.board_state.turn; cas = pending.board_state.cas; ep = pending.board_state.ep;
-                        timerW = pending.timer_w; timerB = pending.timer_b; syncAll(brd); updHL(); renderUI();
-                        timerActive = (pending.status==='active' && turn===myColor); lastTick = performance.now();
-                        document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
-                        document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
-                        document.getElementById('mode-btn').onclick = confirmExitOnline; document.getElementById('chat-box').classList.add('show');
-                    } else if (pending.status==='countdown') { showCountdown(); } else { showNicknamePrompt(); }
+                const isHost   = pending.host_player_id   === currentUserId && pKey === pending.host_player_key;
+                const isJoiner = pending.joiner_player_id === currentUserId && pKey === pending.joiner_player_key;
+                if(isHost || isJoiner){
+                    onlineGame = pending;
+                    subscribeToGame(pending.id);
+                    if(pending.status === 'active' || pending.status === 'frozen'){
+                        document.getElementById('ms').style.display = 'none';
+                        document.getElementById('gu').style.display = 'block';
+                        started = true;
+                        if(!boardBuilt){ buildBoard(); boardBuilt = true; }
+                        brd = pending.board_state.brd; turn = pending.board_state.turn;
+                        cas = pending.board_state.cas; ep = pending.board_state.ep;
+                        timerW = pending.timer_w; timerB = pending.timer_b;
+                        syncAll(brd); updHL(); renderUI();
+                        timerActive = (pending.status === 'active' && turn === myColor);
+                        lastTick = performance.now();
+                        document.getElementById('new-game-btn').style.display = 'none';
+                        document.getElementById('undo-btn').style.display = 'none';
+                        document.getElementById('mode-btn').textContent = 'Exit';
+                        document.getElementById('mode-btn').style.color = '#cc0000';
+                        document.getElementById('mode-btn').onclick = confirmExitOnline;
+                        document.getElementById('chat-box').classList.add('show');
+                    } else if(pending.status === 'countdown'){
+                        showCountdown();
+                    } else {
+                        showNicknamePrompt();
+                    }
                     return;
                 }
             }
-            const { data: hosts, error } = await sb.from('matchmaking_queue').select('*').eq('status','searching').neq('player_id', currentUserId).order('created_at', {ascending:true}).limit(1);
-            if(error || !hosts || hosts.length===0){ toast('No rooms available at the moment.'); return; }
+
+            // ── 2. Find an open host in the matchmaking queue ────────────────
+            const { data: hosts, error } = await sb.from('matchmaking_queue')
+                .select('*')
+                .eq('status', 'searching')
+                .neq('player_id', currentUserId)
+                .order('created_at', { ascending: true })
+                .limit(1);
+            if(error || !hosts || hosts.length === 0){
+                toast('No rooms available at the moment.'); return;
+            }
             const hostEntry = hosts[0];
-            const { error: claimErr } = await sb.from('matchmaking_queue').update({ status: 'paired' }).eq('id', hostEntry.id).eq('status', 'searching');
-            if(claimErr){ toast('Room taken — please try again.'); return; }
+
+            // ── 3. Atomically claim the host's queue entry ───────────────────
+            // Update only if it is still 'searching' — prevents double-join.
+            const { error: claimErr } = await sb.from('matchmaking_queue')
+                .update({ status: 'paired' })
+                .eq('id', hostEntry.id)
+                .eq('status', 'searching');
+            if(claimErr){ toast('Room was just taken — please try again.'); return; }
+
+            // ── 4. Create the online_games row immediately ───────────────────
+            // The host is listening for UPDATE on their queue row (status → 'paired').
+            // They will wait 1.5 s (checkMatchmaking) before reading online_games, so
+            // this insert must complete before that window expires — it will.
             sessionPlayerKey = generatePlayerKey();
-            const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2,8));
+            const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2, 8));
             const { data: game, error: createErr } = await sb.from('online_games').insert({
-                room_code: roomCode, type: 'public', host_player_id: hostEntry.player_id, joiner_player_id: currentUserId,
-                host_player_key: 'pending', joiner_player_key: sessionPlayerKey, status: 'waiting_for_nicknames',
-                board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
+                room_code: roomCode,
+                type: 'public',
+                host_player_id: hostEntry.player_id,
+                joiner_player_id: currentUserId,
+                host_player_key: 'pending',         // host fills this in after the 1.5 s delay
+                joiner_player_key: sessionPlayerKey,
+                status: 'waiting_for_nicknames',
+                board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
+                timer_w: 60, timer_b: 60
             }).select().single();
             if(createErr) throw createErr;
-            onlineGame = game; sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
-            showNicknamePrompt(); subscribeToGame(game.id);
+
+            onlineGame = game;
+            sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
+            showNicknamePrompt();
+            subscribeToGame(game.id);
         } catch(e) { toast('Join failed: ' + e.message); }
     };
 
