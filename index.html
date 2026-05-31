@@ -70,7 +70,7 @@
         .online-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:rgba(16,10,6,0.95);border:1px solid var(--gold);padding:clamp(18px,5vw,28px);border-radius:4px;box-shadow:0 0 20px rgba(201,168,76,0.2)}
         .online-panel.show{display:flex}
         .online-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em;margin-bottom:8px}
-        .online-panel input{background:rgba(0,0,0,0.4);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Cinzel',serif;letter-spacing:.1em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s}
+        .online-panel input{background:rgba(0,0,0,0.4);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Cormorant Garamond',serif;font-size:16px;letter-spacing:.1em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s}
         .online-panel input:focus{border-color:var(--gold)}
         .online-panel .db{margin:4px 0;min-width:220px;font-size:clamp(10px,2.5vw,12px)}
         .online-panel .db.back-btn{border-color:var(--gold-d);color:var(--muted);opacity:0.7}
@@ -318,7 +318,7 @@
     let sessionPlayerKey = null;
     let _avatarUrl = null;
 
-    // ---------- Auth init (runs immediately) ----------
+    // ---------- Auth init (runs immediately, synchronous check first) ----------
     async function initAuth() {
         try {
             const { data: { session } } = await sb.auth.getSession();
@@ -769,7 +769,7 @@
         document.getElementById('mode-btn').textContent = 'Exit'; document.getElementById('mode-btn').style.color = '#cc0000';
     };
 
-    // ---------- Online functions ----------
+    // ---------- Online functions (all globally accessible) ----------
     window.startGame = function(mode){ gameMode=mode; document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true; if(!boardBuilt){buildBoard();boardBuilt=true;} newGame(); };
     window.newGame = function(){ resetState(); syncAll(brd); clearDots(); clearTints(); document.getElementById('go').classList.remove('on'); document.getElementById('pm').classList.remove('on'); document.getElementById('thkstrip').classList.remove('on'); renderUI(); if(gameMode==='ai'&&playerColor==='b'){ timerActive=true; lastTick=performance.now(); scheduleAI(500); } clearBackup(gameMode); startAutoSave(); };
     window.undoMove = function(){ if(gameMode==='online') return; if(isAnim||aiThink||!hist.length) return; aiThink=false; document.getElementById('thkstrip').classList.remove('on'); const steps=(gameMode==='ai'&&hist.length>=2)?2:1; for(let i=0;i<steps;i++){ if(!hist.length) break; const s=hist.pop(); brd=s.brd; turn=s.turn; cas=s.cas; ep=s.ep; capW=s.capW; capB=s.capB; mlog=s.mlog; } timerW=60;timerB=60; timerActive=hist.length>0; lastTick=timerActive?performance.now():null; lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on'); syncAll(brd);updHL();renderUI(); if(gameMode==='ai'&&turn===getAiColor()&&!over&&hist.length>0){ timerActive=true;lastTick=performance.now();scheduleAI(400); } saveBackup(); };
@@ -785,7 +785,7 @@
     };
     function handleExitGameOver(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
 
-    function showOnlineMenu(){
+    window.showOnlineMenu = function(){
         if (!currentUserId) {
             document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
             hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show');
@@ -793,21 +793,21 @@
         }
         document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
         hideAllOnlinePanels(); document.getElementById('online-menu').classList.add('show');
-    }
-    function hideLoginGate(){ document.getElementById('login-gate-panel').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
+    };
+    window.hideLoginGate = function(){ document.getElementById('login-gate-panel').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; };
 
     // ---------- AI Mode new flow ----------
     let _aiCountdownInterval = null;
-    function showAiDiffPanel(){ document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('ai-diff-panel').classList.add('show'); }
-    function hideAiPanels(){ hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
-    function aiSelectDiff(d){ selDiff = d; aiDepth = d; hideAllOnlinePanels(); document.getElementById('ai-color-panel').classList.add('show'); }
-    function aiSelectColor(col){ playerColor = col; hideAllOnlinePanels(); document.getElementById('ai-countdown-panel').classList.add('show'); let sec = 5; document.getElementById('ai-countdown-number').textContent = sec; if (_aiCountdownInterval) clearInterval(_aiCountdownInterval); _aiCountdownInterval = setInterval(()=>{ sec--; if (sec <= 0){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; document.getElementById('ai-countdown-panel').classList.remove('show'); startGame('ai'); return; } document.getElementById('ai-countdown-number').textContent = sec; }, 1000); }
-    function cancelAiCountdown(){ if (_aiCountdownInterval){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; } hideAiPanels(); }
-    function hideOnlineMenu(){ document.getElementById('online-menu').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
-    function showPublicMenu(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('public-menu').classList.add('show'); }
-    function showPrivateMenu(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('private-menu').classList.add('show'); }
-    function showCreatePrivate(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('create-private').classList.add('show'); }
-    function showJoinPrivate(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('join-private').classList.add('show'); }
+    window.showAiDiffPanel = function(){ document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('ai-diff-panel').classList.add('show'); };
+    window.hideAiPanels = function(){ hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; };
+    window.aiSelectDiff = function(d){ selDiff = d; aiDepth = d; hideAllOnlinePanels(); document.getElementById('ai-color-panel').classList.add('show'); };
+    window.aiSelectColor = function(col){ playerColor = col; hideAllOnlinePanels(); document.getElementById('ai-countdown-panel').classList.add('show'); let sec = 5; document.getElementById('ai-countdown-number').textContent = sec; if (_aiCountdownInterval) clearInterval(_aiCountdownInterval); _aiCountdownInterval = setInterval(()=>{ sec--; if (sec <= 0){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; document.getElementById('ai-countdown-panel').classList.remove('show'); startGame('ai'); return; } document.getElementById('ai-countdown-number').textContent = sec; }, 1000); };
+    window.cancelAiCountdown = function(){ if (_aiCountdownInterval){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; } hideAiPanels(); };
+    window.hideOnlineMenu = function(){ document.getElementById('online-menu').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; };
+    window.showPublicMenu = function(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('public-menu').classList.add('show'); };
+    window.showPrivateMenu = function(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('private-menu').classList.add('show'); };
+    window.showCreatePrivate = function(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('create-private').classList.add('show'); };
+    window.showJoinPrivate = function(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('join-private').classList.add('show'); };
     function hideAllOnlinePanels(){
         ['online-menu','public-menu','private-menu','create-private','join-private','nickname-panel','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
     }
@@ -830,7 +830,7 @@
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
 
-    async function createPrivateRoom(){
+    window.createPrivateRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
@@ -848,9 +848,9 @@
             showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
             subscribeToGame(onlineGame.id);
         } catch(e) { toast('Failed to create room: ' + e.message); }
-    }
+    };
 
-    async function joinPrivateRoom(){
+    window.joinPrivateRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-room-code').value.trim();
         if(!code) return;
@@ -865,9 +865,9 @@
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
             showNicknamePrompt(); subscribeToGame(onlineGame.id);
         } catch(e) { toast('Join failed: ' + e.message); }
-    }
+    };
 
-    async function createPublicRoom(){
+    window.createPublicRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
@@ -879,9 +879,9 @@
             showWaitingScreen('Searching for opponent... (max 20 min)');
             checkMatchmaking(data.id);
         } catch(e) { toast('Queue error: ' + e.message); }
-    }
+    };
 
-    async function joinPublicRoom(){
+    window.joinPublicRoom = async function(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
             const { data: pending } = await sb.from('online_games').select('*').eq('type','public').in('status', ['active','frozen','countdown']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
@@ -920,7 +920,7 @@
             onlineGame = game; sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
             showNicknamePrompt(); subscribeToGame(game.id);
         } catch(e) { toast('Join failed: ' + e.message); }
-    }
+    };
 
     function checkMatchmaking(queueRowId){
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
