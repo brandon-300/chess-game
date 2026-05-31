@@ -123,7 +123,6 @@
 </head>
 <body>
     <canvas id="cv"></canvas>
-    <!-- Avatar button (top-right, logged-in only) -->
     <button id="avatar-btn" onclick="window.location.href='profile.html'" title="Profile">
         <img src="" alt="Avatar" style="display:none">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -316,54 +315,48 @@
     let onlineChannel = null;
     let matchmakingChannel = null;
     let myColor = 'w';
-    // Per-session player key: avoids localStorage collision when two tabs share a device
     let sessionPlayerKey = null;
 
     // ---------- Auth init ----------
-    (async () => {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session && session.user) {
-            currentUserId = session.user.id;
-            await loadUserAvatar(currentUserId);
-        }
-        renderAvatarBtn();
-    })();
-
-    sb.auth.onAuthStateChange(async (event, session) => {
-        if (session && session.user) {
-            currentUserId = session.user.id;
-            await loadUserAvatar(currentUserId);
-        } else {
-            currentUserId = null;
-        }
-        renderAvatarBtn();
-        // If session expires mid-game, terminate online match
-        if (!session && gameMode === 'online' && started) {
-            toast('Session expired. Exiting match.');
-            exitOnlineGame();
-        }
-    });
-
     let _avatarUrl = null;
     async function loadUserAvatar(uid) {
-        try {
-            const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle();
-            _avatarUrl = data ? data.avatar_url : null;
-        } catch(e) { _avatarUrl = null; }
+        try { const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle(); _avatarUrl = data?.avatar_url || null; } catch(e) { _avatarUrl = null; }
     }
     function renderAvatarBtn() {
         const btn = document.getElementById('avatar-btn');
         if (!btn) return;
         if (currentUserId) {
             btn.style.display = 'flex';
-            const img = btn.querySelector('img');
-            const svg = btn.querySelector('svg');
+            const img = btn.querySelector('img'), svg = btn.querySelector('svg');
             if (_avatarUrl) { img.src = _avatarUrl; img.style.display = 'block'; svg.style.display = 'none'; }
             else { img.style.display = 'none'; svg.style.display = 'block'; }
-        } else {
-            btn.style.display = 'none';
+        } else { btn.style.display = 'none'; }
+    }
+
+    async function initAuth() {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session?.user) {
+            currentUserId = session.user.id;
+            await loadUserAvatar(currentUserId);
+            renderAvatarBtn();
         }
     }
+    initAuth();
+
+    sb.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+            currentUserId = session.user.id;
+            await loadUserAvatar(currentUserId);
+        } else {
+            currentUserId = null;
+            _avatarUrl = null;
+        }
+        renderAvatarBtn();
+        if (!session && gameMode === 'online' && started) {
+            toast('Session expired. Exiting match.');
+            exitOnlineGame();
+        }
+    });
 
     // ---------- Chess engine (unchanged) ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
@@ -826,7 +819,10 @@
         if(gameMode==='online'){ confirmExitOnline(); return; }
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
-        document.getElementById('ms').style.display='flex'; stopAutoSave();
+        document.getElementById('ms').style.display='flex';
+        document.getElementById('main-cards').style.display='flex';
+        document.getElementById('original-buttons').style.display='';
+        stopAutoSave();
     };
     function handleExitGameOver(){
         if(gameMode==='online'){ confirmExitOnline(); }
@@ -865,13 +861,8 @@
         document.getElementById('main-cards').style.display='flex';
         document.getElementById('original-buttons').style.display='';
     }
-    function showAiDiffPanelFromColor(){
-        hideAllOnlinePanels();
-        document.getElementById('ai-diff-panel').classList.add('show');
-    }
     function aiSelectDiff(d){
-        selDiff = d;
-        aiDepth = d;
+        selDiff = d; aiDepth = d;
         hideAllOnlinePanels();
         document.getElementById('ai-color-panel').classList.add('show');
     }
@@ -885,8 +876,7 @@
         _aiCountdownInterval = setInterval(()=>{
             sec--;
             if (sec <= 0){
-                clearInterval(_aiCountdownInterval);
-                _aiCountdownInterval = null;
+                clearInterval(_aiCountdownInterval); _aiCountdownInterval = null;
                 document.getElementById('ai-countdown-panel').classList.remove('show');
                 startGame('ai');
                 return;
@@ -953,333 +943,166 @@
     }
 
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
-
-    // Sanitize any string into a safe alphanumeric channel name token
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
 
     async function createPrivateRoom(){
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
-        const { data: existing } = await sb.from('online_games').select('id').eq('room_code', code).maybeSingle();
-        if (existing) { toast('A room already exists with this code, please create another.'); return; }
-        const hostKey = generatePlayerKey();
-        const { data, error } = await sb.from('online_games').insert({
-            room_code: code,
-            type: 'private',
-            host_player_id: currentUserId,
-            host_player_key: hostKey,
-            status: 'waiting_for_joiner',
-            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
-            timer_w: 60, timer_b: 60
-        }).select().single();
-        if(error){ toast('Could not create room.'); return; }
-        onlineGame = data;
-        sessionPlayerKey = hostKey;
-        sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
-        showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
-        subscribeToGame(onlineGame.id);
+        try {
+            const { data: existing } = await sb.from('online_games').select('id').eq('room_code', code).maybeSingle();
+            if (existing) { toast('A room already exists with this code, please create another.'); return; }
+            const hostKey = generatePlayerKey();
+            const { data, error } = await sb.from('online_games').insert({
+                room_code: code, type: 'private', host_player_id: currentUserId, host_player_key: hostKey,
+                status: 'waiting_for_joiner', board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
+            }).select().single();
+            if(error) throw error;
+            onlineGame = data; sessionPlayerKey = hostKey;
+            sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
+            showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
+            subscribeToGame(onlineGame.id);
+        } catch(e) { toast('Failed to create room: ' + e.message); }
     }
 
     async function joinPrivateRoom(){
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-room-code').value.trim();
         if(!code) return;
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
-        const { data, error } = await sb.from('online_games').select('*').eq('room_code', code).maybeSingle();
-        if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
-        if (data.status !== 'waiting_for_joiner') {
-            toast('This room is already filled up and a match has begun. Check the code and try again.');
-            return;
-        }
-        const joinerKey = generatePlayerKey();
-        const { error: updateErr } = await sb.from('online_games').update({
-            joiner_player_id: currentUserId,
-            joiner_player_key: joinerKey,
-            status: 'waiting_for_nicknames'
-        }).eq('id', data.id);
-        if(updateErr){ toast('Join failed'); return; }
-        onlineGame = data;
-        onlineGame.joiner_player_id = currentUserId;
-        onlineGame.joiner_player_key = joinerKey;
-        onlineGame.status = 'waiting_for_nicknames';
-        sessionPlayerKey = joinerKey;
-        sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
-        showNicknamePrompt();
-        subscribeToGame(onlineGame.id);
+        try {
+            const { data, error } = await sb.from('online_games').select('*').eq('room_code', code).maybeSingle();
+            if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
+            if (data.status !== 'waiting_for_joiner') { toast('This room is already filled up and a match has begun. Check the code and try again.'); return; }
+            const joinerKey = generatePlayerKey();
+            const { error: updateErr } = await sb.from('online_games').update({
+                joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames'
+            }).eq('id', data.id);
+            if(updateErr) throw updateErr;
+            onlineGame = data; onlineGame.joiner_player_id = currentUserId; onlineGame.joiner_player_key = joinerKey; onlineGame.status = 'waiting_for_nicknames';
+            sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
+            showNicknamePrompt();
+            subscribeToGame(onlineGame.id);
+        } catch(e) { toast('Join failed: ' + e.message); }
     }
 
     async function createPublicRoom(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
-        // Prevent duplicate queue entries for this user
-        await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
-        const { data: existingGame } = await sb.from('online_games').select('*')
-            .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
-            .eq('type','public')
-            .in('status', ['active','frozen','countdown'])
-            .maybeSingle();
-        if (existingGame) {
-            toast('You already have an active public game. Please rejoin that room.');
-            return;
-        }
-        sessionPlayerKey = generatePlayerKey();
-        const { data, error } = await sb.from('matchmaking_queue').insert({
-            player_id: currentUserId,
-            status: 'searching'
-        }).select().single();
-        if(error){ toast('Could not enter queue'); return; }
-        showWaitingScreen('Searching for opponent... (max 20 min)');
-        checkMatchmaking(data.id);
+        try {
+            await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
+            const { data: existingGame } = await sb.from('online_games').select('*')
+                .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).eq('type','public').in('status', ['active','frozen','countdown']).maybeSingle();
+            if (existingGame) { toast('You already have an active public game. Please rejoin that room.'); return; }
+            sessionPlayerKey = generatePlayerKey();
+            const { data, error } = await sb.from('matchmaking_queue').insert({ player_id: currentUserId, status: 'searching' }).select().single();
+            if(error) throw error;
+            showWaitingScreen('Searching for opponent... (max 20 min)');
+            checkMatchmaking(data.id);
+        } catch(e) { toast('Queue error: ' + e.message); }
     }
 
     async function joinPublicRoom(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
-        // Rejoin check using in-session key for multi-tab isolation
-        const { data: pending } = await sb.from('online_games').select('*')
-            .eq('type','public')
-            .in('status', ['active','frozen','countdown'])
-            .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
-            .maybeSingle();
-        if (pending) {
-            // Try sessionStorage as fallback for key recovery across page refreshes
-            const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_' + pending.id);
-            if (storedKey) sessionPlayerKey = storedKey;
-            const pKey = sessionPlayerKey;
-            if ((pending.host_player_id===currentUserId && pKey===pending.host_player_key) ||
-                (pending.joiner_player_id===currentUserId && pKey===pending.joiner_player_key)) {
-                onlineGame = pending;
-                subscribeToGame(pending.id);
-                if (pending.status==='active' || pending.status==='frozen') {
-                    document.getElementById('ms').style.display='none';
-                    document.getElementById('gu').style.display='block';
-                    started = true;
-                    if(!boardBuilt){ buildBoard(); boardBuilt=true; }
-                    brd = pending.board_state.brd;
-                    turn = pending.board_state.turn;
-                    cas = pending.board_state.cas;
-                    ep = pending.board_state.ep;
-                    timerW = pending.timer_w; timerB = pending.timer_b;
-                    syncAll(brd); updHL(); renderUI();
-                    timerActive = (pending.status==='active' && turn===myColor);
-                    lastTick = performance.now();
-                    document.getElementById('new-game-btn').style.display='none';
-                    document.getElementById('undo-btn').style.display='none';
-                    document.getElementById('mode-btn').textContent='Exit';
-                    document.getElementById('mode-btn').style.color='#cc0000';
-                    document.getElementById('mode-btn').onclick = confirmExitOnline;
-                    document.getElementById('chat-box').classList.add('show');
-                } else if (pending.status==='countdown') {
-                    showCountdown();
-                } else {
-                    showNicknamePrompt();
+        try {
+            const { data: pending } = await sb.from('online_games').select('*')
+                .eq('type','public').in('status', ['active','frozen','countdown']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
+            if (pending) {
+                const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_' + pending.id);
+                if (storedKey) sessionPlayerKey = storedKey;
+                const pKey = sessionPlayerKey;
+                if ((pending.host_player_id===currentUserId && pKey===pending.host_player_key) || (pending.joiner_player_id===currentUserId && pKey===pending.joiner_player_key)) {
+                    onlineGame = pending; subscribeToGame(pending.id);
+                    if (pending.status==='active' || pending.status==='frozen') {
+                        document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started = true;
+                        if(!boardBuilt){ buildBoard(); boardBuilt=true; }
+                        brd = pending.board_state.brd; turn = pending.board_state.turn; cas = pending.board_state.cas; ep = pending.board_state.ep;
+                        timerW = pending.timer_w; timerB = pending.timer_b;
+                        syncAll(brd); updHL(); renderUI();
+                        timerActive = (pending.status==='active' && turn===myColor); lastTick = performance.now();
+                        document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
+                        document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
+                        document.getElementById('mode-btn').onclick = confirmExitOnline;
+                        document.getElementById('chat-box').classList.add('show');
+                    } else if (pending.status==='countdown') { showCountdown(); } else { showNicknamePrompt(); }
+                    return;
                 }
-                return;
             }
-        }
-        // Claim a host from the queue with an atomic status filter to prevent double-claim
-        const { data: hosts, error } = await sb.from('matchmaking_queue')
-            .select('*')
-            .eq('status','searching')
-            .neq('player_id', currentUserId)
-            .order('created_at', {ascending:true})
-            .limit(1);
-        if(error || !hosts || hosts.length===0){ toast('No rooms available at the moment.'); return; }
-        const hostEntry = hosts[0];
-        // Atomic claim: only succeed if the row is still 'searching' (race-condition guard)
-        const { error: claimErr, count } = await sb.from('matchmaking_queue')
-            .update({ status: 'paired' })
-            .eq('id', hostEntry.id)
-            .eq('status', 'searching')
-            .select('id');
-        if(claimErr){ toast('Room taken — please try again.'); return; }
-        sessionPlayerKey = generatePlayerKey();
-        const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2,8));        const { data: game, error: createErr } = await sb.from('online_games').insert({
-            room_code: roomCode,
-            type: 'public',
-            host_player_id: hostEntry.player_id,
-            joiner_player_id: currentUserId,
-            host_player_key: 'pending',
-            joiner_player_key: sessionPlayerKey,
-            status: 'waiting_for_nicknames',
-            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
-            timer_w: 60, timer_b: 60
-        }).select().single();
-        if(createErr){ toast('Pairing failed'); return; }
-        onlineGame = game;
-        sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
-        showNicknamePrompt();
-        subscribeToGame(game.id);
+            const { data: hosts, error } = await sb.from('matchmaking_queue').select('*').eq('status','searching').neq('player_id', currentUserId).order('created_at', {ascending:true}).limit(1);
+            if(error || !hosts || hosts.length===0){ toast('No rooms available at the moment.'); return; }
+            const hostEntry = hosts[0];
+            const { error: claimErr } = await sb.from('matchmaking_queue').update({ status: 'paired' }).eq('id', hostEntry.id).eq('status', 'searching');
+            if(claimErr){ toast('Room taken — please try again.'); return; }
+            sessionPlayerKey = generatePlayerKey();
+            const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2,8));
+            const { data: game, error: createErr } = await sb.from('online_games').insert({
+                room_code: roomCode, type: 'public', host_player_id: hostEntry.player_id, joiner_player_id: currentUserId,
+                host_player_key: 'pending', joiner_player_key: sessionPlayerKey, status: 'waiting_for_nicknames',
+                board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
+            }).select().single();
+            if(createErr) throw createErr;
+            onlineGame = game; sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
+            showNicknamePrompt(); subscribeToGame(game.id);
+        } catch(e) { toast('Join failed: ' + e.message); }
     }
 
-    // checkMatchmaking — listens for UPDATE on own queue row (status -> 'paired'), NOT an INSERT on online_games
     function checkMatchmaking(queueRowId){
-        // Tear down any stale matchmaking listener first
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         const chanName = 'mmq_' + safeChannelToken(currentUserId);
         matchmakingChannel = sb.channel(chanName);
-        matchmakingChannel
-            .on('postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` },
-                async (payload) => {
-                    const row = payload.new;
-                    if (row.status !== 'paired') return;
-                    // Tear down matchmaking listener — job done
-                    if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
-                    if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
-                    // Wait 1.5s for joiner to finish inserting the game row
-                    await new Promise(r => setTimeout(r, 1500));
-                    // Fetch the game row created for us as host
-                    const { data: gameRows } = await sb.from('online_games')
-                        .select('*')
-                        .eq('host_player_id', currentUserId)
-                        .eq('type', 'public')
-                        .eq('status', 'waiting_for_nicknames')
-                        .order('created_at', { ascending: false })
-                        .limit(1);
-                    if (!gameRows || gameRows.length === 0) {
-                        toast('Opponent disconnected during handshake. Returning to menu.');
-                        hideAllOnlinePanels();
-                        document.getElementById('main-cards').style.display='flex';
-                        document.getElementById('original-buttons').style.display='';
-                        return;
-                    }
-                    const g = gameRows[0];
-                    // Write host's session player key into the game row
-                    await sb.from('online_games').update({ host_player_key: sessionPlayerKey }).eq('id', g.id);
-                    onlineGame = { ...g, host_player_key: sessionPlayerKey };
-                    showNicknamePrompt();
-                    subscribeToGame(onlineGame.id);
-                }
-            )
-            .subscribe();
-
+        matchmakingChannel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` }, async (payload) => {
+            if (payload.new.status !== 'paired') return;
+            if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
+            if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
+            await new Promise(r => setTimeout(r, 1500));
+            const { data: gameRows } = await sb.from('online_games').select('*').eq('host_player_id', currentUserId).eq('type', 'public').eq('status', 'waiting_for_nicknames').order('created_at', { ascending: false }).limit(1);
+            if (!gameRows || gameRows.length === 0) { toast('Opponent disconnected during handshake. Returning to menu.'); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; return; }
+            const g = gameRows[0];
+            await sb.from('online_games').update({ host_player_key: sessionPlayerKey }).eq('id', g.id);
+            onlineGame = { ...g, host_player_key: sessionPlayerKey };
+            showNicknamePrompt(); subscribeToGame(onlineGame.id);
+        }).subscribe();
         matchmakingTimeout = setTimeout(async ()=>{
             if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
             toast('No opponent found within 20 minutes. Returning to menu.');
-            hideAllOnlinePanels();
-            document.getElementById('main-cards').style.display='flex';
-            document.getElementById('original-buttons').style.display='';
+            hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
             matchmakingTimeout = null;
         }, 20*60*1000);
     }
 
-    // subscribeToGame — uses safe alphanumeric channel name to avoid WebSocket frame breakage
-    let _reconnectAttempts = 0;
-    let _reconnectTimer = null;
-    let _keepaliveInterval = null;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-    const RECONNECT_DELAYS = [2000, 4000, 8000, 16000, 30000];
-
     function subscribeToGame(gameId){
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         const safeName = 'game_' + safeChannelToken(String(gameId));
-        onlineChannel = sb.channel(safeName);
-        onlineChannel
-            .on('postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` },
-                handleGameUpdate
-            )
-            .on('system', {}, (status) => {
-                if (status === 'CLOSED' || status === 'TIMED_OUT') {
-                    handleChannelDrop(gameId);
-                } else if (status === 'SUBSCRIBED') {
-                    document.getElementById('reconnect-indicator').classList.remove('show');
-                    _reconnectAttempts = 0;
-                    startKeepalive();
-                }
-            })
-            .subscribe();
-    }
-
-    function handleChannelDrop(gameId){
-        document.getElementById('reconnect-indicator').classList.add('show');
-        stopKeepalive();
-        if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            document.getElementById('reconnect-indicator').classList.remove('show');
-            toast('Connection lost. Please check your network and exit.');
-            return;
-        }
-        const delay = RECONNECT_DELAYS[_reconnectAttempts] || 30000;
-        _reconnectAttempts++;
-        _reconnectTimer = setTimeout(async () => {
-            // Re-fetch latest game state from DB
-            if (onlineGame) {
-                const { data } = await sb.from('online_games').select('*').eq('id', gameId).maybeSingle();
-                if (data) {
-                    handleGameUpdate({ new: data });
-                }
-            }
-            subscribeToGame(gameId);
-        }, delay);
-    }
-
-    function startKeepalive(){
-        stopKeepalive();
-        // Send a no-op heartbeat every 20s to keep Vercel from dropping the WS connection
-        _keepaliveInterval = setInterval(() => {
-            if (onlineChannel) {
-                try { onlineChannel.send({ type: 'broadcast', event: 'ping', payload: {} }); } catch(e){}
-            }
-        }, 20000);
-    }
-    function stopKeepalive(){
-        if (_keepaliveInterval){ clearInterval(_keepaliveInterval); _keepaliveInterval = null; }
-        if (_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+        onlineChannel = sb.channel(safeName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` }, handleGameUpdate).subscribe();
     }
 
     function handleGameUpdate(payload){
         if(!onlineGame) return;
         onlineGame = payload.new;
         const g = onlineGame;
-        if(g.status==='terminated'){
-            toast('Match terminated by opponent.');
-            resetOnlineState();
-            return;
-        }
+        if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
-            over = true; timerActive = false;
-            document.getElementById('go').classList.add('on');
-            if(g.winner){
-                const winMsg = g.winner==='red'?'Red Wins':'Black Wins';
-                document.getElementById('got').textContent = winMsg;
-            }
-            showRematchUI();
-            return;
+            over = true; timerActive = false; document.getElementById('go').classList.add('on');
+            if(g.winner){ const winMsg = g.winner==='red'?'Red Wins':'Black Wins'; document.getElementById('got').textContent = winMsg; }
+            showRematchUI(); return;
         }
         if(g.status==='waiting_for_nicknames'){
             if((g.host_nickname && g.host_player_id===currentUserId) || (g.joiner_nickname && g.joiner_player_id===currentUserId)) return;
-            showNicknamePrompt();
-            return;
+            showNicknamePrompt(); return;
         }
-        if(g.status==='countdown'){
-            showCountdown();
-            return;
-        }
+        if(g.status==='countdown'){ showCountdown(); return; }
         if(g.status==='active'){
             if(!g.board_state) return;
-            brd = g.board_state.brd;
-            turn = g.board_state.turn;
-            cas = g.board_state.cas;
-            ep = g.board_state.ep;
+            brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
             timerW = g.timer_w; timerB = g.timer_b;
-            syncAll(brd); updHL(); renderUI();
-            timerActive = true; lastTick = performance.now();
-            if(g.host_player_id===currentUserId) myColor = g.host_color;
-            else myColor = g.host_color==='w'?'b':'w';
+            syncAll(brd); updHL(); renderUI(); timerActive = true; lastTick = performance.now();
+            if(g.host_player_id===currentUserId) myColor = g.host_color; else myColor = g.host_color==='w'?'b':'w';
             return;
         }
-        if(g.status==='frozen'){
-            timerActive = false;
-            document.getElementById('smsg').textContent = 'Opponent left – waiting...';
-        }
+        if(g.status==='frozen'){ timerActive = false; document.getElementById('smsg').textContent = 'Opponent left – waiting...'; }
     }
 
-    function showNicknamePrompt(){
-        hideAllOnlinePanels();
-        document.getElementById('nickname-panel').classList.add('show');
-        document.getElementById('nickname-status').textContent = 'Waiting for both players to set nicknames...';
-    }
+    function showNicknamePrompt(){ hideAllOnlinePanels(); document.getElementById('nickname-panel').classList.add('show'); document.getElementById('nickname-status').textContent = 'Waiting for both players to set nicknames...'; }
     async function submitNickname(){
         const nick = document.getElementById('nickname-input').value.trim();
         if(!nick){ toast('Enter a nickname'); return; }
@@ -1292,66 +1115,37 @@
             await sb.from('online_games').update({ joiner_nickname: nick }).eq('id', g.id);
         }
         document.getElementById('nickname-panel').classList.remove('show');
-        if(g.host_nickname && g.joiner_nickname && g.host_player_id===currentUserId){
-            showColorChoice();
-        } else {
-            showWaitingScreen('Nickname set! Waiting for opponent...');
-        }
+        if(g.host_nickname && g.joiner_nickname && g.host_player_id===currentUserId){ showColorChoice(); } else { showWaitingScreen('Nickname set! Waiting for opponent...'); }
     }
 
-    function showColorChoice(){
-        hideAllOnlinePanels();
-        document.getElementById('color-choice-panel').classList.add('show');
-    }
+    function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
     async function hostChooseColor(col){
         await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id);
-        myColor = col;
-        document.getElementById('color-choice-panel').classList.remove('show');
-        showCountdown();
+        myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown();
     }
 
     function showCountdown(){
-        hideAllOnlinePanels();
-        document.getElementById('countdown-panel').classList.add('show');
-        let sec = 5;
-        document.getElementById('countdown-number').textContent = sec;
-        const iv = setInterval(()=>{
-            sec--;
-            if(sec<=0){ clearInterval(iv); startOnlineGame(); return; }
-            document.getElementById('countdown-number').textContent = sec;
-        },1000);
+        hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show');
+        let sec = 5; document.getElementById('countdown-number').textContent = sec;
+        const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000);
     }
 
     async function startOnlineGame(){
         hideAllOnlinePanels();
-        if(onlineGame.host_player_id===currentUserId){
-            await sb.from('online_games').update({ status: 'active' }).eq('id', onlineGame.id);
-        }
-        document.getElementById('gu').style.display='block';
-        document.getElementById('ms').style.display='none';
-        started = true;
+        if(onlineGame.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'active' }).eq('id', onlineGame.id); }
+        document.getElementById('gu').style.display='block'; document.getElementById('ms').style.display='none'; started = true;
         if(!boardBuilt){ buildBoard(); boardBuilt=true; }
-        document.getElementById('new-game-btn').style.display='none';
-        document.getElementById('undo-btn').style.display='none';
-        document.getElementById('mode-btn').textContent='Exit';
-        document.getElementById('mode-btn').style.color='#cc0000';
-        document.getElementById('mode-btn').onclick = confirmExitOnline;
-        document.getElementById('chat-box').classList.add('show');
+        document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
+        document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
+        document.getElementById('mode-btn').onclick = confirmExitOnline; document.getElementById('chat-box').classList.add('show');
     }
 
-    function confirmExitOnline(){
-        if(confirm('Are you sure you want to leave? The match will be terminated.')){
-            exitOnlineGame();
-        }
-    }
+    function confirmExitOnline(){ if(confirm('Are you sure you want to leave? The match will be terminated.')){ exitOnlineGame(); } }
 
     async function exitOnlineGame(){
         timerActive=false; over=true;
-        if(onlineGame && onlineGame.host_player_id===currentUserId){
-            await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id);
-        } else if(onlineGame && onlineGame.joiner_player_id===currentUserId){
-            await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id);
-        }
+        if(onlineGame && onlineGame.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); }
+        else if(onlineGame && onlineGame.joiner_player_id===currentUserId){ await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id); }
         resetOnlineState();
     }
 
@@ -1359,154 +1153,61 @@
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
-        stopKeepalive();
-        // Clear session player key from sessionStorage
         if (onlineGame) sessionStorage.removeItem('chess3d_playerkey_' + onlineGame.id);
-        sessionPlayerKey = null;
-        onlineGame=null;
-        document.getElementById('gu').style.display='none';
-        document.getElementById('ms').style.display='flex';
-        document.getElementById('chat-box').classList.remove('show');
-        document.getElementById('new-game-btn').style.display='';
-        document.getElementById('undo-btn').style.display='';
-        document.getElementById('mode-btn').textContent='Exit';
-        document.getElementById('mode-btn').style.color='#cc0000';
+        sessionPlayerKey = null; onlineGame=null;
+        document.getElementById('gu').style.display='none'; document.getElementById('ms').style.display='flex';
+        document.getElementById('chat-box').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        document.getElementById('new-game-btn').style.display=''; document.getElementById('undo-btn').style.display='';
+        document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
         document.getElementById('mode-btn').onclick = handleBottomRight;
-        hideAllOnlinePanels();
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
-        myColor='w';
-        started=false;
+        hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
-    function syncBoardToSupabase(){
-        if(!onlineGame) return;
-        sb.from('online_games').update({
-            board_state: { brd, turn, cas, ep },
-            timer_w: timerW, timer_b: timerB
-        }).eq('id', onlineGame.id);
-    }
-
+    function syncBoardToSupabase(){ if(!onlineGame) return; sb.from('online_games').update({ board_state: { brd, turn, cas, ep }, timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
     let _lastTimerSync = 0;
-    function syncTimersToSupabase(){
-        if(!onlineGame) return;
-        const now = Date.now();
-        if (now - _lastTimerSync < 3000) return;
-        _lastTimerSync = now;
-        sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id);
-    }
+    function syncTimersToSupabase(){ if(!onlineGame) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
+    function stopOnlineSync(){ if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
 
-    function stopOnlineSync(){
-        if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
-        if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
-        stopKeepalive();
-    }
-
-    async function requestRematch(){
-        await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id);
-        toast('Rematch requested');
-    }
-    function showRematchUI(){
-        if(onlineGame.rematch_requested_by && onlineGame.rematch_requested_by!==currentUserId){
-            document.getElementById('rematch-text').textContent = 'Opponent wants a rematch!';
-            document.getElementById('rematch-panel').classList.add('show');
-            setTimeout(()=>{ if(document.getElementById('rematch-panel').classList.contains('show')) declineRematch(); }, 30000);
-        }
-    }
+    async function requestRematch(){ await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
+    function showRematchUI(){ if(onlineGame.rematch_requested_by && onlineGame.rematch_requested_by!==currentUserId){ document.getElementById('rematch-text').textContent = 'Opponent wants a rematch!'; document.getElementById('rematch-panel').classList.add('show'); setTimeout(()=>{ if(document.getElementById('rematch-panel').classList.contains('show')) declineRematch(); }, 30000); } }
     async function acceptRematch(){
-        document.getElementById('rematch-panel').classList.remove('show');
-        const g = onlineGame;
-        const newHostColor = g.host_color==='w'?'b':'w';
-        // Create a new game row
+        document.getElementById('rematch-panel').classList.remove('show'); const g = onlineGame; const newHostColor = g.host_color==='w'?'b':'w';
         const newRoomCode = g.room_code + '_r' + Date.now().toString(36);
         const { data: newGame, error } = await sb.from('online_games').insert({
-            room_code: newRoomCode,
-            type: g.type,
-            host_player_id: g.host_player_id,
-            joiner_player_id: g.joiner_player_id,
-            host_player_key: g.host_player_key,
-            joiner_player_key: g.joiner_player_key,
-            host_nickname: g.host_nickname,
-            joiner_nickname: g.joiner_nickname,
-            host_color: newHostColor,
-            status: 'countdown',
-            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
-            timer_w: 60, timer_b: 60
+            room_code: newRoomCode, type: g.type, host_player_id: g.host_player_id, joiner_player_id: g.joiner_player_id,
+            host_player_key: g.host_player_key, joiner_player_key: g.joiner_player_key, host_nickname: g.host_nickname, joiner_nickname: g.joiner_nickname,
+            host_color: newHostColor, status: 'countdown', board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
         }).select().single();
         if (error) { toast('Rematch failed'); return; }
-        // Mark old game terminated
         await sb.from('online_games').update({ status: 'terminated' }).eq('id', g.id);
-        onlineGame = newGame;
-        if (currentUserId === newGame.host_player_id) myColor = newHostColor;
-        else myColor = newHostColor === 'w' ? 'b' : 'w';
-        subscribeToGame(newGame.id);
-        over = false;
-        document.getElementById('go').classList.remove('on');
-        showCountdown();
+        onlineGame = newGame; if (currentUserId === newGame.host_player_id) myColor = newHostColor; else myColor = newHostColor === 'w' ? 'b' : 'w';
+        document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML = ''; over = false;
+        subscribeToGame(newGame.id); showCountdown();
     }
-    async function declineRematch(){
-        await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id);
-        document.getElementById('rematch-panel').classList.remove('show');
-        resetOnlineState();
-    }
+    async function declineRematch(){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
 
-    function showWaitingScreen(msg){
-        hideAllOnlinePanels();
-        document.getElementById('waiting-text').textContent = msg;
-        document.getElementById('waiting-panel').classList.add('show');
-    }
+    function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
 
     function sendChat(){
-        const input = document.getElementById('chat-input');
-        const msg = input.value.trim();
+        const input = document.getElementById('chat-input'); const msg = input.value.trim();
         if(!msg || !onlineGame) return;
-        sb.from('chat_messages').insert({
-            game_id: onlineGame.id,
-            player_id: currentUserId,
-            nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname,
-            message: msg
-        }).then(()=>{ input.value=''; });
+        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; });
     }
-    function subscribeChat(gameId){
-        const safeName = 'chat_' + safeChannelToken(String(gameId));
-        sb.channel(safeName).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => {
-            const box = document.getElementById('chat-messages');
-            box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`;
-            box.scrollTop = box.scrollHeight;
-        }).subscribe();
-    }
+    function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
 
     // ---------- Offline cloud functions ----------
     async function syncOfflineToCloud(){
         if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
-        const aiBackup = loadBackup('ai');
-        const pvpBackup = loadBackup('2p');
+        const aiBackup = loadBackup('ai'), pvpBackup = loadBackup('2p');
         if (!aiBackup && !pvpBackup) { toast('No offline data to sync.'); return; }
         if (!currentUserId) { toast('Please log in to sync data.'); return; }
         toast('Syncing offline data...');
         try {
-            if (aiBackup) {
-                const { error } = await sb.from('offline_backups').upsert({
-                    user_id: currentUserId,
-                    mode: 'ai',
-                    backup_data: aiBackup
-                }, { onConflict: 'user_id, mode' });
-                if (error) throw new Error(error.message);
-            }
-            if (pvpBackup) {
-                const { error } = await sb.from('offline_backups').upsert({
-                    user_id: currentUserId,
-                    mode: '2p',
-                    backup_data: pvpBackup
-                }, { onConflict: 'user_id, mode' });
-                if (error) throw new Error(error.message);
-            }
+            if (aiBackup) { const { error } = await sb.from('offline_backups').upsert({ user_id: currentUserId, mode: 'ai', backup_data: aiBackup }, { onConflict: 'user_id, mode' }); if (error) throw new Error(error.message); }
+            if (pvpBackup) { const { error } = await sb.from('offline_backups').upsert({ user_id: currentUserId, mode: '2p', backup_data: pvpBackup }, { onConflict: 'user_id, mode' }); if (error) throw new Error(error.message); }
             toast('Synced data successfully');
-        } catch (err) {
-            toast('Sync data failed: ' + err.message);
-        }
+        } catch (err) { toast('Sync data failed: ' + err.message); }
     }
-
     async function restoreOfflineFromCloud(){
         if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
         if (!currentUserId) { toast('Please log in to restore cloud data.'); return; }
@@ -1514,27 +1215,10 @@
         if (error) { toast('Restore data failed: ' + error.message); return; }
         if (!data || data.length === 0) { toast('No cloud backup found.'); return; }
         if (data.length === 1) {
-            const backup = data[0];
-            localStorage.setItem(backup.mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data));
-            window.restoreGame(backup.mode);
-            toast('Restored data from cloud');
-        } else {
-            document.getElementById('cloud-choice-panel').classList.add('show');
-            window._cloudBackups = data;
-        }
+            const backup = data[0]; localStorage.setItem(backup.mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); window.restoreGame(backup.mode); toast('Restored data from cloud');
+        } else { document.getElementById('cloud-choice-panel').classList.add('show'); window._cloudBackups = data; }
     }
-
-    function selectCloudRestore(mode){
-        const backups = window._cloudBackups;
-        if (!backups) return;
-        const backup = backups.find(b => b.mode === mode);
-        if (!backup) return;
-        localStorage.setItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data));
-        document.getElementById('cloud-choice-panel').classList.remove('show');
-        window.restoreGame(mode);
-        toast('Restored data from cloud');
-    }
-
+    function selectCloudRestore(mode){ const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); document.getElementById('cloud-choice-panel').classList.remove('show'); window.restoreGame(mode); toast('Restored data from cloud'); }
     async function deleteAllSyncedData(){
         if (!navigator.onLine) { toast('Delete failed due to no Internet connection.'); return; }
         if (!currentUserId) { toast('Please log in to delete synced data.'); return; }
