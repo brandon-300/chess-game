@@ -316,30 +316,18 @@
     let matchmakingChannel = null;
     let myColor = 'w';
     let sessionPlayerKey = null;
-
-    // ---------- Auth init ----------
     let _avatarUrl = null;
-    async function loadUserAvatar(uid) {
-        try { const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle(); _avatarUrl = data?.avatar_url || null; } catch(e) { _avatarUrl = null; }
-    }
-    function renderAvatarBtn() {
-        const btn = document.getElementById('avatar-btn');
-        if (!btn) return;
-        if (currentUserId) {
-            btn.style.display = 'flex';
-            const img = btn.querySelector('img'), svg = btn.querySelector('svg');
-            if (_avatarUrl) { img.src = _avatarUrl; img.style.display = 'block'; svg.style.display = 'none'; }
-            else { img.style.display = 'none'; svg.style.display = 'block'; }
-        } else { btn.style.display = 'none'; }
-    }
 
+    // ---------- Auth init (runs immediately) ----------
     async function initAuth() {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session?.user) {
-            currentUserId = session.user.id;
-            await loadUserAvatar(currentUserId);
-            renderAvatarBtn();
-        }
+        try {
+            const { data: { session } } = await sb.auth.getSession();
+            if (session?.user) {
+                currentUserId = session.user.id;
+                await loadUserAvatar(currentUserId);
+            }
+        } catch(e) {}
+        renderAvatarBtn();
     }
     initAuth();
 
@@ -357,6 +345,20 @@
             exitOnlineGame();
         }
     });
+
+    async function loadUserAvatar(uid) {
+        try { const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle(); _avatarUrl = data?.avatar_url || null; } catch(e) { _avatarUrl = null; }
+    }
+    function renderAvatarBtn() {
+        const btn = document.getElementById('avatar-btn');
+        if (!btn) return;
+        if (currentUserId) {
+            btn.style.display = 'flex';
+            const img = btn.querySelector('img'), svg = btn.querySelector('svg');
+            if (_avatarUrl) { img.src = _avatarUrl; img.style.display = 'block'; svg.style.display = 'none'; }
+            else { img.style.display = 'none'; svg.style.display = 'block'; }
+        } else { btn.style.display = 'none'; }
+    }
 
     // ---------- Chess engine (unchanged) ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
@@ -616,14 +618,8 @@
         } catch(e){}
     }
 
-    function clearBackup(mode){
-        const key = mode==='ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P;
-        localStorage.removeItem(key);
-    }
-    function loadBackup(mode){
-        const key = mode==='ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P;
-        try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
-    }
+    function clearBackup(mode){ localStorage.removeItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P); }
+    function loadBackup(mode){ try { return JSON.parse(localStorage.getItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P)); } catch(e){ return null; } }
 
     function startAutoSave() { stopAutoSave(); autoSaveInterval = setInterval(() => { if (!over && started && gameMode!=='online') saveBackup(); }, 2000); }
     function stopAutoSave() { if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; } }
@@ -734,69 +730,34 @@
     }
 
     // ---------- Bottom-right button handler ----------
-    function handleBottomRight(){
-        if (gameMode==='online') {
-            confirmExitOnline();
-        } else {
-            document.getElementById('exit-choice-panel').classList.add('show');
-        }
-    }
-
-    function exitWithSave(){
-        saveBackup();
-        document.getElementById('exit-choice-panel').classList.remove('show');
-        backToMenu();
-    }
-    function exitWithoutSave(){
-        if(confirm('Are you sure? Any progress will be lost and the match will not be saved.')){
-            clearBackup(gameMode);
-            document.getElementById('exit-choice-panel').classList.remove('show');
-            backToMenu();
-        }
-    }
+    function handleBottomRight(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
+    function exitWithSave(){ saveBackup(); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); }
+    function exitWithoutSave(){ if(confirm('Are you sure? Any progress will be lost and the match will not be saved.')){ clearBackup(gameMode); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); } }
 
     // ---------- Restore local game (merged) ----------
     function restoreLocalGame(){
-        const aiBackup = loadBackup('ai');
-        const pvpBackup = loadBackup('2p');
-        if (!aiBackup && !pvpBackup) {
-            toast('No backup found.');
-            return;
-        }
-        if (aiBackup && !pvpBackup) {
-            window.restoreGame('ai');
-        } else if (!aiBackup && pvpBackup) {
-            window.restoreGame('2p');
-        } else {
-            document.getElementById('restore-choice-panel').classList.add('show');
-        }
+        const aiBackup = loadBackup('ai'), pvpBackup = loadBackup('2p');
+        if (!aiBackup && !pvpBackup) { toast('No backup found.'); return; }
+        if (aiBackup && !pvpBackup) { window.restoreGame('ai'); }
+        else if (!aiBackup && pvpBackup) { window.restoreGame('2p'); }
+        else { document.getElementById('restore-choice-panel').classList.add('show'); }
     }
-    function selectLocalRestore(mode){
-        document.getElementById('restore-choice-panel').classList.remove('show');
-        window.restoreGame(mode);
-    }
+    function selectLocalRestore(mode){ document.getElementById('restore-choice-panel').classList.remove('show'); window.restoreGame(mode); }
 
     window.restoreGame = function(mode){
         if (gameMode==='online') return;
         const backup = loadBackup(mode);
         if (!backup) { toast('No backup found for ' + (mode==='ai'?'AI':'PvP')); return; }
-        gameMode = mode;
-        aiDepth = backup.aiDepth;
-        playerColor = backup.playerColor;
+        gameMode = mode; aiDepth = backup.aiDepth; playerColor = backup.playerColor;
         brd = backup.brd; turn = backup.turn; cas = backup.cas; ep = backup.ep;
         hist = backup.hist; capW = backup.capW; capB = backup.capB; mlog = backup.mlog;
-        timerW = backup.timerW; timerB = backup.timerB;
-        selDiff = aiDepth;
-        document.getElementById('ms').style.display='none';
-        document.getElementById('gu').style.display='block';
-        started=true;
+        timerW = backup.timerW; timerB = backup.timerB; selDiff = aiDepth;
+        document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
         if(!boardBuilt){buildBoard();boardBuilt=true;}
         syncAll(brd); clearDots(); clearTints();
         lastMv=null; selSq=null; curLM=[]; over=false; pendP=null; isAnim=false; aiThink=false;
         timerActive=true; lastTick=performance.now();
-        document.getElementById('go').classList.remove('on');
-        document.getElementById('pm').classList.remove('on');
-        document.getElementById('thkstrip').classList.remove('on');
+        document.getElementById('go').classList.remove('on'); document.getElementById('pm').classList.remove('on'); document.getElementById('thkstrip').classList.remove('on');
         updHL(); renderUI();
         document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on'));
         const diffBtn = document.querySelector(`#ms .db[data-d="${aiDepth}"]`);
@@ -805,8 +766,7 @@
         document.getElementById('pc'+(playerColor==='w'?'W':'B')).classList.add('on');
         if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(300);
         startAutoSave();
-        document.getElementById('mode-btn').textContent = 'Exit';
-        document.getElementById('mode-btn').style.color = '#cc0000';
+        document.getElementById('mode-btn').textContent = 'Exit'; document.getElementById('mode-btn').style.color = '#cc0000';
     };
 
     // ---------- Online functions ----------
@@ -820,126 +780,51 @@
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
         document.getElementById('ms').style.display='flex';
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
+        document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
         stopAutoSave();
     };
-    function handleExitGameOver(){
-        if(gameMode==='online'){ confirmExitOnline(); }
-        else { document.getElementById('exit-choice-panel').classList.add('show'); }
-    }
+    function handleExitGameOver(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
 
     function showOnlineMenu(){
         if (!currentUserId) {
-            document.getElementById('main-cards').style.display='none';
-            document.getElementById('original-buttons').style.display='none';
-            hideAllOnlinePanels();
-            document.getElementById('login-gate-panel').classList.add('show');
+            document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
+            hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show');
             return;
         }
-        document.getElementById('main-cards').style.display='none';
-        document.getElementById('original-buttons').style.display='none';
-        hideAllOnlinePanels();
-        document.getElementById('online-menu').classList.add('show');
+        document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
+        hideAllOnlinePanels(); document.getElementById('online-menu').classList.add('show');
     }
-    function hideLoginGate(){
-        document.getElementById('login-gate-panel').classList.remove('show');
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
-    }
+    function hideLoginGate(){ document.getElementById('login-gate-panel').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
 
     // ---------- AI Mode new flow ----------
     let _aiCountdownInterval = null;
-    function showAiDiffPanel(){
-        document.getElementById('main-cards').style.display='none';
-        document.getElementById('original-buttons').style.display='none';
-        hideAllOnlinePanels();
-        document.getElementById('ai-diff-panel').classList.add('show');
-    }
-    function hideAiPanels(){
-        hideAllOnlinePanels();
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
-    }
-    function aiSelectDiff(d){
-        selDiff = d; aiDepth = d;
-        hideAllOnlinePanels();
-        document.getElementById('ai-color-panel').classList.add('show');
-    }
-    function aiSelectColor(col){
-        playerColor = col;
-        hideAllOnlinePanels();
-        document.getElementById('ai-countdown-panel').classList.add('show');
-        let sec = 5;
-        document.getElementById('ai-countdown-number').textContent = sec;
-        if (_aiCountdownInterval) clearInterval(_aiCountdownInterval);
-        _aiCountdownInterval = setInterval(()=>{
-            sec--;
-            if (sec <= 0){
-                clearInterval(_aiCountdownInterval); _aiCountdownInterval = null;
-                document.getElementById('ai-countdown-panel').classList.remove('show');
-                startGame('ai');
-                return;
-            }
-            document.getElementById('ai-countdown-number').textContent = sec;
-        }, 1000);
-    }
-    function cancelAiCountdown(){
-        if (_aiCountdownInterval){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; }
-        hideAiPanels();
-    }
-    function hideOnlineMenu(){
-        document.getElementById('online-menu').classList.remove('show');
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
-    }
-    function showPublicMenu(){
-        hideAllOnlinePanels();
-        document.getElementById('original-buttons').style.display='none';
-        document.getElementById('public-menu').classList.add('show');
-    }
-    function showPrivateMenu(){
-        hideAllOnlinePanels();
-        document.getElementById('original-buttons').style.display='none';
-        document.getElementById('private-menu').classList.add('show');
-    }
-    function showCreatePrivate(){
-        hideAllOnlinePanels();
-        document.getElementById('original-buttons').style.display='none';
-        document.getElementById('create-private').classList.add('show');
-    }
-    function showJoinPrivate(){
-        hideAllOnlinePanels();
-        document.getElementById('original-buttons').style.display='none';
-        document.getElementById('join-private').classList.add('show');
-    }
+    function showAiDiffPanel(){ document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('ai-diff-panel').classList.add('show'); }
+    function hideAiPanels(){ hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
+    function aiSelectDiff(d){ selDiff = d; aiDepth = d; hideAllOnlinePanels(); document.getElementById('ai-color-panel').classList.add('show'); }
+    function aiSelectColor(col){ playerColor = col; hideAllOnlinePanels(); document.getElementById('ai-countdown-panel').classList.add('show'); let sec = 5; document.getElementById('ai-countdown-number').textContent = sec; if (_aiCountdownInterval) clearInterval(_aiCountdownInterval); _aiCountdownInterval = setInterval(()=>{ sec--; if (sec <= 0){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; document.getElementById('ai-countdown-panel').classList.remove('show'); startGame('ai'); return; } document.getElementById('ai-countdown-number').textContent = sec; }, 1000); }
+    function cancelAiCountdown(){ if (_aiCountdownInterval){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; } hideAiPanels(); }
+    function hideOnlineMenu(){ document.getElementById('online-menu').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; }
+    function showPublicMenu(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('public-menu').classList.add('show'); }
+    function showPrivateMenu(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('private-menu').classList.add('show'); }
+    function showCreatePrivate(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('create-private').classList.add('show'); }
+    function showJoinPrivate(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('join-private').classList.add('show'); }
     function hideAllOnlinePanels(){
-        ['online-menu','public-menu','private-menu','create-private','join-private','nickname-panel','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{
-            const el=document.getElementById(id); if(el) el.classList.remove('show');
-        });
+        ['online-menu','public-menu','private-menu','create-private','join-private','nickname-panel','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
     }
 
     async function cancelWaiting(){
         if (onlineGame) {
             const g = onlineGame;
-            if (g.status === 'waiting_for_joiner') {
-                await sb.from('online_games').delete().eq('id', g.id);
-                toast('Room cancelled');
-            } else if (g.status === 'waiting_for_nicknames') {
-                await sb.from('online_games').update({ status: 'terminated' }).eq('id', g.id);
-                toast('Game cancelled');
-            }
-            stopOnlineSync();
-            onlineGame = null;
+            if (g.status === 'waiting_for_joiner') { await sb.from('online_games').delete().eq('id', g.id); toast('Room cancelled'); }
+            else if (g.status === 'waiting_for_nicknames') { await sb.from('online_games').update({ status: 'terminated' }).eq('id', g.id); toast('Game cancelled'); }
+            stopOnlineSync(); onlineGame = null;
         } else {
             if (matchmakingTimeout) { clearTimeout(matchmakingTimeout); matchmakingTimeout = null; }
             if (matchmakingChannel) { sb.removeChannel(matchmakingChannel); matchmakingChannel = null; }
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
             toast('Search cancelled');
         }
-        hideAllOnlinePanels();
-        document.getElementById('main-cards').style.display='flex';
-        document.getElementById('original-buttons').style.display='';
+        hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
 
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
@@ -959,8 +844,7 @@
                 status: 'waiting_for_joiner', board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null }, timer_w: 60, timer_b: 60
             }).select().single();
             if(error) throw error;
-            onlineGame = data; sessionPlayerKey = hostKey;
-            sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
+            onlineGame = data; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
             showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
             subscribeToGame(onlineGame.id);
         } catch(e) { toast('Failed to create room: ' + e.message); }
@@ -975,14 +859,11 @@
             if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
             if (data.status !== 'waiting_for_joiner') { toast('This room is already filled up and a match has begun. Check the code and try again.'); return; }
             const joinerKey = generatePlayerKey();
-            const { error: updateErr } = await sb.from('online_games').update({
-                joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames'
-            }).eq('id', data.id);
+            const { error: updateErr } = await sb.from('online_games').update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' }).eq('id', data.id);
             if(updateErr) throw updateErr;
             onlineGame = data; onlineGame.joiner_player_id = currentUserId; onlineGame.joiner_player_key = joinerKey; onlineGame.status = 'waiting_for_nicknames';
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
-            showNicknamePrompt();
-            subscribeToGame(onlineGame.id);
+            showNicknamePrompt(); subscribeToGame(onlineGame.id);
         } catch(e) { toast('Join failed: ' + e.message); }
     }
 
@@ -990,8 +871,7 @@
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
-            const { data: existingGame } = await sb.from('online_games').select('*')
-                .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).eq('type','public').in('status', ['active','frozen','countdown']).maybeSingle();
+            const { data: existingGame } = await sb.from('online_games').select('*').or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).eq('type','public').in('status', ['active','frozen','countdown']).maybeSingle();
             if (existingGame) { toast('You already have an active public game. Please rejoin that room.'); return; }
             sessionPlayerKey = generatePlayerKey();
             const { data, error } = await sb.from('matchmaking_queue').insert({ player_id: currentUserId, status: 'searching' }).select().single();
@@ -1004,8 +884,7 @@
     async function joinPublicRoom(){
         if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
-            const { data: pending } = await sb.from('online_games').select('*')
-                .eq('type','public').in('status', ['active','frozen','countdown']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
+            const { data: pending } = await sb.from('online_games').select('*').eq('type','public').in('status', ['active','frozen','countdown']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
             if (pending) {
                 const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_' + pending.id);
                 if (storedKey) sessionPlayerKey = storedKey;
@@ -1016,13 +895,11 @@
                         document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started = true;
                         if(!boardBuilt){ buildBoard(); boardBuilt=true; }
                         brd = pending.board_state.brd; turn = pending.board_state.turn; cas = pending.board_state.cas; ep = pending.board_state.ep;
-                        timerW = pending.timer_w; timerB = pending.timer_b;
-                        syncAll(brd); updHL(); renderUI();
+                        timerW = pending.timer_w; timerB = pending.timer_b; syncAll(brd); updHL(); renderUI();
                         timerActive = (pending.status==='active' && turn===myColor); lastTick = performance.now();
                         document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
                         document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
-                        document.getElementById('mode-btn').onclick = confirmExitOnline;
-                        document.getElementById('chat-box').classList.add('show');
+                        document.getElementById('mode-btn').onclick = confirmExitOnline; document.getElementById('chat-box').classList.add('show');
                     } else if (pending.status==='countdown') { showCountdown(); } else { showNicknamePrompt(); }
                     return;
                 }
@@ -1048,8 +925,7 @@
     function checkMatchmaking(queueRowId){
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         const chanName = 'mmq_' + safeChannelToken(currentUserId);
-        matchmakingChannel = sb.channel(chanName);
-        matchmakingChannel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` }, async (payload) => {
+        matchmakingChannel = sb.channel(chanName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` }, async (payload) => {
             if (payload.new.status !== 'paired') return;
             if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
             if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
@@ -1083,19 +959,16 @@
         if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
-            if(g.winner){ const winMsg = g.winner==='red'?'Red Wins':'Black Wins'; document.getElementById('got').textContent = winMsg; }
+            if(g.winner){ document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins'; }
             showRematchUI(); return;
         }
-        if(g.status==='waiting_for_nicknames'){
-            if((g.host_nickname && g.host_player_id===currentUserId) || (g.joiner_nickname && g.joiner_player_id===currentUserId)) return;
-            showNicknamePrompt(); return;
-        }
+        if(g.status==='waiting_for_nicknames'){ if(!(g.host_nickname && g.host_player_id===currentUserId) && !(g.joiner_nickname && g.joiner_player_id===currentUserId)) showNicknamePrompt(); return; }
         if(g.status==='countdown'){ showCountdown(); return; }
         if(g.status==='active'){
             if(!g.board_state) return;
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
-            timerW = g.timer_w; timerB = g.timer_b;
-            syncAll(brd); updHL(); renderUI(); timerActive = true; lastTick = performance.now();
+            timerW = g.timer_w; timerB = g.timer_b; syncAll(brd); updHL(); renderUI();
+            timerActive = true; lastTick = performance.now();
             if(g.host_player_id===currentUserId) myColor = g.host_color; else myColor = g.host_color==='w'?'b':'w';
             return;
         }
@@ -1119,16 +992,9 @@
     }
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
-    async function hostChooseColor(col){
-        await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id);
-        myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown();
-    }
+    async function hostChooseColor(col){ await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
 
-    function showCountdown(){
-        hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show');
-        let sec = 5; document.getElementById('countdown-number').textContent = sec;
-        const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000);
-    }
+    function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec = 5; document.getElementById('countdown-number').textContent = sec; const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000); }
 
     async function startOnlineGame(){
         hideAllOnlinePanels();
@@ -1144,8 +1010,8 @@
 
     async function exitOnlineGame(){
         timerActive=false; over=true;
-        if(onlineGame && onlineGame.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); }
-        else if(onlineGame && onlineGame.joiner_player_id===currentUserId){ await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id); }
+        if(onlineGame?.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); }
+        else if(onlineGame?.joiner_player_id===currentUserId){ await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id); }
         resetOnlineState();
     }
 
@@ -1180,7 +1046,7 @@
         }).select().single();
         if (error) { toast('Rematch failed'); return; }
         await sb.from('online_games').update({ status: 'terminated' }).eq('id', g.id);
-        onlineGame = newGame; if (currentUserId === newGame.host_player_id) myColor = newHostColor; else myColor = newHostColor === 'w' ? 'b' : 'w';
+        onlineGame = newGame; myColor = (currentUserId === newGame.host_player_id) ? newHostColor : (newHostColor==='w'?'b':'w');
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML = ''; over = false;
         subscribeToGame(newGame.id); showCountdown();
     }
@@ -1188,16 +1054,12 @@
 
     function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
 
-    function sendChat(){
-        const input = document.getElementById('chat-input'); const msg = input.value.trim();
-        if(!msg || !onlineGame) return;
-        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; });
-    }
+    function sendChat(){ const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg || !onlineGame) return; sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; }); }
     function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
 
     // ---------- Offline cloud functions ----------
     async function syncOfflineToCloud(){
-        if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
+        if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection.'); return; }
         const aiBackup = loadBackup('ai'), pvpBackup = loadBackup('2p');
         if (!aiBackup && !pvpBackup) { toast('No offline data to sync.'); return; }
         if (!currentUserId) { toast('Please log in to sync data.'); return; }
@@ -1209,14 +1071,13 @@
         } catch (err) { toast('Sync data failed: ' + err.message); }
     }
     async function restoreOfflineFromCloud(){
-        if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
+        if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection.'); return; }
         if (!currentUserId) { toast('Please log in to restore cloud data.'); return; }
         const { data, error } = await sb.from('offline_backups').select('*').eq('user_id', currentUserId);
         if (error) { toast('Restore data failed: ' + error.message); return; }
         if (!data || data.length === 0) { toast('No cloud backup found.'); return; }
-        if (data.length === 1) {
-            const backup = data[0]; localStorage.setItem(backup.mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); window.restoreGame(backup.mode); toast('Restored data from cloud');
-        } else { document.getElementById('cloud-choice-panel').classList.add('show'); window._cloudBackups = data; }
+        if (data.length === 1) { const backup = data[0]; localStorage.setItem(backup.mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); window.restoreGame(backup.mode); toast('Restored data from cloud'); }
+        else { document.getElementById('cloud-choice-panel').classList.add('show'); window._cloudBackups = data; }
     }
     function selectCloudRestore(mode){ const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); document.getElementById('cloud-choice-panel').classList.remove('show'); window.restoreGame(mode); toast('Restored data from cloud'); }
     async function deleteAllSyncedData(){
