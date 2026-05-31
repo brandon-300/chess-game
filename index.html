@@ -88,6 +88,18 @@
         #cloud-choice-panel{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:95;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
         #cloud-choice-panel.show{display:flex}
         .cloud-choice-box{background:rgba(16,10,6,0.98);border:1px solid var(--gold);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px}
+        /* delete confirm modal */
+        #delete-confirm-panel{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+        #delete-confirm-panel.show{display:flex}
+        .delete-confirm-box{background:rgba(16,10,6,0.98);border:1px solid var(--gold);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%}
+        .delete-confirm-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
+        .delete-confirm-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
+        /* exit online confirm modal */
+        #exit-online-panel{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+        #exit-online-panel.show{display:flex}
+        .exit-online-box{background:rgba(16,10,6,0.98);border:1px solid var(--gold);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%}
+        .exit-online-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
+        .exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
         /* chat */
         #chat-box{position:fixed;bottom:50px;right:10px;width:220px;max-height:300px;background:rgba(10,7,4,0.9);border:1px solid var(--gold-d);display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em}
         #chat-box.show{display:flex}
@@ -292,6 +304,24 @@
             <button class="db" onclick="selectCloudRestore('ai')">AI Match</button>
             <button class="db" onclick="selectCloudRestore('2p')">PvP Match</button>
             <button class="db back-btn" onclick="document.getElementById('cloud-choice-panel').classList.remove('show')">Cancel</button>
+        </div>
+    </div>
+    <!-- Delete confirm modal (replaces native confirm() which is blocked on mobile) -->
+    <div id="delete-confirm-panel">
+        <div class="delete-confirm-box">
+            <h2>Delete Synced Data</h2>
+            <p>Are you sure you want to delete all synced offline data from the cloud?</p>
+            <button class="db" onclick="confirmDeleteSyncedData()">Delete</button>
+            <button class="db back-btn" onclick="document.getElementById('delete-confirm-panel').classList.remove('show')">Cancel</button>
+        </div>
+    </div>
+    <!-- Exit online confirm modal (replaces native confirm() which is blocked on mobile) -->
+    <div id="exit-online-panel">
+        <div class="exit-online-box">
+            <h2>Leave Match?</h2>
+            <p>Are you sure you want to leave? The match will be terminated or frozen.</p>
+            <button class="db" style="border-color:#cc0000;color:#cc0000;" onclick="confirmExitOnlineYes()">Leave</button>
+            <button class="db back-btn" onclick="document.getElementById('exit-online-panel').classList.remove('show')">Stay</button>
         </div>
     </div>
     <div id="chat-box">
@@ -754,7 +784,9 @@
     // ---------- Bottom-right button handler ----------
     function handleBottomRight(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
     function exitWithSave(){ saveBackup(); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); }
+    window.exitWithSave = exitWithSave;
     function exitWithoutSave(){ if(confirm('Are you sure? Any progress will be lost and the match will not be saved.')){ clearBackup(gameMode); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); } }
+    window.exitWithoutSave = exitWithoutSave;
 
     // ---------- Restore local game (merged) ----------
     function restoreLocalGame(){
@@ -764,7 +796,9 @@
         else if (!aiBackup && pvpBackup) { window.restoreGame('2p'); }
         else { document.getElementById('restore-choice-panel').classList.add('show'); }
     }
+    window.restoreLocalGame = restoreLocalGame;
     function selectLocalRestore(mode){ document.getElementById('restore-choice-panel').classList.remove('show'); window.restoreGame(mode); }
+    window.selectLocalRestore = selectLocalRestore;
 
     window.restoreGame = function(mode){
         if (gameMode==='online') return;
@@ -848,6 +882,7 @@
         }
         hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
+    window.cancelWaiting = cancelWaiting;
 
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
@@ -1102,9 +1137,11 @@
         document.getElementById('nickname-panel').classList.remove('show');
         if(g.host_nickname && g.joiner_nickname && g.host_player_id===currentUserId){ showColorChoice(); } else { showWaitingScreen('Nickname set! Waiting for opponent...'); }
     }
+    window.submitNickname = submitNickname;
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
     async function hostChooseColor(col){ await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
+    window.hostChooseColor = hostChooseColor;
 
     function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec = 5; document.getElementById('countdown-number').textContent = sec; const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000); }
 
@@ -1118,7 +1155,10 @@
         document.getElementById('mode-btn').onclick = confirmExitOnline; document.getElementById('chat-box').classList.add('show');
     }
 
-    function confirmExitOnline(){ if(confirm('Are you sure you want to leave? The match will be terminated.')){ exitOnlineGame(); } }
+    function confirmExitOnline(){ document.getElementById('exit-online-panel').classList.add('show'); }
+    function confirmExitOnlineYes(){ document.getElementById('exit-online-panel').classList.remove('show'); exitOnlineGame(); }
+    window.confirmExitOnline = confirmExitOnline;
+    window.confirmExitOnlineYes = confirmExitOnlineYes;
 
     async function exitOnlineGame(){
         timerActive=false; over=true;
@@ -1146,7 +1186,14 @@
     function syncTimersToSupabase(){ if(!onlineGame) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
     function stopOnlineSync(){ if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
 
+    function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
+
+    function sendChat(){ const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg || !onlineGame) return; sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; }); }
+    window.sendChat = sendChat;
+    function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
+
     async function requestRematch(){ await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
+    window.requestRematch = requestRematch;
     function showRematchUI(){ if(onlineGame.rematch_requested_by && onlineGame.rematch_requested_by!==currentUserId){ document.getElementById('rematch-text').textContent = 'Opponent wants a rematch!'; document.getElementById('rematch-panel').classList.add('show'); setTimeout(()=>{ if(document.getElementById('rematch-panel').classList.contains('show')) declineRematch(); }, 30000); } }
     async function acceptRematch(){
         document.getElementById('rematch-panel').classList.remove('show'); const g = onlineGame; const newHostColor = g.host_color==='w'?'b':'w';
@@ -1162,44 +1209,63 @@
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML = ''; over = false;
         subscribeToGame(newGame.id); showCountdown();
     }
+    window.acceptRematch = acceptRematch;
     async function declineRematch(){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
+    window.declineRematch = declineRematch;
 
-    function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
 
-    function sendChat(){ const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg || !onlineGame) return; sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; }); }
-    function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
-
-    // ---------- Offline cloud functions ----------
-    async function syncOfflineToCloud(){
-        if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection.'); return; }
+    window.syncOfflineToCloud = async function(){
+        if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
         const aiBackup = loadBackup('ai'), pvpBackup = loadBackup('2p');
         if (!aiBackup && !pvpBackup) { toast('No offline data to sync.'); return; }
         if (!currentUserId) { toast('Please log in to sync data.'); return; }
-        toast('Syncing offline data...');
+        toast('Syncing offline data…');
         try {
             if (aiBackup) { const { error } = await sb.from('offline_backups').upsert({ user_id: currentUserId, mode: 'ai', backup_data: aiBackup }, { onConflict: 'user_id, mode' }); if (error) throw new Error(error.message); }
             if (pvpBackup) { const { error } = await sb.from('offline_backups').upsert({ user_id: currentUserId, mode: '2p', backup_data: pvpBackup }, { onConflict: 'user_id, mode' }); if (error) throw new Error(error.message); }
             toast('Synced data successfully');
         } catch (err) { toast('Sync data failed: ' + err.message); }
-    }
-    async function restoreOfflineFromCloud(){
-        if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection.'); return; }
+    };
+    window.restoreOfflineFromCloud = async function(){
+        if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
         if (!currentUserId) { toast('Please log in to restore cloud data.'); return; }
         const { data, error } = await sb.from('offline_backups').select('*').eq('user_id', currentUserId);
         if (error) { toast('Restore data failed: ' + error.message); return; }
         if (!data || data.length === 0) { toast('No cloud backup found.'); return; }
-        if (data.length === 1) { const backup = data[0]; localStorage.setItem(backup.mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); window.restoreGame(backup.mode); toast('Restored data from cloud'); }
-        else { document.getElementById('cloud-choice-panel').classList.add('show'); window._cloudBackups = data; }
-    }
-    function selectCloudRestore(mode){ const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P, JSON.stringify(backup.backup_data)); document.getElementById('cloud-choice-panel').classList.remove('show'); window.restoreGame(mode); toast('Restored data from cloud'); }
-    async function deleteAllSyncedData(){
+        if (data.length === 1) {
+            const backup = data[0];
+            localStorage.setItem(backup.mode === 'ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P, JSON.stringify(backup.backup_data));
+            window.restoreGame(backup.mode);
+            toast('Restored data from cloud');
+        } else {
+            // Both AI and PvP backups exist — show choice panel
+            window._cloudBackups = data;
+            document.getElementById('cloud-choice-panel').classList.add('show');
+        }
+    };
+    window.selectCloudRestore = function(mode){
+        const backups = window._cloudBackups;
+        if (!backups) return;
+        const backup = backups.find(b => b.mode === mode);
+        if (!backup) return;
+        localStorage.setItem(mode === 'ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P, JSON.stringify(backup.backup_data));
+        document.getElementById('cloud-choice-panel').classList.remove('show');
+        window.restoreGame(mode);
+        toast('Restored data from cloud');
+    };
+    // Shows the custom modal — actual delete runs in confirmDeleteSyncedData()
+    window.deleteAllSyncedData = function(){
         if (!navigator.onLine) { toast('Delete failed due to no Internet connection.'); return; }
         if (!currentUserId) { toast('Please log in to delete synced data.'); return; }
-        if (!confirm('Are you sure you want to delete all synced offline data from the cloud?')) return;
+        document.getElementById('delete-confirm-panel').classList.add('show');
+    };
+    // Called by the "Delete" button inside the custom confirm modal
+    window.confirmDeleteSyncedData = async function(){
+        document.getElementById('delete-confirm-panel').classList.remove('show');
         const { error } = await sb.from('offline_backups').delete().eq('user_id', currentUserId);
         if (error) { toast('Delete failed: ' + error.message); return; }
         toast('All synced data deleted');
-    }
+    };
 
     function toast(msg, dur=2800){ const el=document.getElementById('toast'); el.textContent=msg;el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur); }
 
