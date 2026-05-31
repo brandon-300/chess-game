@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Chess 3D · Login</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0806; --card:rgba(20,14,8,.95); --panel:rgba(16,10,6,.98);
+    --accent:#c9a84c; --accent2:#7a6230;
+    --text:#f0e6ce; --muted:#6b5f4e; --border:rgba(201,168,76,.22);
+    --danger:#cc0000; --success:#2ed573;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:'Cormorant Garamond','Cinzel',serif;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:16px;position:relative;overflow-y:auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  .bg-glow{position:fixed;inset:0;z-index:0}
+  .bg-glow::before,.bg-glow::after{
+    content:'';position:absolute;border-radius:50%;filter:blur(80px);opacity:0.12;
+  }
+  .bg-glow::before{width:500px;height:500px;background:var(--accent);top:-20%;left:-10%}
+  .bg-glow::after{width:400px;height:400px;background:var(--accent);bottom:-20%;right:-10%;opacity:0.06}
+
+  .container{
+    position:relative;z-index:1;width:100%;max-width:440px;
+    background:rgba(16,10,6,.70);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid var(--border);border-radius:4px;padding:32px 24px;
+    box-shadow:0 20px 50px rgba(0,0,0,.5);margin:20px 0;
+  }
+  .tabs{display:flex;gap:0;margin-bottom:28px;background:var(--panel);border-radius:4px;padding:4px}
+  .tab-btn{
+    flex:1;padding:10px;border:none;background:transparent;
+    color:var(--muted);font-size:15px;font-weight:600;
+    border-radius:4px;cursor:pointer;transition:all .25s ease;
+    font-family:'Cinzel',serif;letter-spacing:.05em;text-transform:uppercase;
+  }
+  .tab-btn.active{background:var(--accent);color:#0a0806;box-shadow:0 4px 12px rgba(201,168,76,.3)}
+  .forms-wrapper{overflow:hidden;position:relative}
+  .forms-slider{display:flex;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+  .form-panel{min-width:100%;padding:0 2px}
+  .form-panel h2{font-family:'Cinzel',serif;font-size:22px;font-weight:700;margin-bottom:20px;text-align:center;color:var(--accent);letter-spacing:.1em}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-family:'Cinzel',serif;font-size:10px;color:var(--accent2);margin-bottom:6px;font-weight:500;letter-spacing:.1em;text-transform:uppercase}
+  .field input,.field select{
+    width:100%;padding:12px 14px;border-radius:4px;
+    background:var(--panel);border:1px solid var(--border);
+    color:var(--text);font-size:14px;outline:none;
+    transition:border-color .15s;font-family:'Cinzel',serif;
+  }
+  .field input:focus,.field select:focus{border-color:var(--accent)}
+  .field input.invalid-age{border-color:var(--danger)!important;color:var(--danger)!important}
+  .pwd-wrap{position:relative}
+  .pwd-wrap input{padding-right:48px}
+  .pwd-wrap .reveal{
+    position:absolute;right:10px;top:50%;transform:translateY(-50%);
+    background:none;border:none;color:var(--muted);font-size:20px;
+    cursor:pointer;padding:4px;line-height:1;
+  }
+  .pwd-wrap .reveal:hover{color:var(--text)}
+  .submit-btn{
+    width:100%;padding:14px;border:none;border-radius:4px;
+    background:var(--accent);color:#0a0806;font-size:15px;font-weight:700;
+    cursor:pointer;transition:filter .15s;margin-top:8px;
+    font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;
+  }
+  .submit-btn:hover{filter:brightness(1.08)}
+  .err-msg{font-family:'Cinzel',serif;font-size:12px;color:var(--danger);margin-top:8px;display:none}
+  .err-msg.show{display:block}
+  .success-msg{font-family:'Cinzel',serif;font-size:12px;color:var(--accent);margin-top:8px;display:none}
+  .success-msg.show{display:block}
+  .age-error-text{font-family:'Cinzel',serif;font-size:11px;color:var(--danger);margin-top:4px;display:none}
+  .age-error-text.show{display:block}
+  .switch-link{display:block;text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
+  .switch-link button{background:none;border:none;color:var(--accent);font-weight:600;cursor:pointer;font:inherit}
+  .back-link{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    margin-top:24px;font-size:14px;color:var(--muted);text-decoration:none;
+    transition:color .15s;font-family:'Cinzel',serif;letter-spacing:.05em;
+  }
+  .back-link:hover{color:var(--text)}
+  .back-link .material-symbols-outlined{font-size:18px}
+  .forgot-link{display:block;text-align:right;margin-top:8px}
+  .forgot-link a{font-size:12px;color:var(--muted);text-decoration:underline}
+  .forgot-link a:hover{color:var(--text)}
+  .dob-row{display:flex;gap:8px}
+  .dob-row select{flex:1;padding:12px 8px;border-radius:4px;background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b5f4e'><path d='M7 10l5 5 5-5z'/></svg>");background-repeat:no-repeat;background-position:right 8px center;padding-right:30px;font-family:'Cinzel',serif}
+  .dob-row select:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLogin">Log in</button>
+      <button class="tab-btn" id="tabSignup">Sign up</button>
+    </div>
+    <div class="forms-wrapper">
+      <div class="forms-slider" id="slider">
+
+        <!-- LOGIN PANEL -->
+        <div class="form-panel" id="loginPanel">
+          <h2>Welcome back</h2>
+          <div class="field">
+            <label for="loginUsername">Username</label>
+            <input id="loginUsername" type="text" autocomplete="username" placeholder="Your username" />
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <div class="pwd-wrap">
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+              <button type="button" class="reveal" data-target="loginPassword"><span class="material-symbols-outlined">visibility</span></button>
+            </div>
+          </div>
+          <div class="forgot-link"><a href="forgot_password.html">Forgot password?</a></div>
+          <div class="err-msg" id="loginErr"></div>
+          <button class="submit-btn" id="loginSubmit">Log in</button>
+          <div class="switch-link">
+            Don't have an account? <button id="switchToSignup">Sign up</button>
+          </div>
+        </div>
+
+        <!-- SIGNUP PANEL -->
+        <div class="form-panel" id="signupPanel">
+          <h2>Create account</h2>
+          <div class="field">
+            <label for="signupFirstName">First name</label>
+            <input id="signupFirstName" type="text" autocomplete="given-name" placeholder="First name" />
+          </div>
+          <div class="field">
+            <label for="signupLastName">Last name</label>
+            <input id="signupLastName" type="text" autocomplete="family-name" placeholder="Last name" />
+          </div>
+          <div class="field">
+            <label>Date of birth</label>
+            <div class="dob-row">
+              <select id="dobDay"><option value="">Day</option></select>
+              <select id="dobMonth"><option value="">Month</option></select>
+              <select id="dobYear"><option value="">Year</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="signupAge">Age (auto‑calculated)</label>
+            <input id="signupAge" type="text" readonly placeholder="From date of birth" />
+            <div class="age-error-text" id="ageError"></div>
+          </div>
+          <div class="field">
+            <label for="signupCountry">Country</label>
+            <input id="signupCountry" type="text" placeholder="Your country" />
+          </div>
+          <div class="field">
+            <label for="signupUsername">Username</label>
+            <input id="signupUsername" type="text" autocomplete="username" placeholder="Choose a username" />
+          </div>
+          <div class="field">
+            <label for="signupEmail">Email</label>
+            <input id="signupEmail" type="email" autocomplete="email" placeholder="your@email.com" />
+          </div>
+          <div class="field">
+            <label for="signupPassword">Password</label>
+            <div class="pwd-wrap">
+              <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 8 chars, 1 letter, 1 number, 1 special" />
+              <button type="button" class="reveal" data-target="signupPassword"><span class="material-symbols-outlined">visibility</span></button>
+            </div>
+          </div>
+          <div class="err-msg" id="signupErr"></div>
+          <div class="success-msg" id="signupSuccess"></div>
+          <button class="submit-btn" id="signupSubmit">Sign up</button>
+          <div class="switch-link">
+            Already have an account? <button id="switchToLogin">Log in</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <a href="index.html" class="back-link">
+      <span class="material-symbols-outlined">arrow_back</span> Back to Home
+    </a>
+  </div>
+
+<script>
+(() => {
+  const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const $ = id => document.getElementById(id);
+  const slider = $("slider");
+  const tabLogin = $("tabLogin");
+  const tabSignup = $("tabSignup");
+
+  // DOB dropdowns
+  const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
+  const signupAge = $("signupAge"), ageError = $("ageError");
+  const currentYear = new Date().getFullYear();
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; dobMonth.appendChild(o); }
+  for (let y = currentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; dobYear.appendChild(o); }
+  function getDaysInMonth(m, y) { if (!m || !y) return 31; return new Date(y, m, 0).getDate(); }
+  function populateDays() {
+    const m = parseInt(dobMonth.value), y = parseInt(dobYear.value), days = getDaysInMonth(m||1, y||2000), cur = dobDay.value ? parseInt(dobDay.value) : 0;
+    dobDay.innerHTML = '<option value="">Day</option>';
+    for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; dobDay.appendChild(o); }
+    if (cur > 0 && cur <= days) dobDay.value = cur; else dobDay.value = "";
+  }
+  dobMonth.addEventListener("change", populateDays); dobYear.addEventListener("change", populateDays); populateDays();
+  function updateAgeField() {
+    const d = parseInt(dobDay.value), m = parseInt(dobMonth.value), y = parseInt(dobYear.value);
+    if (!d || !m || !y) { signupAge.value = ""; signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); return; }
+    const dob = new Date(y, m-1, d), now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
+    signupAge.value = age;
+    if (age < 14) { signupAge.classList.add("invalid-age"); ageError.textContent = "You must be at least 14 years old."; ageError.classList.add("show"); }
+    else { signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); }
+  }
+  dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
+
+  // Tab switching
+  function switchToLogin() { slider.style.transform = "translateX(0)"; tabLogin.classList.add("active"); tabSignup.classList.remove("active"); clearMessages(); }
+  function switchToSignup() { slider.style.transform = "translateX(-100%)"; tabSignup.classList.add("active"); tabLogin.classList.remove("active"); clearMessages(); }
+  tabLogin.addEventListener("click", switchToLogin); tabSignup.addEventListener("click", switchToSignup);
+  $("switchToSignup").addEventListener("click", switchToSignup); $("switchToLogin").addEventListener("click", switchToLogin);
+
+  // Password reveal
+  document.querySelectorAll(".reveal").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.target);
+      if (input) {
+        const isPw = input.type === "password";
+        input.type = isPw ? "text" : "password";
+        btn.querySelector('span').textContent = isPw ? "visibility_off" : "visibility";
+      }
+    });
+  });
+
+  function clearMessages() {
+    $("loginErr").classList.remove("show"); $("signupErr").classList.remove("show"); $("signupSuccess").classList.remove("show");
+    signupAge.classList.remove("invalid-age"); ageError.classList.remove("show");
+  }
+  function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
+
+  // Login
+  $("loginSubmit").addEventListener("click", async () => {
+    const username = $("loginUsername").value.trim(), password = $("loginPassword").value, err = $("loginErr");
+    err.classList.remove("show");
+    if (!username || !password) { err.textContent = "Please enter both username and password."; err.classList.add("show"); return; }
+    try {
+      const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
+      if (!profile) { err.textContent = "Username does not exist."; err.classList.add("show"); return; }
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
+      if (authErr) throw authErr;
+      const { data: full } = await supabase.from("profiles").select("is_suspended, suspended_until, is_pending_delete, deleted_at, admin_note").eq("id", profile.id).single();
+      if (full?.is_pending_delete) {
+        const delAt = new Date(full.deleted_at), now = new Date(), diff = now - delAt;
+        if (diff >= 2*60*60*1000) { await supabase.from("profiles").delete().eq("id", profile.id); err.textContent = "Account doesn't exist. Sign up."; err.classList.add("show"); return; }
+        const remain = 2*60*60*1000 - diff, h = Math.floor(remain/3600000), m = Math.floor((remain%3600000)/60000);
+        err.textContent = `Account deleted by admin. Note: "${full.admin_note}". Removed in ${h}h ${m}m.`; err.classList.add("show"); return;
+      }
+      if (full?.is_suspended) {
+        const until = new Date(full.suspended_until); if (until > new Date()) {
+          const rem = until - new Date(), d = Math.floor(rem/(1000*60*60*24)), h = Math.floor((rem%(1000*60*60*24))/(1000*60*60));
+          err.textContent = `Account suspended. Note: "${full.admin_note}". Remaining: ${d}d ${h}h.`; err.classList.add("show"); return;
+        } else { await supabase.from("profiles").update({ is_suspended: false, suspended_until: null, admin_note: null }).eq("id", profile.id); }
+      }
+      // Mark user as online immediately on successful login
+      await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
+      window.location.href = "index.html";
+    } catch(e) { err.textContent = e.message || "Login failed."; err.classList.add("show"); }
+  });
+
+  // Signup
+  $("signupSubmit").addEventListener("click", async () => {
+    const fn = $("signupFirstName").value.trim(), ln = $("signupLastName").value.trim();
+    const country = $("signupCountry").value.trim(), username = $("signupUsername").value.trim();
+    const email = $("signupEmail").value.trim(), password = $("signupPassword").value;
+    const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+    const err = $("signupErr"), success = $("signupSuccess");
+    err.classList.remove("show"); success.classList.remove("show");
+    if (!fn||!ln||!country||!username||!email||!password||!day||!month||!year) { err.textContent = "All fields are required."; err.classList.add("show"); return; }
+    const age = parseInt(signupAge.value,10); if (isNaN(age)||age<14) { err.textContent = "You must be at least 14 years old."; err.classList.add("show"); return; }
+    if (!isValidPassword(password)) { err.textContent = "Password must be 8+ chars with letter, number, special."; err.classList.add("show"); return; }
+    const fullName = `${fn} ${ln}`, dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    try {
+      const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
+      if (exist) { err.textContent = "Username already taken."; err.classList.add("show"); return; }
+      const { data: auth, error: authErr } = await supabase.auth.signUp({ email, password, options: { data: { username, full_name: fullName }, emailRedirectTo: window.location.origin+"/index.html" } });
+      if (authErr) throw authErr;
+      if (!auth.user) throw new Error("Signup failed.");
+      const { error: insErr } = await supabase.from("profiles").insert({ id: auth.user.id, username, full_name: fullName, age, dob, country, email });
+      if (insErr) throw new Error("Profile creation failed: "+insErr.message);
+      success.textContent = "Account created! You can now log in."; success.classList.add("show");
+      $("signupFirstName").value=$("signupLastName").value=$("signupCountry").value=$("signupUsername").value=$("signupEmail").value=$("signupPassword").value="";
+      dobDay.value=dobMonth.value=dobYear.value=""; populateDays(); signupAge.value=""; signupAge.classList.remove("invalid-age"); ageError.classList.remove("show");
+    } catch(e) { err.textContent = e.message || "Registration failed."; err.classList.add("show"); }
+  });
+
+  document.addEventListener("keydown", (e) => { if (e.key==="Enter") { tabLogin.classList.contains("active") ? $("loginSubmit").click() : $("signupSubmit").click(); } });
+  window.addEventListener("online", () => setTimeout(() => location.reload(), 1000));
+})();
+</script>
+</body>
+</html>

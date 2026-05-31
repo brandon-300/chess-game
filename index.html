@@ -97,10 +97,37 @@
         #chat-input-row button{background:transparent;border:none;color:var(--gold);padding:6px 10px;cursor:pointer;font-family:inherit;font-size:inherit}
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em}
         #reconnect-indicator.show{display:block}
+        /* Avatar button */
+        #avatar-btn{position:fixed;top:10px;right:12px;z-index:200;width:36px;height:36px;border-radius:50%;background:rgba(20,14,8,.95);border:1px solid var(--gold);cursor:pointer;display:none;align-items:center;justify-content:center;overflow:hidden;transition:box-shadow .2s}
+        #avatar-btn:hover{box-shadow:0 0 10px rgba(201,168,76,.45)}
+        #avatar-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+        #avatar-btn svg{width:20px;height:20px;fill:var(--gold)}
+        /* Login gate panel */
+        #login-gate-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:rgba(16,10,6,0.95);border:1px solid var(--gold);padding:clamp(18px,5vw,28px);border-radius:4px;box-shadow:0 0 20px rgba(201,168,76,0.2)}
+        #login-gate-panel.show{display:flex}
+        #login-gate-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
+        #login-gate-panel p{font-size:12px;color:var(--muted);font-style:italic;line-height:1.6}
+        /* AI difficulty panel */
+        #ai-diff-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:rgba(16,10,6,0.95);border:1px solid var(--gold);padding:clamp(18px,5vw,28px);border-radius:4px;box-shadow:0 0 20px rgba(201,168,76,0.2)}
+        #ai-diff-panel.show{display:flex}
+        #ai-diff-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
+        /* AI color panel */
+        #ai-color-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:rgba(16,10,6,0.95);border:1px solid var(--gold);padding:clamp(18px,5vw,28px);border-radius:4px;box-shadow:0 0 20px rgba(201,168,76,0.2)}
+        #ai-color-panel.show{display:flex}
+        #ai-color-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
+        /* AI countdown panel */
+        #ai-countdown-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:rgba(16,10,6,0.95);border:1px solid var(--gold);padding:clamp(18px,5vw,28px);border-radius:4px;box-shadow:0 0 20px rgba(201,168,76,0.2)}
+        #ai-countdown-panel.show{display:flex}
+        #ai-countdown-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
     </style>
 </head>
 <body>
     <canvas id="cv"></canvas>
+    <!-- Avatar button (top-right, logged-in only) -->
+    <button id="avatar-btn" onclick="window.location.href='profile.html'" title="Profile">
+        <img src="" alt="Avatar" style="display:none">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
     <div id="ms">
         <div class="title-block"><h1>Chess 3D</h1><p class="tag">Choose a mode to begin</p></div>
         <div class="cards" id="main-cards">
@@ -109,7 +136,7 @@
                 <h2>Two Players</h2>
                 <p>Pass and play locally</p>
             </div>
-            <div class="card local-mode" onclick="startGame('ai')">
+            <div class="card local-mode" onclick="showAiDiffPanel()">
                 <div class="ic">♜</div>
                 <h2>vs Computer</h2>
                 <p>Play against the engine</p>
@@ -178,23 +205,36 @@
             <button class="db" id="rematch-accept" onclick="acceptRematch()">Accept</button>
             <button class="db back-btn" id="rematch-decline" onclick="declineRematch()">Decline</button>
         </div>
+        <!-- Login gate for Online mode -->
+        <div id="login-gate-panel">
+            <h2>Login Required</h2>
+            <p>You need an account to play online.<br>Sign in or create a free account to continue.</p>
+            <button class="db" onclick="window.location.href='user_login.html'">Go to Login</button>
+            <button class="db back-btn" onclick="hideLoginGate()">Back</button>
+        </div>
+        <!-- AI difficulty selection -->
+        <div id="ai-diff-panel">
+            <h2>Choose Difficulty</h2>
+            <button class="db" onclick="aiSelectDiff(1)">Novice</button>
+            <button class="db" onclick="aiSelectDiff(3)">Knight</button>
+            <button class="db" onclick="aiSelectDiff(4)">Master</button>
+            <button class="db back-btn" onclick="hideAiPanels()">Back</button>
+        </div>
+        <!-- AI color selection -->
+        <div id="ai-color-panel">
+            <h2>Choose Your Colour</h2>
+            <button class="db" onclick="aiSelectColor('w')">Red</button>
+            <button class="db" onclick="aiSelectColor('b')">Black</button>
+            <button class="db back-btn" onclick="showAiDiffPanel()">Back</button>
+        </div>
+        <!-- AI countdown -->
+        <div id="ai-countdown-panel">
+            <h2>Game Starting in</h2>
+            <div style="font-size:48px;color:var(--gold);" id="ai-countdown-number">5</div>
+            <button class="db back-btn" onclick="cancelAiCountdown()">Cancel</button>
+        </div>
         <div id="original-buttons">
-            <div style="margin-bottom:12px;">
-                <div class="dlbl">Computer Difficulty</div>
-                <div class="drow">
-                    <button class="db" data-d="1" onclick="setDiff(this)">Novice</button>
-                    <button class="db on" data-d="3" onclick="setDiff(this)">Knight</button>
-                    <button class="db" data-d="4" onclick="setDiff(this)">Master</button>
-                </div>
-            </div>
-            <div style="margin-bottom:12px;">
-                <div class="dlbl">Play as (vs Computer)</div>
-                <div class="drow">
-                    <button class="db on" data-pc="w" id="pcW" onclick="setPlayerColor(this)">Red</button>
-                    <button class="db" data-pc="b" id="pcB" onclick="setPlayerColor(this)">Black</button>
-                </div>
-            </div>
-            <div style="margin-top:10px;">
+            <div style="margin-bottom:12px;margin-top:10px;">
                 <div class="drow">
                     <button class="db" onclick="restoreLocalGame()">Restore Game</button>
                 </div>
@@ -274,10 +314,56 @@
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
-    let matchmakingChannel = null; // Separate channel for matchmaking listener
+    let matchmakingChannel = null;
     let myColor = 'w';
     // Per-session player key: avoids localStorage collision when two tabs share a device
     let sessionPlayerKey = null;
+
+    // ---------- Auth init ----------
+    (async () => {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session && session.user) {
+            currentUserId = session.user.id;
+            await loadUserAvatar(currentUserId);
+        }
+        renderAvatarBtn();
+    })();
+
+    sb.auth.onAuthStateChange(async (event, session) => {
+        if (session && session.user) {
+            currentUserId = session.user.id;
+            await loadUserAvatar(currentUserId);
+        } else {
+            currentUserId = null;
+        }
+        renderAvatarBtn();
+        // If session expires mid-game, terminate online match
+        if (!session && gameMode === 'online' && started) {
+            toast('Session expired. Exiting match.');
+            exitOnlineGame();
+        }
+    });
+
+    let _avatarUrl = null;
+    async function loadUserAvatar(uid) {
+        try {
+            const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle();
+            _avatarUrl = data ? data.avatar_url : null;
+        } catch(e) { _avatarUrl = null; }
+    }
+    function renderAvatarBtn() {
+        const btn = document.getElementById('avatar-btn');
+        if (!btn) return;
+        if (currentUserId) {
+            btn.style.display = 'flex';
+            const img = btn.querySelector('img');
+            const svg = btn.querySelector('svg');
+            if (_avatarUrl) { img.src = _avatarUrl; img.style.display = 'block'; svg.style.display = 'none'; }
+            else { img.style.display = 'none'; svg.style.display = 'block'; }
+        } else {
+            btn.style.display = 'none';
+        }
+    }
 
     // ---------- Chess engine (unchanged) ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
@@ -748,10 +834,69 @@
     }
 
     function showOnlineMenu(){
+        if (!currentUserId) {
+            document.getElementById('main-cards').style.display='none';
+            document.getElementById('original-buttons').style.display='none';
+            hideAllOnlinePanels();
+            document.getElementById('login-gate-panel').classList.add('show');
+            return;
+        }
         document.getElementById('main-cards').style.display='none';
         document.getElementById('original-buttons').style.display='none';
         hideAllOnlinePanels();
         document.getElementById('online-menu').classList.add('show');
+    }
+    function hideLoginGate(){
+        document.getElementById('login-gate-panel').classList.remove('show');
+        document.getElementById('main-cards').style.display='flex';
+        document.getElementById('original-buttons').style.display='';
+    }
+
+    // ---------- AI Mode new flow ----------
+    let _aiCountdownInterval = null;
+    function showAiDiffPanel(){
+        document.getElementById('main-cards').style.display='none';
+        document.getElementById('original-buttons').style.display='none';
+        hideAllOnlinePanels();
+        document.getElementById('ai-diff-panel').classList.add('show');
+    }
+    function hideAiPanels(){
+        hideAllOnlinePanels();
+        document.getElementById('main-cards').style.display='flex';
+        document.getElementById('original-buttons').style.display='';
+    }
+    function showAiDiffPanelFromColor(){
+        hideAllOnlinePanels();
+        document.getElementById('ai-diff-panel').classList.add('show');
+    }
+    function aiSelectDiff(d){
+        selDiff = d;
+        aiDepth = d;
+        hideAllOnlinePanels();
+        document.getElementById('ai-color-panel').classList.add('show');
+    }
+    function aiSelectColor(col){
+        playerColor = col;
+        hideAllOnlinePanels();
+        document.getElementById('ai-countdown-panel').classList.add('show');
+        let sec = 5;
+        document.getElementById('ai-countdown-number').textContent = sec;
+        if (_aiCountdownInterval) clearInterval(_aiCountdownInterval);
+        _aiCountdownInterval = setInterval(()=>{
+            sec--;
+            if (sec <= 0){
+                clearInterval(_aiCountdownInterval);
+                _aiCountdownInterval = null;
+                document.getElementById('ai-countdown-panel').classList.remove('show');
+                startGame('ai');
+                return;
+            }
+            document.getElementById('ai-countdown-number').textContent = sec;
+        }, 1000);
+    }
+    function cancelAiCountdown(){
+        if (_aiCountdownInterval){ clearInterval(_aiCountdownInterval); _aiCountdownInterval = null; }
+        hideAiPanels();
     }
     function hideOnlineMenu(){
         document.getElementById('online-menu').classList.remove('show');
@@ -779,8 +924,8 @@
         document.getElementById('join-private').classList.add('show');
     }
     function hideAllOnlinePanels(){
-        ['online-menu','public-menu','private-menu','create-private','join-private','nickname-panel','color-choice-panel','countdown-panel','waiting-panel','rematch-panel'].forEach(id=>{
-            document.getElementById(id).classList.remove('show');
+        ['online-menu','public-menu','private-menu','create-private','join-private','nickname-panel','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{
+            const el=document.getElementById(id); if(el) el.classList.remove('show');
         });
     }
 
@@ -807,11 +952,6 @@
         document.getElementById('original-buttons').style.display='';
     }
 
-    async function signInAnon(){
-        const { data: { user }, error } = await sb.auth.signInAnonymously();
-        if(error){ toast('Auth error'); return; }
-        currentUserId = user.id;
-    }
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
 
     // Sanitize any string into a safe alphanumeric channel name token
@@ -821,7 +961,7 @@
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
-        if(!currentUserId) await signInAnon();
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const { data: existing } = await sb.from('online_games').select('id').eq('room_code', code).maybeSingle();
         if (existing) { toast('A room already exists with this code, please create another.'); return; }
         const hostKey = generatePlayerKey();
@@ -837,6 +977,7 @@
         if(error){ toast('Could not create room.'); return; }
         onlineGame = data;
         sessionPlayerKey = hostKey;
+        sessionStorage.setItem('chess3d_playerkey_' + data.id, hostKey);
         showWaitingScreen('Room created! Share the code: '+code+' Waiting for opponent...');
         subscribeToGame(onlineGame.id);
     }
@@ -844,11 +985,11 @@
     async function joinPrivateRoom(){
         const code = document.getElementById('private-room-code').value.trim();
         if(!code) return;
-        if(!currentUserId) await signInAnon();
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const { data, error } = await sb.from('online_games').select('*').eq('room_code', code).maybeSingle();
-        if(error || !data){ toast('Room not found.'); return; }
+        if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
         if (data.status !== 'waiting_for_joiner') {
-            toast('This room is already filled up and a match has begun, please check the code and retry.');
+            toast('This room is already filled up and a match has begun. Check the code and try again.');
             return;
         }
         const joinerKey = generatePlayerKey();
@@ -863,12 +1004,13 @@
         onlineGame.joiner_player_key = joinerKey;
         onlineGame.status = 'waiting_for_nicknames';
         sessionPlayerKey = joinerKey;
+        sessionStorage.setItem('chess3d_playerkey_' + data.id, joinerKey);
         showNicknamePrompt();
         subscribeToGame(onlineGame.id);
     }
 
     async function createPublicRoom(){
-        if(!currentUserId) await signInAnon();
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         // Prevent duplicate queue entries for this user
         await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
         const { data: existingGame } = await sb.from('online_games').select('*')
@@ -891,7 +1033,7 @@
     }
 
     async function joinPublicRoom(){
-        if(!currentUserId) await signInAnon();
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         // Rejoin check using in-session key for multi-tab isolation
         const { data: pending } = await sb.from('online_games').select('*')
             .eq('type','public')
@@ -899,6 +1041,9 @@
             .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
             .maybeSingle();
         if (pending) {
+            // Try sessionStorage as fallback for key recovery across page refreshes
+            const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_' + pending.id);
+            if (storedKey) sessionPlayerKey = storedKey;
             const pKey = sessionPlayerKey;
             if ((pending.host_player_id===currentUserId && pKey===pending.host_player_key) ||
                 (pending.joiner_player_id===currentUserId && pKey===pending.joiner_player_key)) {
@@ -948,8 +1093,7 @@
             .select('id');
         if(claimErr){ toast('Room taken — please try again.'); return; }
         sessionPlayerKey = generatePlayerKey();
-        const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2,8));
-        const { data: game, error: createErr } = await sb.from('online_games').insert({
+        const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2,8));        const { data: game, error: createErr } = await sb.from('online_games').insert({
             room_code: roomCode,
             type: 'public',
             host_player_id: hostEntry.player_id,
@@ -962,33 +1106,46 @@
         }).select().single();
         if(createErr){ toast('Pairing failed'); return; }
         onlineGame = game;
+        sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
         showNicknamePrompt();
         subscribeToGame(game.id);
     }
 
-    // checkMatchmaking — modernized: uses sb.channel() with postgres_changes, NOT legacy .on('INSERT')
-    // Receives the queue row id so it can watch specifically for the game row that references this host
+    // checkMatchmaking — listens for UPDATE on own queue row (status -> 'paired'), NOT an INSERT on online_games
     function checkMatchmaking(queueRowId){
         // Tear down any stale matchmaking listener first
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
-        // Use a unique, safe channel name derived from the current user id
         const chanName = 'mmq_' + safeChannelToken(currentUserId);
         matchmakingChannel = sb.channel(chanName);
         matchmakingChannel
             .on('postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'online_games' },
+                { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` },
                 async (payload) => {
-                    const g = payload.new;
-                    // Only react to a game row that was created for this user as the host
-                    if(g.host_player_id !== currentUserId || g.type !== 'public') return;
+                    const row = payload.new;
+                    if (row.status !== 'paired') return;
                     // Tear down matchmaking listener — job done
                     if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
                     if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
+                    // Wait 1.5s for joiner to finish inserting the game row
+                    await new Promise(r => setTimeout(r, 1500));
+                    // Fetch the game row created for us as host
+                    const { data: gameRows } = await sb.from('online_games')
+                        .select('*')
+                        .eq('host_player_id', currentUserId)
+                        .eq('type', 'public')
+                        .eq('status', 'waiting_for_nicknames')
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    if (!gameRows || gameRows.length === 0) {
+                        toast('Opponent disconnected during handshake. Returning to menu.');
+                        hideAllOnlinePanels();
+                        document.getElementById('main-cards').style.display='flex';
+                        document.getElementById('original-buttons').style.display='';
+                        return;
+                    }
+                    const g = gameRows[0];
                     // Write host's session player key into the game row
-                    const { error } = await sb.from('online_games')
-                        .update({ host_player_key: sessionPlayerKey })
-                        .eq('id', g.id);
-                    if(error){ toast('Sync error — please retry'); return; }
+                    await sb.from('online_games').update({ host_player_key: sessionPlayerKey }).eq('id', g.id);
                     onlineGame = { ...g, host_player_key: sessionPlayerKey };
                     showNicknamePrompt();
                     subscribeToGame(onlineGame.id);
@@ -1008,6 +1165,12 @@
     }
 
     // subscribeToGame — uses safe alphanumeric channel name to avoid WebSocket frame breakage
+    let _reconnectAttempts = 0;
+    let _reconnectTimer = null;
+    let _keepaliveInterval = null;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAYS = [2000, 4000, 8000, 16000, 30000];
+
     function subscribeToGame(gameId){
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         const safeName = 'game_' + safeChannelToken(String(gameId));
@@ -1017,7 +1180,52 @@
                 { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` },
                 handleGameUpdate
             )
+            .on('system', {}, (status) => {
+                if (status === 'CLOSED' || status === 'TIMED_OUT') {
+                    handleChannelDrop(gameId);
+                } else if (status === 'SUBSCRIBED') {
+                    document.getElementById('reconnect-indicator').classList.remove('show');
+                    _reconnectAttempts = 0;
+                    startKeepalive();
+                }
+            })
             .subscribe();
+    }
+
+    function handleChannelDrop(gameId){
+        document.getElementById('reconnect-indicator').classList.add('show');
+        stopKeepalive();
+        if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            document.getElementById('reconnect-indicator').classList.remove('show');
+            toast('Connection lost. Please check your network and exit.');
+            return;
+        }
+        const delay = RECONNECT_DELAYS[_reconnectAttempts] || 30000;
+        _reconnectAttempts++;
+        _reconnectTimer = setTimeout(async () => {
+            // Re-fetch latest game state from DB
+            if (onlineGame) {
+                const { data } = await sb.from('online_games').select('*').eq('id', gameId).maybeSingle();
+                if (data) {
+                    handleGameUpdate({ new: data });
+                }
+            }
+            subscribeToGame(gameId);
+        }, delay);
+    }
+
+    function startKeepalive(){
+        stopKeepalive();
+        // Send a no-op heartbeat every 20s to keep Vercel from dropping the WS connection
+        _keepaliveInterval = setInterval(() => {
+            if (onlineChannel) {
+                try { onlineChannel.send({ type: 'broadcast', event: 'ping', payload: {} }); } catch(e){}
+            }
+        }, 20000);
+    }
+    function stopKeepalive(){
+        if (_keepaliveInterval){ clearInterval(_keepaliveInterval); _keepaliveInterval = null; }
+        if (_reconnectTimer){ clearTimeout(_reconnectTimer); _reconnectTimer = null; }
     }
 
     function handleGameUpdate(payload){
@@ -1151,6 +1359,9 @@
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
+        stopKeepalive();
+        // Clear session player key from sessionStorage
+        if (onlineGame) sessionStorage.removeItem('chess3d_playerkey_' + onlineGame.id);
         sessionPlayerKey = null;
         onlineGame=null;
         document.getElementById('gu').style.display='none';
@@ -1176,14 +1387,19 @@
         }).eq('id', onlineGame.id);
     }
 
+    let _lastTimerSync = 0;
     function syncTimersToSupabase(){
         if(!onlineGame) return;
+        const now = Date.now();
+        if (now - _lastTimerSync < 3000) return;
+        _lastTimerSync = now;
         sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id);
     }
 
     function stopOnlineSync(){
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
+        stopKeepalive();
     }
 
     async function requestRematch(){
@@ -1198,20 +1414,40 @@
         }
     }
     async function acceptRematch(){
-        await sb.from('online_games').update({ rematch_approved: true }).eq('id', onlineGame.id);
-        await sb.from('online_games').update({
-            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
-            status: 'countdown',
-            host_color: onlineGame.host_color==='w'?'b':'w',
-            timer_w:60, timer_b:60,
-            rematch_requested_by: null,
-            rematch_approved: false
-        }).eq('id', onlineGame.id);
         document.getElementById('rematch-panel').classList.remove('show');
+        const g = onlineGame;
+        const newHostColor = g.host_color==='w'?'b':'w';
+        // Create a new game row
+        const newRoomCode = g.room_code + '_r' + Date.now().toString(36);
+        const { data: newGame, error } = await sb.from('online_games').insert({
+            room_code: newRoomCode,
+            type: g.type,
+            host_player_id: g.host_player_id,
+            joiner_player_id: g.joiner_player_id,
+            host_player_key: g.host_player_key,
+            joiner_player_key: g.joiner_player_key,
+            host_nickname: g.host_nickname,
+            joiner_nickname: g.joiner_nickname,
+            host_color: newHostColor,
+            status: 'countdown',
+            board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
+            timer_w: 60, timer_b: 60
+        }).select().single();
+        if (error) { toast('Rematch failed'); return; }
+        // Mark old game terminated
+        await sb.from('online_games').update({ status: 'terminated' }).eq('id', g.id);
+        onlineGame = newGame;
+        if (currentUserId === newGame.host_player_id) myColor = newHostColor;
+        else myColor = newHostColor === 'w' ? 'b' : 'w';
+        subscribeToGame(newGame.id);
+        over = false;
+        document.getElementById('go').classList.remove('on');
+        showCountdown();
     }
     async function declineRematch(){
-        await sb.from('online_games').update({ rematch_requested_by: null }).eq('id', onlineGame.id);
+        await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id);
         document.getElementById('rematch-panel').classList.remove('show');
+        resetOnlineState();
     }
 
     function showWaitingScreen(msg){
@@ -1246,7 +1482,7 @@
         const aiBackup = loadBackup('ai');
         const pvpBackup = loadBackup('2p');
         if (!aiBackup && !pvpBackup) { toast('No offline data to sync.'); return; }
-        if (!currentUserId) await signInAnon();
+        if (!currentUserId) { toast('Please log in to sync data.'); return; }
         toast('Syncing offline data...');
         try {
             if (aiBackup) {
@@ -1273,7 +1509,7 @@
 
     async function restoreOfflineFromCloud(){
         if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
-        if (!currentUserId) await signInAnon();
+        if (!currentUserId) { toast('Please log in to restore cloud data.'); return; }
         const { data, error } = await sb.from('offline_backups').select('*').eq('user_id', currentUserId);
         if (error) { toast('Restore data failed: ' + error.message); return; }
         if (!data || data.length === 0) { toast('No cloud backup found.'); return; }
@@ -1301,7 +1537,7 @@
 
     async function deleteAllSyncedData(){
         if (!navigator.onLine) { toast('Delete failed due to no Internet connection.'); return; }
-        if (!currentUserId) await signInAnon();
+        if (!currentUserId) { toast('Please log in to delete synced data.'); return; }
         if (!confirm('Are you sure you want to delete all synced offline data from the cloud?')) return;
         const { error } = await sb.from('offline_backups').delete().eq('user_id', currentUserId);
         if (error) { toast('Delete failed: ' + error.message); return; }

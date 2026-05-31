@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chess 3D · Profile</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0a0806;
+            --card: rgba(20, 14, 8, 0.95);
+            --panel: rgba(16, 10, 6, 0.98);
+            --accent: #c9a84c;
+            --accent2: #7a6230;
+            --text: #f0e6ce;
+            --muted: #6b5f4e;
+            --border: rgba(201, 168, 76, 0.22);
+            --danger: #cc0000;
+            --success: #2ed573;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Cormorant Garamond', 'Cinzel', serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+        header.app {
+            background: rgba(10, 7, 4, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .brand {
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--accent);
+            letter-spacing: 0.1em;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .btn {
+            padding: 9px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .btn:hover {
+            border-color: var(--accent);
+            background: var(--card);
+        }
+        .btn.primary {
+            background: var(--accent);
+            border-color: transparent;
+            color: #0a0806;
+        }
+        .btn.primary:hover {
+            filter: brightness(1.08);
+        }
+        .btn.danger {
+            background: transparent;
+            border-color: rgba(204, 0, 0, 0.25);
+            color: var(--danger);
+        }
+        .btn.danger:hover {
+            background: rgba(204, 0, 0, 0.12);
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 24px auto;
+            padding: 0 16px;
+            width: 100%;
+            flex: 1;
+        }
+
+        /* Glass panel (chess style) */
+        .glass-panel {
+            background: rgba(16, 10, 6, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            margin-bottom: 20px;
+        }
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .avatar-section {
+            position: relative;
+            flex-shrink: 0;
+            width: 90px;
+            height: 90px;
+        }
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent);
+            background: var(--panel);
+        }
+        .online-dot {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--muted);
+            border: 2px solid var(--card);
+        }
+        .online-dot.online {
+            background: var(--success);
+        }
+        .pencil-btn {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #0a0806;
+            border: none;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s;
+        }
+        .pencil-btn:active {
+            transform: scale(0.95);
+        }
+        .user-info {
+            flex: 1;
+        }
+        .user-info h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 24px;
+            margin-bottom: 4px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.05em;
+        }
+        .user-info .username {
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .last-seen {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .field-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .field {
+            flex: 1 1 calc(50% - 7px);
+            min-width: 200px;
+        }
+        .field label {
+            display: block;
+            font-family: 'Cinzel', serif;
+            font-size: 10px;
+            color: var(--accent2);
+            margin-bottom: 6px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .field input,
+        .field select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 4px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .field input:focus,
+        .field select:focus {
+            border-color: var(--accent);
+        }
+        .field input[readonly] {
+            opacity: 0.8;
+            cursor: default;
+        }
+
+        .err-msg,
+        .success-msg {
+            font-family: 'Cinzel', serif;
+            font-size: 12px;
+            margin-top: 12px;
+            display: none;
+        }
+        .err-msg {
+            color: var(--danger);
+        }
+        .success-msg {
+            color: var(--accent);
+        }
+        .err-msg.show,
+        .success-msg.show {
+            display: block;
+        }
+
+        .bottom-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .btn-red {
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: filter 0.15s;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .btn-red:hover {
+            filter: brightness(1.1);
+        }
+        .avatar-upload-input {
+            display: none;
+        }
+
+        footer {
+            padding: 16px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+            font-family: 'Cinzel', serif;
+        }
+
+        @media (max-width: 500px) {
+            .profile-header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .user-info {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="app">
+        <div class="brand">Chess 3D</div>
+        <div class="header-actions" id="headerActions"><!-- dynamic --></div>
+    </header>
+
+    <main class="container">
+        <!-- Profile header card -->
+        <div class="glass-panel">
+            <div class="profile-header">
+                <div class="avatar-section" id="avatarSection">
+                    <img class="avatar-img" id="avatarImg" src="" alt="Profile picture" />
+                    <div class="online-dot" id="onlineDot"></div>
+                    <button class="pencil-btn" id="pencilBtn" title="Change photo"><span class="material-symbols-outlined" style="font-size:16px">edit</span></button>
+                    <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
+                </div>
+                <div class="user-info">
+                    <h2 id="displayFullName">—</h2>
+                    <div class="username" id="displayUsername">@—</div>
+                    <div class="last-seen" id="displayLastSeen">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editable info card -->
+        <div class="glass-panel">
+            <div class="field-group">
+                <div class="field"><label for="fullNameInput">Full name</label><input id="fullNameInput" type="text" readonly /></div>
+                <div class="field"><label for="usernameInput">Username</label><input id="usernameInput" type="text" readonly /></div>
+            </div>
+            <div class="field-group">
+                <div class="field"><label for="emailInput">Email</label><input id="emailInput" type="email" readonly /></div>
+                <div class="field"><label for="ageInput">Age</label><input id="ageInput" type="number" readonly /></div>
+            </div>
+            <div class="field-group">
+                <div class="field"><label for="dobInput">Date of birth</label><input id="dobInput" type="date" readonly /></div>
+                <div class="field"><label for="countryInput">Country</label><input id="countryInput" type="text" readonly /></div>
+            </div>
+            <div class="err-msg" id="updateErr"></div>
+            <div class="success-msg" id="updateSuccess"></div>
+        </div>
+
+        <div class="bottom-actions" id="bottomActions"><!-- dynamic --></div>
+    </main>
+
+    <footer>Chess 3D · powered by Supabase</footer>
+
+    <script>
+        (() => {
+            const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
+            const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const $ = id => document.getElementById(id);
+            const DEFAULT_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#2a2018"/><text x="50%" y="55%" font-family="serif" font-size="40" fill="#7a6230" text-anchor="middle" dominant-baseline="middle">?</text></svg>'
+            );
+
+            let currentUserId = null;
+            let isOwner = false;
+            let originalProfile = null;
+            let isEditing = false;
+
+            // Heartbeat
+            let heartbeatInterval;
+            const INACTIVITY_LIMIT = 15 * 60 * 1000;
+            let inactivityTimer;
+
+            function resetInactivity() { clearTimeout(inactivityTimer); inactivityTimer = setTimeout(handleLogout, INACTIVITY_LIMIT); }
+
+            function setupInactivity() { ['mousemove','keydown','mousedown','touchstart','scroll'].forEach(evt => document.addEventListener(evt, resetInactivity, { passive:true })); resetInactivity(); }
+
+            function startHeartbeat() {
+                heartbeatInterval = setInterval(async () => {
+                    if (!currentUserId || document.hidden) return;
+                    await supabase.from('profiles').update({ last_seen: new Date().toISOString(), is_online: true }).eq('id', currentUserId);
+                }, 30000);
+            }
+            function stopHeartbeat() { clearInterval(heartbeatInterval); }
+
+            async function setOnlineStatus(online) {
+                if (!currentUserId) return;
+                await supabase.from('profiles').update({ is_online: online, last_seen: new Date().toISOString() }).eq('id', currentUserId);
+            }
+
+            async function handleLogout() {
+                if (currentUserId) await setOnlineStatus(false);
+                stopHeartbeat(); clearTimeout(inactivityTimer);
+                await supabase.auth.signOut();
+                window.location.href = "index.html";
+            }
+
+            function renderProfile(profile) {
+                originalProfile = { ...profile };
+                $('avatarImg').src = profile?.avatar_url || DEFAULT_AVATAR;
+                $('avatarImg').onerror = () => { $('avatarImg').src = DEFAULT_AVATAR; };
+
+                const dot = $('onlineDot');
+                const lastSeenEl = $('displayLastSeen');
+                if (profile?.is_online) {
+                    dot.classList.add('online');
+                    lastSeenEl.textContent = 'Online';
+                } else {
+                    dot.classList.remove('online');
+                    lastSeenEl.textContent = profile?.last_seen ? 'Last seen: ' + new Date(profile.last_seen).toLocaleString() : 'Last seen: —';
+                }
+
+                $('displayFullName').textContent = profile?.full_name || '—';
+                $('displayUsername').textContent = profile?.username ? '@' + profile.username : '@—';
+                $('fullNameInput').value = profile?.full_name || '';
+                $('usernameInput').value = profile?.username || '';
+                $('emailInput').value = profile?.email || '';
+                $('ageInput').value = profile?.age != null ? profile.age : '';
+                $('dobInput').value = profile?.dob || '';
+                $('countryInput').value = profile?.country || '';
+            }
+
+            function setEditMode(enabled) {
+                isEditing = enabled;
+                ['fullNameInput','usernameInput','emailInput','ageInput','dobInput','countryInput'].forEach(id => {
+                    $(id)[enabled ? 'removeAttribute' : 'setAttribute']('readonly', true);
+                });
+                updateHeaderButtons();
+            }
+
+            function updateHeaderButtons() {
+                const container = $('headerActions');
+                container.innerHTML = '';
+
+                const backBtn = document.createElement('button');
+                backBtn.className = 'btn';
+                backBtn.innerHTML = '<span class="material-symbols-outlined">arrow_back</span> Back';
+                backBtn.addEventListener('click', () => {
+                    window.location.href = "index.html";
+                });
+                container.appendChild(backBtn);
+
+                if (!isOwner) {
+                    return;
+                }
+
+                if (isEditing) {
+                    const saveBtn = document.createElement('button');
+                    saveBtn.className = 'btn primary'; saveBtn.textContent = 'Save'; saveBtn.addEventListener('click', saveProfile);
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'btn'; cancelBtn.textContent = 'Cancel'; cancelBtn.addEventListener('click', cancelEdit);
+                    container.appendChild(saveBtn);
+                    container.appendChild(cancelBtn);
+                } else {
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn primary'; editBtn.textContent = 'Edit Profile'; editBtn.addEventListener('click', () => setEditMode(true));
+                    container.appendChild(editBtn);
+                }
+            }
+
+            function cancelEdit() { if (originalProfile) renderProfile(originalProfile); setEditMode(false); $('updateErr').classList.remove('show'); $('updateSuccess').classList.remove('show'); }
+
+            async function saveProfile() {
+                const fullName = $('fullNameInput').value.trim();
+                const username = $('usernameInput').value.trim();
+                const email = $('emailInput').value.trim();
+                const age = parseInt($('ageInput').value) || null;
+                const dob = $('dobInput').value;
+                const country = $('countryInput').value.trim();
+                const errEl = $('updateErr'); const successEl = $('updateSuccess');
+                errEl.classList.remove('show'); successEl.classList.remove('show');
+                if (!fullName || !username || !email) { errEl.textContent = 'All fields are required.'; errEl.classList.add('show'); return; }
+                if (age && age < 14) { errEl.textContent = 'You must be at least 14 years old.'; errEl.classList.add('show'); return; }
+                try {
+                    const { data: exist } = await supabase.from('profiles').select('id').eq('username', username).neq('id', currentUserId).maybeSingle();
+                    if (exist) { errEl.textContent = 'Username already taken.'; errEl.classList.add('show'); return; }
+                    const updates = { full_name: fullName, username, email, age: age || null, dob: dob || null, country: country || null };
+                    const { error } = await supabase.from('profiles').update(updates).eq('id', currentUserId);
+                    if (error) throw error;
+                    $('displayFullName').textContent = fullName;
+                    $('displayUsername').textContent = '@' + username;
+                    successEl.textContent = 'Profile updated.'; successEl.classList.add('show');
+                    setEditMode(false);
+                } catch(e) { errEl.textContent = e.message; errEl.classList.add('show'); }
+            }
+
+            async function uploadAvatar(file) {
+                const ext = file.name.split('.').pop();
+                const path = `${currentUserId}-${Date.now()}.${ext}`;
+                const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+                if (upErr) throw new Error('Upload failed: '+upErr.message);
+                const { data: url } = supabase.storage.from('avatars').getPublicUrl(path);
+                if (!url?.publicUrl) throw new Error('Could not get URL');
+                const { error: updateErr } = await supabase.from('profiles').update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
+                if (updateErr) throw new Error('Update failed: '+updateErr.message);
+                $('avatarImg').src = url.publicUrl;
+                return url.publicUrl;
+            }
+
+            async function init() {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) { window.location.href = "user_login.html"; return; }
+                currentUserId = session.user.id;
+                const viewUserId = new URLSearchParams(window.location.search).get('user');
+
+                if (viewUserId && viewUserId !== currentUserId) {
+                    isOwner = false;
+                    const { data: profile } = await supabase.from('profiles').select('*').eq('id', viewUserId).single();
+                    if (!profile) { alert('User not found'); history.back(); return; }
+                    renderProfile(profile);
+                    $('pencilBtn').style.display = 'none';
+                    $('bottomActions').innerHTML = '';
+                    updateHeaderButtons();
+                    return;
+                }
+
+                isOwner = true;
+                await setOnlineStatus(true);
+                setupInactivity();
+                startHeartbeat();
+
+                const profile = await loadProfile();
+                if (profile) renderProfile(profile); else renderProfile({});
+                updateHeaderButtons();
+
+                $('pencilBtn').addEventListener('click', () => $('avatarInput').click());
+                $('avatarInput').addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    try {
+                        await uploadAvatar(file);
+                        $('updateSuccess').textContent = 'Avatar updated.'; $('updateSuccess').classList.add('show');
+                    } catch(err) { $('updateErr').textContent = err.message; $('updateErr').classList.add('show'); }
+                    finally { e.target.value = ''; }
+                });
+
+                const bottom = $('bottomActions');
+                const logoutBtn = document.createElement('button'); logoutBtn.className = 'btn-red'; logoutBtn.textContent = 'Logout'; logoutBtn.addEventListener('click', handleLogout);
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'btn-red'; deleteBtn.style.background = 'transparent'; deleteBtn.style.border = '1px solid rgba(204,0,0,.25)'; deleteBtn.style.color = 'var(--danger)'; deleteBtn.textContent = 'Delete Account';
+                deleteBtn.addEventListener('click', async () => {
+                    if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
+                    if (!confirm('Final confirmation: delete your account?')) return;
+                    await supabase.from('profiles').delete().eq('id', currentUserId);
+                    stopHeartbeat(); clearTimeout(inactivityTimer);
+                    await supabase.auth.signOut();
+                    location.href = "index.html";
+                });
+                bottom.appendChild(logoutBtn); bottom.appendChild(deleteBtn);
+
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) { setOnlineStatus(true); resetInactivity(); }
+                });
+            }
+
+            async function loadProfile() {
+                const { data } = await supabase.from('profiles').select('*').eq('id', currentUserId).single();
+                return data;
+            }
+
+            document.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+</body>
+</html>
