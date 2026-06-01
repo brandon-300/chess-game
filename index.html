@@ -88,7 +88,6 @@
         .online-panel .db.back-btn{border-color:var(--gold-d);color:var(--muted);opacity:0.7}
         .online-panel .db.back-btn:hover{opacity:1}
         .online-panel .status-text{color:var(--muted);font-style:italic;font-size:12px;margin-top:4px}
-        #waiting-host-color .db{margin-top:12px}
         #rematch-panel{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:95;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
         #rematch-panel.show{display:flex}
         .rematch-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
@@ -146,8 +145,6 @@
         <div id="public-menu" class="online-panel"><h2 style="color:var(--gold);">Public Room</h2><button class="db" onclick="createPublicRoom()">Create Public Room</button><button class="db" onclick="joinPublicRoom()">Join Public Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
         <div id="private-menu" class="online-panel"><h2 style="color:var(--gold);">Private Room</h2><button class="db" onclick="showCreatePrivate()">Create Private Room</button><button class="db" onclick="showJoinPrivate()">Join Private Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
         <div id="join-private" class="online-panel"><h2 style="color:var(--gold);">Join Private Room</h2><input type="text" id="private-room-code" placeholder="Room code" maxlength="20"><button class="db" onclick="joinPrivateRoom()">Join</button><button class="db back-btn" onclick="showPrivateMenu()">Back</button></div>
-        <div id="waiting-host-color" class="online-panel"><h2 style="color:var(--gold);">Waiting for host to select colour of pieces...</h2><button class="db back-btn" onclick="cancelWaiting()">Cancel</button></div>
-        <div id="color-choice-panel" class="online-panel"><h2 style="color:var(--gold);">Choose Your Colour</h2><button class="db" onclick="hostChooseColor('w')">Red</button><button class="db" onclick="hostChooseColor('b')">Black</button></div>
         <div id="countdown-panel" class="online-panel"><h2 style="color:var(--gold);" id="countdown-welcome"></h2><div style="font-size:48px;color:var(--gold);" id="countdown-number">5</div></div>
         <div id="waiting-panel" class="online-panel"><h2 style="color:var(--gold);" id="waiting-title"></h2><p class="status-text" id="waiting-text"></p><button class="db back-btn" onclick="cancelWaiting()">Cancel</button></div>
         <div id="rematch-panel" class="online-panel"><h2 style="color:var(--gold);">Rematch</h2><p class="status-text" id="rematch-text"></p><button class="db" id="rematch-accept" onclick="acceptRematch()">Accept</button><button class="db back-btn" id="rematch-decline" onclick="declineRematch()">Decline</button></div>
@@ -207,7 +204,6 @@
     let reconnectInterval = null;
     let pollInterval = null;
     let chatPollInterval = null;
-    let lastChatId = 0;
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -415,7 +411,6 @@
             if (!onlineGame || !sb || !currentUserId) return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            // Always apply server state – ensures board and timers are in sync
             handleGameUpdate({ new: data, old: onlineGame });
         }, 1000);
     }
@@ -431,7 +426,7 @@
             const box = document.getElementById('chat-messages');
             data.forEach(msg => {
                 const key = 'msg_'+msg.id;
-                if (document.getElementById(key)) return; // already rendered
+                if (document.getElementById(key)) return;
                 const div = document.createElement('div');
                 div.id = key;
                 div.innerHTML = `<b>${msg.nickname}:</b> ${msg.message}`;
@@ -461,7 +456,7 @@
     window.showJoinPrivate = function(){ hideAllOnlinePanels(); document.getElementById('original-buttons').style.display='none'; document.getElementById('join-private').classList.add('show'); };
 
     function hideAllOnlinePanels(){
-        ['online-menu','public-menu','private-menu','join-private','waiting-host-color','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
+        ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
     }
 
     // ---------- Create / Join Public Room ----------
@@ -501,12 +496,15 @@
             const game = rooms[0];
             const joinerKey = generatePlayerKey();
             const {error:updateErr} = await sb.from('online_games')
-                .update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, joiner_nickname: username, status: 'color_selection' })
+                .update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, joiner_nickname: username, status: 'countdown' })
                 .eq('id',game.id).eq('status','waiting_for_joiner');
             if(updateErr){ toast('DB error (update): '+updateErr.message); return; }
-            onlineGame = {...game, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
+            onlineGame = {...game, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'countdown'};
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+game.id, joinerKey);
-            hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
+            // Host is always Red, joiner Black
+            myColor = 'b';
+            document.getElementById('countdown-welcome').textContent = 'Welcome to '+(game.host_nickname||'Host')+' room – Room ID: '+game.room_code;
+            showCountdown();
             subscribeToGame(game.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
@@ -547,12 +545,14 @@
             if(data.status!=='waiting_for_joiner'){ toast('This room is no longer open.'); return; }
             const joinerKey = generatePlayerKey();
             const {error:updateErr} = await sb.from('online_games')
-                .update({ joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection' })
+                .update({ joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'countdown' })
                 .eq('id',data.id).eq('status','waiting_for_joiner');
             if(updateErr){ toast('DB error (update): '+updateErr.message); return; }
-            onlineGame = {...data, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
+            onlineGame = {...data, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'countdown'};
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+data.id, joinerKey);
-            hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
+            myColor = 'b';
+            document.getElementById('countdown-welcome').textContent = 'Welcome to '+(data.host_nickname||'Host')+' room – Room ID: '+data.room_code;
+            showCountdown();
             subscribeToGame(data.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
@@ -569,14 +569,8 @@
         if(!onlineGame) return;
         onlineGame = payload.new;
         const g = onlineGame;
-        // Parse board_state if it's a string (fix corrupted JSON)
         if (typeof g.board_state === 'string') {
-            try {
-                g.board_state = JSON.parse(g.board_state);
-            } catch(e) {
-                // corrupted state – ignore
-                return;
-            }
+            try { g.board_state = JSON.parse(g.board_state); } catch(e) { return; }
         }
         if(g.status==='terminated'){ stopPolling(); stopChatPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
@@ -585,11 +579,6 @@
             startRematchCountdown(); return;
         }
         if(g.status==='cancelled'){ stopPolling(); stopChatPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
-        if(g.status==='color_selection'){
-            if(g.host_player_id===currentUserId) showColorChoice();
-            else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
-            return;
-        }
         if(g.status==='countdown'){
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(g.host_nickname||'Host')+' room – Room ID: '+g.room_code;
             showCountdown(); return;
@@ -599,7 +588,8 @@
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
             timerW = g.timer_w; timerB = g.timer_b; syncAll(brd); updHL(); renderUI();
             timerActive = true; lastTick = performance.now();
-            if(g.host_player_id===currentUserId) myColor = g.host_color; else myColor = g.host_color==='w'?'b':'w';
+            // Host = Red, joiner = Black – already set when joining, but ensure consistency
+            if(g.host_player_id===currentUserId) myColor = 'w'; else myColor = 'b';
             if(!boardBuilt){buildBoard();boardBuilt=true;}
             document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
@@ -610,20 +600,7 @@
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
     }
 
-    async function hostChooseColor(col){
-        if(!onlineGame)return;
-        await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
-        myColor = col;
-        document.getElementById('color-choice-panel').classList.remove('show');
-        onlineGame.status = 'countdown';
-        onlineGame.host_color = col;
-        document.getElementById('countdown-welcome').textContent = 'Welcome to '+(onlineGame.host_nickname||'Host')+' room – Room ID: '+onlineGame.room_code;
-        showCountdown();
-    }
-    window.hostChooseColor = hostChooseColor;
-
-    function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
-
+    // No more hostChooseColor / showColorChoice – host is always Red
     function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec=5; document.getElementById('countdown-number').textContent=sec; const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);startOnlineGame();return;}document.getElementById('countdown-number').textContent=sec;},1000); }
 
     async function startOnlineGame(){
@@ -727,7 +704,7 @@
         }).select().single();
         if(error){toast('Rematch failed');return;}
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
-        onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
+        onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?'w':'b';
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
         subscribeToGame(newGame.id); startReconnect(); startPolling();
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
