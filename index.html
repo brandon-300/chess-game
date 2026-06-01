@@ -6,7 +6,6 @@
     <title>Chess 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <style>
-        /* ... (all CSS unchanged) ... */
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         :root{--gold:#c9a84c;--gold-d:#7a6230;--cream:#f0e6ce;--muted:#6b5f4e;--surf:rgba(10,7,4,0.75);--glass-bg:rgba(14,9,4,0.55);--glass-border:rgba(201,168,76,0.22);--glass-blur:blur(18px);--glass-shine:rgba(201,168,76,0.07)}
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
@@ -204,7 +203,7 @@
     let myColor = 'w';
     let sessionPlayerKey = null;
     let reconnectInterval = null;
-    let waitPollInterval = null;
+    let pollInterval = null; // single polling interval for both host and joiner
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -414,32 +413,26 @@
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g,'_'); }
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
 
-    // ---------- Reconnection (every 3 seconds) ----------
+    // ---------- Reconnection ----------
     function startReconnect() { stopReconnect(); reconnectInterval = setInterval(() => { if (onlineGame && sb) { if (!onlineChannel || onlineChannel.state !== 'joined') { subscribeToGame(onlineGame.id); } } }, 3000); }
     function stopReconnect() { if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; } }
 
-    // ---------- Host polling (every 2 seconds) with debug ----------
-    function startHostPolling() {
-        stopHostPolling();
-        toast('Host polling started'); // DEBUG
-        waitPollInterval = setInterval(async () => {
-            if (!onlineGame || !sb) return;
-            if (!currentUserId) return;
-            if (onlineGame.host_player_id !== currentUserId) return;
-            if (onlineGame.status !== 'waiting_for_joiner') { stopHostPolling(); return; }
-            toast('Polling...'); // DEBUG
+    // ---------- Polling for both host and joiner (every 2 seconds) ----------
+    function startPolling() {
+        stopPolling();
+        pollInterval = setInterval(async () => {
+            if (!onlineGame || !sb || !currentUserId) return;
+            // Poll for current status
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
-            if (error) { toast('Poll error: '+error.message); return; }
-            if (!data) { toast('Poll: no data'); return; }
-            toast('Poll result: '+data.status); // DEBUG
+            if (error || !data) return;
             if (data.status !== onlineGame.status) {
-                toast('Status changed to '+data.status); // DEBUG
+                // Status changed – simulate a real‑time update
                 handleGameUpdate({ new: data, old: onlineGame });
             }
         }, 2000);
     }
-    function stopHostPolling() {
-        if (waitPollInterval) { clearInterval(waitPollInterval); waitPollInterval = null; toast('Polling stopped'); } // DEBUG
+    function stopPolling() {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
     }
 
     // ---------- Online menu navigation ----------
@@ -484,7 +477,7 @@
             document.getElementById('waiting-title').textContent = username + ' room';
             document.getElementById('waiting-text').innerHTML = 'Room ID: <b>'+code+'</b><br>Waiting for opponent to join…';
             hideAllOnlinePanels(); panel.classList.add('show');
-            subscribeToGame(data.id); startReconnect(); startHostPolling();
+            subscribeToGame(data.id); startReconnect(); startPolling();
         }catch(e){ toast('Failed to create room: '+e.message); }
     };
 
@@ -507,7 +500,7 @@
             onlineGame = {...game, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+game.id, joinerKey);
             hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
-            subscribeToGame(game.id); startReconnect();
+            subscribeToGame(game.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -530,7 +523,7 @@
         document.getElementById('waiting-title').textContent = username + ' room';
         document.getElementById('waiting-text').innerHTML = 'Room Code: <b>'+code+'</b><br>Waiting for opponent to join…';
         hideAllOnlinePanels(); panel.classList.add('show');
-        subscribeToGame(data.id); startReconnect(); startHostPolling();
+        subscribeToGame(data.id); startReconnect(); startPolling();
     };
 
     window.joinPrivateRoom = async function(){
@@ -553,7 +546,7 @@
             onlineGame = {...data, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
             sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+data.id, joinerKey);
             hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
-            subscribeToGame(data.id); startReconnect();
+            subscribeToGame(data.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -567,32 +560,27 @@
 
     function handleGameUpdate(payload){
         if(!onlineGame) return;
-        if (payload.new && payload.new.status !== onlineGame.status) {
-            toast('Status: ' + onlineGame.status + ' → ' + payload.new.status); // debug
-        }
         onlineGame = payload.new;
         const g = onlineGame;
-        if(g.status==='terminated'){ stopHostPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
+        if(g.status==='terminated'){ stopPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
-            stopHostPolling();
+            stopPolling();
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
             if(g.winner) document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins';
             startRematchCountdown(); return;
         }
-        if(g.status==='cancelled'){ stopHostPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
+        if(g.status==='cancelled'){ stopPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
         if(g.status==='color_selection'){
-            stopHostPolling();
             if(g.host_player_id===currentUserId) showColorChoice();
             else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
             return;
         }
         if(g.status==='countdown'){
-            stopHostPolling();
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(g.host_nickname||'Host')+' room – Room ID: '+g.room_code;
             showCountdown(); return;
         }
         if(g.status==='active'){
-            stopHostPolling();
+            stopPolling();
             if(!g.board_state) return;
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
             timerW = g.timer_w; timerB = g.timer_b; syncAll(brd); updHL(); renderUI();
@@ -605,13 +593,19 @@
             document.getElementById('chat-box').classList.add('show');
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
-        if(g.status==='frozen'){ stopHostPolling(); timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
+        if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
     }
 
     async function hostChooseColor(col){
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
-        myColor = col; document.getElementById('color-choice-panel').classList.remove('show');
+        myColor = col;
+        // Immediately show the countdown on the host's screen (don't wait for polling)
+        document.getElementById('color-choice-panel').classList.remove('show');
+        onlineGame.status = 'countdown'; // update local status
+        onlineGame.host_color = col;
+        document.getElementById('countdown-welcome').textContent = 'Welcome to '+(onlineGame.host_nickname||'Host')+' room – Room ID: '+onlineGame.room_code;
+        showCountdown();
     }
     window.hostChooseColor = hostChooseColor;
 
@@ -633,7 +627,7 @@
     // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
         if (onlineGame) { await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id); stopOnlineSync(); onlineGame=null; }
-        stopReconnect(); stopHostPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        stopReconnect(); stopPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
 
@@ -652,7 +646,7 @@
 
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
-        stopReconnect(); stopHostPolling();
+        stopReconnect(); stopPolling();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
         sessionPlayerKey=null; onlineGame=null;
@@ -711,7 +705,7 @@
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
-        subscribeToGame(newGame.id); startReconnect(); startHostPolling();
+        subscribeToGame(newGame.id); startReconnect(); startPolling();
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
         showCountdown();
     }
