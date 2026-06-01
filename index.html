@@ -264,15 +264,17 @@
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh'; const rc=i=>({r:i>>3,c:i&7}); const ix=(r,c)=>r*8+c; const inB=(r,c)=>r>=0&&r<8&&c>=0&&c<8; const cl=p=>p?p[0]:null; const tp=p=>p?p[1]:null; const op=c=>c==='w'?'b':'w';
     function initBrd(){ const b=Array(64).fill(null); ['R','N','B','Q','K','B','N','R'].forEach((p,c)=>{b[ix(0,c)]='b'+p;b[ix(7,c)]='w'+p;}); for(let c=0;c<8;c++){b[ix(1,c)]='bP';b[ix(6,c)]='wP';} return b; }
-    function getRaw(brd,fi,cas,ep){ /* ... same ... */ const p=brd[fi];if(!p)return[]; const pc=cl(p),pt=tp(p),{r,c}=rc(fi),mv=[];
-    function push(nr,nc,f={}){if(!inB(nr,nc))return;const ti=ix(nr,nc),tg=brd[ti];if(tg&&cl(tg)===pc)return;mv.push({from:fi,to:ti,...f});}
-    function slide(ds){for(const[dr,dc]of ds){let nr=r+dr,nc=c+dc;while(inB(nr,nc)){const ti=ix(nr,nc),tg=brd[ti];if(tg){if(cl(tg)!==pc)mv.push({from:fi,to:ti});break;}mv.push({from:fi,to:ti});nr+=dr;nc+=dc;}}}
-    if(pt==='P'){ const dir=pc==='w'?-1:1,sr=pc==='w'?6:1,pr=pc==='w'?0:7,fr=r+dir,fi2=ix(fr,c); if(inB(fr,c)&&!brd[fi2]){ if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:fi2,promo:x})); else{mv.push({from:fi,to:fi2});if(r===sr&&!brd[ix(r+dir*2,c)])mv.push({from:fi,to:ix(r+dir*2,c),dp:true});} } for(const dc of[-1,1]){const nc=c+dc;if(!inB(fr,nc))continue;const ti=ix(fr,nc);if(brd[ti]&&cl(brd[ti])!==pc){if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:ti,promo:x}));else mv.push({from:fi,to:ti});}if(ep===ti)mv.push({from:fi,to:ti,ep:true});} }
-    if(pt==='N')[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>push(r+dr,c+dc));
-    if(pt==='B')slide([[-1,-1],[-1,1],[1,-1],[1,1]]); if(pt==='R')slide([[-1,0],[1,0],[0,-1],[0,1]]);
-    if(pt==='Q')slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
-    if(pt==='K'){ [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>push(r+dr,c+dc)); if(pc==='w'){if(cas.wK&&!brd[ix(7,5)]&&!brd[ix(7,6)])mv.push({from:fi,to:ix(7,6),castle:'K'});if(cas.wQ&&!brd[ix(7,3)]&&!brd[ix(7,2)]&&!brd[ix(7,1)])mv.push({from:fi,to:ix(7,2),castle:'Q'});} else{if(cas.bK&&!brd[ix(0,5)]&&!brd[ix(0,6)])mv.push({from:fi,to:ix(0,6),castle:'K'});if(cas.bQ&&!brd[ix(0,3)]&&!brd[ix(0,2)]&&!brd[ix(0,1)])mv.push({from:fi,to:ix(0,2),castle:'Q'});} }
-    return mv; }
+    function getRaw(brd,fi,cas,ep){
+        const p=brd[fi];if(!p)return[]; const pc=cl(p),pt=tp(p),{r,c}=rc(fi),mv=[];
+        function push(nr,nc,f={}){if(!inB(nr,nc))return;const ti=ix(nr,nc),tg=brd[ti];if(tg&&cl(tg)===pc)return;mv.push({from:fi,to:ti,...f});}
+        function slide(ds){for(const[dr,dc]of ds){let nr=r+dr,nc=c+dc;while(inB(nr,nc)){const ti=ix(nr,nc),tg=brd[ti];if(tg){if(cl(tg)!==pc)mv.push({from:fi,to:ti});break;}mv.push({from:fi,to:ti});nr+=dr;nc+=dc;}}}
+        if(pt==='P'){ const dir=pc==='w'?-1:1,sr=pc==='w'?6:1,pr=pc==='w'?0:7,fr=r+dir,fi2=ix(fr,c); if(inB(fr,c)&&!brd[fi2]){ if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:fi2,promo:x})); else{mv.push({from:fi,to:fi2});if(r===sr&&!brd[ix(r+dir*2,c)])mv.push({from:fi,to:ix(r+dir*2,c),dp:true});} } for(const dc of[-1,1]){const nc=c+dc;if(!inB(fr,nc))continue;const ti=ix(fr,nc);if(brd[ti]&&cl(brd[ti])!==pc){if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:ti,promo:x}));else mv.push({from:fi,to:ti});}if(ep===ti)mv.push({from:fi,to:ti,ep:true});} }
+        if(pt==='N')[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>push(r+dr,c+dc));
+        if(pt==='B')slide([[-1,-1],[-1,1],[1,-1],[1,1]]); if(pt==='R')slide([[-1,0],[1,0],[0,-1],[0,1]]);
+        if(pt==='Q')slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+        if(pt==='K'){ [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>push(r+dr,c+dc)); if(pc==='w'){if(cas.wK&&!brd[ix(7,5)]&&!brd[ix(7,6)])mv.push({from:fi,to:ix(7,6),castle:'K'});if(cas.wQ&&!brd[ix(7,3)]&&!brd[ix(7,2)]&&!brd[ix(7,1)])mv.push({from:fi,to:ix(7,2),castle:'Q'});} else{if(cas.bK&&!brd[ix(0,5)]&&!brd[ix(0,6)])mv.push({from:fi,to:ix(0,6),castle:'K'});if(cas.bQ&&!brd[ix(0,3)]&&!brd[ix(0,2)]&&!brd[ix(0,1)])mv.push({from:fi,to:ix(0,2),castle:'Q'});} }
+        return mv;
+    }
     function atk(brd,sq,by){const z={wK:false,wQ:false,bK:false,bQ:false};for(let i=0;i<64;i++){const p=brd[i];if(!p||cl(p)!==by)continue;if(getRaw(brd,i,z,null).some(m=>m.to===sq))return true;}return false;}
     function applyM(brd,mv,cas,ep){ const b=[...brd],p=b[mv.from],pc=cl(p); b[mv.to]=b[mv.from];b[mv.from]=null; if(mv.promo)b[mv.to]=pc+mv.promo; if(mv.ep){const{r,c}=rc(mv.to);b[ix(r+(pc==='w'?1:-1),c)]=null;} if(mv.castle){ if(pc==='w'){if(mv.castle==='K'){b[ix(7,5)]=b[ix(7,7)];b[ix(7,7)]=null;}else{b[ix(7,3)]=b[ix(7,0)];b[ix(7,0)]=null;}} else{if(mv.castle==='K'){b[ix(0,5)]=b[ix(0,7)];b[ix(0,7)]=null;}else{b[ix(0,3)]=b[ix(0,0)];b[ix(0,0)]=null;}} } const nc={...cas}; if(tp(p)==='K'){if(pc==='w'){nc.wK=false;nc.wQ=false;}else{nc.bK=false;nc.bQ=false;}} if(tp(p)==='R'){const{c:fc}=rc(mv.from);if(pc==='w'){if(fc===7)nc.wK=false;if(fc===0)nc.wQ=false;}else{if(fc===7)nc.bK=false;if(fc===0)nc.bQ=false;}} const nep=mv.dp?ix(rc(mv.from).r+(pc==='w'?-1:1),rc(mv.from).c):null; return{brd:b,cas:nc,ep:nep}; }
     function legalM(brd,fi,cas,ep){ const p=brd[fi];if(!p)return[]; const pc=cl(p); return getRaw(brd,fi,cas,ep).filter(m=>{ if(m.castle){const ps=m.castle==='K'?ix(rc(m.from).r,5):ix(rc(m.from).r,3);if(atk(brd,m.from,op(pc))||atk(brd,ps,op(pc)))return false;} const{brd:nb}=applyM(brd,m,cas,ep);const ki=nb.findIndex(s=>s===pc+'K'); return !atk(nb,ki,op(pc)); }); }
@@ -306,7 +308,7 @@
     const fillLight=new THREE.DirectionalLight(0xd0e8ff,0.5);fillLight.position.set(-4,10,-4);scene.add(fillLight);
     const rimLight=new THREE.DirectionalLight(0xc9a84c,0.28);rimLight.position.set(8,4,0);scene.add(rimLight);
     const SQ3D=Array(64).fill(null),SQ_BASE_COL=[];
-    function buildBoard(){ /* ... */ const woodMat=new THREE.MeshPhongMaterial({color:0x4a2810,shininess:20}); const frame=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.6,10.6),woodMat);frame.position.set(4,-0.3,4);frame.receiveShadow=true;scene.add(frame); const legMat=new THREE.MeshPhongMaterial({color:0x3a1c05}); [[0.6,0.6],[7.4,0.6],[0.6,7.4],[7.4,7.4]].forEach(([x,z])=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.8,10),legMat);leg.position.set(x,-0.8,z);leg.castShadow=true;scene.add(leg);}); const goldMat=new THREE.MeshPhongMaterial({color:0xc9a84c,shininess:90}); const border=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.025,10.6),goldMat);border.position.set(4,0.013,4);scene.add(border); const innerMat=new THREE.MeshPhongMaterial({color:0x3a1a08});const inner=new THREE.Mesh(new THREE.BoxGeometry(9.0,0.02,9.0),innerMat);inner.position.set(4,0.016,4);scene.add(inner); const LIGHT_COL=0xeee8d5,DARK_COL=0x2a2018; for(let i=0;i<64;i++){ const{r,c}=rc(i),isLight=(r+c)%2===0,col=isLight?LIGHT_COL:DARK_COL;SQ_BASE_COL[i]=col; const mat=new THREE.MeshPhongMaterial({color:col,shininess:isLight?32:6}); const sq=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.12,1.0),mat);sq.position.set(c+0.5,0.06,r+0.5);sq.receiveShadow=true; sq.userData={t:'sq',si:i};scene.add(sq);SQ3D[i]=sq; } for(let c=0;c<8;c++){mkLabel(FILES[c], c+0.5, 0.06, -0.65); mkLabel(FILES[c], c+0.5, 0.06, 8.65);} for(let r=0;r<8;r++){mkLabel(String(8-r), -0.65, 0.06, r+0.5); mkLabel(String(8-r), 8.65, 0.06, r+0.5);} }
+    function buildBoard(){ const woodMat=new THREE.MeshPhongMaterial({color:0x4a2810,shininess:20}); const frame=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.6,10.6),woodMat);frame.position.set(4,-0.3,4);frame.receiveShadow=true;scene.add(frame); const legMat=new THREE.MeshPhongMaterial({color:0x3a1c05}); [[0.6,0.6],[7.4,0.6],[0.6,7.4],[7.4,7.4]].forEach(([x,z])=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.8,10),legMat);leg.position.set(x,-0.8,z);leg.castShadow=true;scene.add(leg);}); const goldMat=new THREE.MeshPhongMaterial({color:0xc9a84c,shininess:90}); const border=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.025,10.6),goldMat);border.position.set(4,0.013,4);scene.add(border); const innerMat=new THREE.MeshPhongMaterial({color:0x3a1a08});const inner=new THREE.Mesh(new THREE.BoxGeometry(9.0,0.02,9.0),innerMat);inner.position.set(4,0.016,4);scene.add(inner); const LIGHT_COL=0xeee8d5,DARK_COL=0x2a2018; for(let i=0;i<64;i++){ const{r,c}=rc(i),isLight=(r+c)%2===0,col=isLight?LIGHT_COL:DARK_COL;SQ_BASE_COL[i]=col; const mat=new THREE.MeshPhongMaterial({color:col,shininess:isLight?32:6}); const sq=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.12,1.0),mat);sq.position.set(c+0.5,0.06,r+0.5);sq.receiveShadow=true; sq.userData={t:'sq',si:i};scene.add(sq);SQ3D[i]=sq; } for(let c=0;c<8;c++){mkLabel(FILES[c], c+0.5, 0.06, -0.65); mkLabel(FILES[c], c+0.5, 0.06, 8.65);} for(let r=0;r<8;r++){mkLabel(String(8-r), -0.65, 0.06, r+0.5); mkLabel(String(8-r), 8.65, 0.06, r+0.5);} }
     function mkLabel(text,x,y,z){ const cv2=document.createElement('canvas');cv2.width=128;cv2.height=128; const ctx=cv2.getContext('2d'); ctx.fillStyle='rgba(201,168,76,1)';ctx.font='bold 70px serif'; ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,64,64); const tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter; const m=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false})); m.rotation.x=-Math.PI/2;m.position.set(x,y,z);m.renderOrder=999;scene.add(m); }
     function pMat(isLight){ return new THREE.MeshPhongMaterial({ color: isLight ? 0xcc0000 : 0x1a0e06, specular: isLight ? 0xff6666 : 0x553311, shininess: isLight ? 110 : 55 }); }
     function cyl(g,mat,rt,rb,h,x,y,z,s=14){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);}
@@ -330,7 +332,6 @@
     function startAnim(g,tr,tc,onDone,dur=0.32){animQ={g,from:g.position.clone(),to:new THREE.Vector3(tc+0.5,PY,tr+0.5),t0:CLK.getElapsedTime(),dur,onDone};}
     function tickAnim(){ if(!animQ)return;const el=CLK.getElapsedTime()-animQ.t0,t=Math.min(el/animQ.dur,1); const e=t<0.5?2*t*t:-1+(4-2*t)*t;animQ.g.position.x=animQ.from.x+(animQ.to.x-animQ.from.x)*e;animQ.g.position.z=animQ.from.z+(animQ.to.z-animQ.from.z)*e;animQ.g.position.y=PY+Math.sin(t*Math.PI)*1.6; if(t>=1){animQ.g.position.copy(animQ.to);animQ.g.position.y=PY;const d=animQ.onDone;animQ=null;if(d)d();} }
 
-    // ---------- Game state ----------
     let gameMode='2p',aiDepth=3,selDiff=3,playerColor='w',started=false;
     let brd,turn,cas,ep,hist,capW,capB,mlog;
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
@@ -413,33 +414,13 @@
     function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
 
     // ---------- Reconnection (every 3 seconds) ----------
-    function startReconnect() {
-        stopReconnect();
-        reconnectInterval = setInterval(() => {
-            if (onlineGame && sb) {
-                // Check if channel is still connected; if not, re-subscribe
-                if (!onlineChannel || onlineChannel.state !== 'joined') {
-                    subscribeToGame(onlineGame.id);
-                }
-            }
-        }, 3000);
-    }
-    function stopReconnect() {
-        if (reconnectInterval) {
-            clearInterval(reconnectInterval);
-            reconnectInterval = null;
-        }
-    }
+    function startReconnect() { stopReconnect(); reconnectInterval = setInterval(() => { if (onlineGame && sb) { if (!onlineChannel || onlineChannel.state !== 'joined') { subscribeToGame(onlineGame.id); } } }, 3000); }
+    function stopReconnect() { if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; } }
 
     // ---------- Online menu navigation ----------
     window.showOnlineMenu = function(){
-        if (!currentUserId) {
-            document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
-            hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show');
-            return;
-        }
-        document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
-        hideAllOnlinePanels(); document.getElementById('online-menu').classList.add('show');
+        if (!currentUserId) { document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show'); return; }
+        document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('online-menu').classList.add('show');
     };
     window.hideLoginGate = function(){ document.getElementById('login-gate-panel').classList.remove('show'); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; };
 
@@ -464,31 +445,21 @@
         const username = await fetchUsername(currentUserId);
         if(!username){ toast('Please set a username on your profile page to play online.'); backToMenu(); return; }
         try{
-            // Create the room immediately
             const code = generateRoomCode(8);
             const hostKey = generatePlayerKey();
             const {data,error} = await sb.from('online_games').insert({
-                room_code: code,
-                type: 'public',
-                host_player_id: currentUserId,
-                host_player_key: hostKey,
-                host_nickname: username,
-                status: 'waiting_for_joiner',
-                board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null},
-                timer_w:60, timer_b:60
+                room_code: code, type: 'public', host_player_id: currentUserId, host_player_key: hostKey,
+                host_nickname: username, status: 'waiting_for_joiner',
+                board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null}, timer_w:60, timer_b:60
             }).select().single();
             if(error) throw error;
-            onlineGame = data;
-            sessionPlayerKey = hostKey;
+            onlineGame = data; sessionPlayerKey = hostKey;
             sessionStorage.setItem('chess3d_playerkey_'+data.id, hostKey);
-            // Show waiting screen with host username, room ID, and waiting text
             const panel = document.getElementById('waiting-panel');
             document.getElementById('waiting-title').textContent = username + ' room';
             document.getElementById('waiting-text').innerHTML = 'Room ID: <b>'+code+'</b><br>Waiting for opponent to join…';
-            hideAllOnlinePanels();
-            panel.classList.add('show');
-            subscribeToGame(data.id);
-            startReconnect();
+            hideAllOnlinePanels(); panel.classList.add('show');
+            subscribeToGame(data.id); startReconnect();
         }catch(e){ toast('Failed to create room: '+e.message); }
     };
 
@@ -497,37 +468,21 @@
         const username = await fetchUsername(currentUserId);
         if(!username){ toast('Please set a username on your profile page to play online.'); backToMenu(); return; }
         try{
-            // Look for any waiting public room (oldest first)
             const {data:rooms,error} = await sb.from('online_games')
-                .select('*')
-                .eq('type','public')
-                .eq('status','waiting_for_joiner')
-                .order('created_at',{ascending:true})
-                .limit(1);
-            if(error) throw error;
-            if(!rooms||rooms.length===0){
-                toast('No rooms available at the moment.'); return;
-            }
+                .select('*').eq('type','public').eq('status','waiting_for_joiner')
+                .order('created_at',{ascending:true}).limit(1);
+            if(error){ toast('DB error (select): '+error.message); return; }
+            if(!rooms||rooms.length===0){ toast('No rooms available at the moment.'); return; }
             const game = rooms[0];
-            // Atomically claim this room
             const joinerKey = generatePlayerKey();
             const {error:updateErr} = await sb.from('online_games')
-                .update({
-                    joiner_player_id: currentUserId,
-                    joiner_player_key: joinerKey,
-                    joiner_nickname: username,
-                    status: 'color_selection'
-                })
-                .eq('id',game.id)
-                .eq('status','waiting_for_joiner'); // optimistic lock
-            if(updateErr){ toast('This room was just taken by another player.'); return; }
+                .update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, joiner_nickname: username, status: 'color_selection' })
+                .eq('id',game.id).eq('status','waiting_for_joiner');
+            if(updateErr){ toast('DB error (update): '+updateErr.message); return; }
             onlineGame = {...game, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
-            sessionPlayerKey = joinerKey;
-            sessionStorage.setItem('chess3d_playerkey_'+game.id, joinerKey);
-            hideAllOnlinePanels();
-            document.getElementById('waiting-host-color').classList.add('show');
-            subscribeToGame(game.id);
-            startReconnect();
+            sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+game.id, joinerKey);
+            hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
+            subscribeToGame(game.id); startReconnect();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -539,26 +494,18 @@
         const code = generateRoomCode(8);
         const hostKey = generatePlayerKey();
         const {data,error} = await sb.from('online_games').insert({
-            room_code: code,
-            type: 'private',
-            host_player_id: currentUserId,
-            host_player_key: hostKey,
-            host_nickname: username,
-            status: 'waiting_for_joiner',
-            board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null},
-            timer_w:60, timer_b:60
+            room_code: code, type: 'private', host_player_id: currentUserId, host_player_key: hostKey,
+            host_nickname: username, status: 'waiting_for_joiner',
+            board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null}, timer_w:60, timer_b:60
         }).select().single();
         if(error){ toast('Failed to create room.'); return; }
-        onlineGame = data;
-        sessionPlayerKey = hostKey;
+        onlineGame = data; sessionPlayerKey = hostKey;
         sessionStorage.setItem('chess3d_playerkey_'+data.id, hostKey);
         const panel = document.getElementById('waiting-panel');
         document.getElementById('waiting-title').textContent = username + ' room';
         document.getElementById('waiting-text').innerHTML = 'Room Code: <b>'+code+'</b><br>Waiting for opponent to join…';
-        hideAllOnlinePanels();
-        panel.classList.add('show');
-        subscribeToGame(data.id);
-        startReconnect();
+        hideAllOnlinePanels(); panel.classList.add('show');
+        subscribeToGame(data.id); startReconnect();
     };
 
     window.joinPrivateRoom = async function(){
@@ -569,22 +516,19 @@
         if(!code){ toast('Enter a room code.'); return; }
         try{
             const {data,error} = await sb.from('online_games').select('*').eq('room_code',code).eq('type','private').maybeSingle();
-            if(error||!data){ toast('Room not found.'); return; }
+            if(error){ toast('DB error (select): '+error.message); return; }
+            if(!data){ toast('Room not found.'); return; }
             if(data.status==='cancelled'){ toast('This room has been cancelled.'); return; }
             if(data.status!=='waiting_for_joiner'){ toast('This room is no longer open.'); return; }
             const joinerKey = generatePlayerKey();
             const {error:updateErr} = await sb.from('online_games')
                 .update({ joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection' })
-                .eq('id',data.id)
-                .eq('status','waiting_for_joiner');
-            if(updateErr){ toast('Failed to join.'); return; }
+                .eq('id',data.id).eq('status','waiting_for_joiner');
+            if(updateErr){ toast('DB error (update): '+updateErr.message); return; }
             onlineGame = {...data, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
-            sessionPlayerKey = joinerKey;
-            sessionStorage.setItem('chess3d_playerkey_'+data.id, joinerKey);
-            hideAllOnlinePanels();
-            document.getElementById('waiting-host-color').classList.add('show');
-            subscribeToGame(data.id);
-            startReconnect();
+            sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+data.id, joinerKey);
+            hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
+            subscribeToGame(data.id); startReconnect();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -597,9 +541,7 @@
     }
 
     function handleGameUpdate(payload){
-        if(!onlineGame) return;
-        onlineGame = payload.new;
-        const g = onlineGame;
+        if(!onlineGame) return; onlineGame = payload.new; const g = onlineGame;
         if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
@@ -613,10 +555,8 @@
             return;
         }
         if(g.status==='countdown'){
-            // Update countdown welcome message
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(g.host_nickname||'Host')+' room – Room ID: '+g.room_code;
-            showCountdown();
-            return;
+            showCountdown(); return;
         }
         if(g.status==='active'){
             if(!g.board_state) return;
@@ -629,8 +569,7 @@
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
             document.getElementById('chat-box').classList.add('show');
-            camTheta = myColor==='w'?0:Math.PI; updateCamera();
-            return;
+            camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
     }
@@ -638,20 +577,13 @@
     async function hostChooseColor(col){
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
-        myColor = col;
-        document.getElementById('color-choice-panel').classList.remove('show');
-        // Wait for the other client to receive the update (they will call showCountdown)
+        myColor = col; document.getElementById('color-choice-panel').classList.remove('show');
     }
     window.hostChooseColor = hostChooseColor;
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
 
-    function showCountdown(){
-        hideAllOnlinePanels();
-        document.getElementById('countdown-panel').classList.add('show');
-        let sec=5; document.getElementById('countdown-number').textContent=sec;
-        const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);startOnlineGame();return;}document.getElementById('countdown-number').textContent=sec;},1000);
-    }
+    function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec=5; document.getElementById('countdown-number').textContent=sec; const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);startOnlineGame();return;}document.getElementById('countdown-number').textContent=sec;},1000); }
 
     async function startOnlineGame(){
         hideAllOnlinePanels();
@@ -660,19 +592,14 @@
         if(!boardBuilt){buildBoard();boardBuilt=true;}
         document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
         document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
-        document.getElementById('mode-btn').onclick=confirmExitOnline;
-        document.getElementById('chat-box').classList.add('show');
+        document.getElementById('mode-btn').onclick=confirmExitOnline; document.getElementById('chat-box').classList.add('show');
         camTheta = myColor==='w'?0:Math.PI; updateCamera();
     }
 
     // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
-        if (onlineGame) {
-            await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id);
-            stopOnlineSync(); onlineGame=null;
-        }
-        stopReconnect();
-        hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        if (onlineGame) { await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id); stopOnlineSync(); onlineGame=null; }
+        stopReconnect(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
 
@@ -709,7 +636,6 @@
     function syncTimersToSupabase(){ if(!onlineGame)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
     function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); }
 
-    function showWaitingScreen(msg){ /* deprecated – now using waiting-panel with title/text */ }
     function sendChat(){ const input=document.getElementById('chat-input'); const msg=input.value.trim(); if(!msg||!onlineGame)return; sb.from('chat_messages').insert({game_id:onlineGame.id,player_id:currentUserId,nickname:onlineGame.host_player_id===currentUserId?onlineGame.host_nickname:onlineGame.joiner_nickname,message:msg}).then(()=>{input.value='';}); }
     window.sendChat = sendChat;
 
@@ -731,8 +657,7 @@
     function showRematchUI(){
         document.getElementById('rematch-panel').classList.add('show');
         let rematchTimer=30;
-        const el=document.getElementById('rematch-text');
-        el.textContent=`Opponent wants a rematch! (${rematchTimer}s)`;
+        const el=document.getElementById('rematch-text'); el.textContent=`Opponent wants a rematch! (${rematchTimer}s)`;
         const iv=setInterval(()=>{rematchTimer--;el.textContent=`Opponent wants a rematch! (${rematchTimer}s)`;if(rematchTimer<=0){clearInterval(iv);declineRematch();}},1000);
         document.getElementById('rematch-accept').onclick=()=>{clearInterval(iv);acceptRematch();};
         document.getElementById('rematch-decline').onclick=()=>{clearInterval(iv);declineRematch();};
