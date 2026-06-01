@@ -32,7 +32,13 @@
         .db:active,.db:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10);box-shadow:0 0 10px rgba(201,168,76,0.15)}
         .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
-        #top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;padding:6px 10px;gap:8px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);pointer-events:auto}
+        #top{
+            position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;
+            padding:6px 10px;gap:8px;
+            background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+            border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);
+            pointer-events:auto;
+        }
         .tpill{display:flex;align-items:center;gap:7px;flex-shrink:0}
         .tdot{width:11px;height:11px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
         .tdot.w{background:#cc0000;box-shadow:0 0 8px rgba(204,0,0,.65)}
@@ -52,6 +58,13 @@
         .ab{flex:1;font-family:'Cinzel',serif;font-size:clamp(8px,2.5vw,10px);letter-spacing:.12em;background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);color:var(--muted);padding:10px 4px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all .2s}
         .ab:last-child{border-right:none}
         .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
+
+        /* Chat toggle (speech bubble icon) */
+        .chat-toggle{position:relative;flex-shrink:0;margin-left:4px}
+        .chat-toggle-btn{width:28px;height:28px;border-radius:50%;background:rgba(14,9,4,0.75);border:1px solid var(--gold-d);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+        .chat-toggle-btn:hover{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.3)}
+        .chat-toggle-btn svg{width:16px;height:16px;fill:var(--gold)}
+
         #pm{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:80;align-items:center;justify-content:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
         #pm.on{display:flex}
         .pmb{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);box-shadow:inset 0 1px 0 var(--glass-shine),0 8px 40px rgba(0,0,0,0.7);border-radius:6px;padding:24px;text-align:center}
@@ -134,6 +147,7 @@
             <div class="card local-mode" onclick="showAiDiffPanel()"><div class="ic">♜</div><h2>vs Computer</h2><p>Play against the engine</p></div>
             <div class="card" onclick="showOnlineMenu()"><div class="ic">🌐</div><h2>Online</h2><p>Play with others</p></div>
         </div>
+        <!-- Online submenus unchanged -->
         <div id="online-menu" class="online-panel"><h2 style="color:var(--gold);">Online Mode</h2><button class="db" onclick="showPublicMenu()">Public Room</button><button class="db" onclick="showPrivateMenu()">Private Room</button><button class="db back-btn" onclick="hideOnlineMenu()">Back</button></div>
         <div id="public-menu" class="online-panel"><h2 style="color:var(--gold);">Public Room</h2><button class="db" onclick="createPublicRoom()">Create Public Room</button><button class="db" onclick="joinPublicRoom()">Join Public Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
         <div id="private-menu" class="online-panel"><h2 style="color:var(--gold);">Private Room</h2><button class="db" onclick="showCreatePrivate()">Create Private Room</button><button class="db" onclick="showJoinPrivate()">Join Private Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
@@ -161,6 +175,7 @@
                 <div class="tmr active" id="tmrW"><div class="tn">Red</div><div class="tv" id="tvW">1:00</div></div>
                 <div class="tmr" id="tmrB"><div class="tn">Black</div><div class="tv" id="tvB">1:00</div></div>
             </div>
+            <div class="chat-toggle"><button class="chat-toggle-btn" onclick="toggleChat()" title="Chat"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></button></div>
             <div class="thkstrip" id="thkstrip"></div>
         </div>
         <div id="bot">
@@ -203,7 +218,7 @@
     let myColor = 'w';
     let sessionPlayerKey = null;
     let reconnectInterval = null;
-    let pollInterval = null; // single polling interval for both host and joiner
+    let pollInterval = null;
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -417,16 +432,18 @@
     function startReconnect() { stopReconnect(); reconnectInterval = setInterval(() => { if (onlineGame && sb) { if (!onlineChannel || onlineChannel.state !== 'joined') { subscribeToGame(onlineGame.id); } } }, 3000); }
     function stopReconnect() { if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; } }
 
-    // ---------- Polling for both host and joiner (every 2 seconds) ----------
+    // ---------- Chat toggle ----------
+    function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
+
+    // ---------- Polling for game state (every 2 seconds, keeps board in sync) ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
             if (!onlineGame || !sb || !currentUserId) return;
-            // Poll for current status
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            if (data.status !== onlineGame.status) {
-                // Status changed – simulate a real‑time update
+            // Update local state only if server state differs (prevents unnecessary redraws)
+            if (JSON.stringify(data) !== JSON.stringify(onlineGame)) {
                 handleGameUpdate({ new: data, old: onlineGame });
             }
         }, 2000);
@@ -564,7 +581,6 @@
         const g = onlineGame;
         if(g.status==='terminated'){ stopPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
-            stopPolling();
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
             if(g.winner) document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins';
             startRematchCountdown(); return;
@@ -580,7 +596,6 @@
             showCountdown(); return;
         }
         if(g.status==='active'){
-            stopPolling();
             if(!g.board_state) return;
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
             timerW = g.timer_w; timerB = g.timer_b; syncAll(brd); updHL(); renderUI();
@@ -600,9 +615,9 @@
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
         myColor = col;
-        // Immediately show the countdown on the host's screen (don't wait for polling)
+        // Immediately show the countdown on the host's screen
         document.getElementById('color-choice-panel').classList.remove('show');
-        onlineGame.status = 'countdown'; // update local status
+        onlineGame.status = 'countdown';
         onlineGame.host_color = col;
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(onlineGame.host_nickname||'Host')+' room – Room ID: '+onlineGame.room_code;
         showCountdown();
