@@ -203,6 +203,7 @@
     let myColor = 'w';
     let sessionPlayerKey = null;
     let reconnectInterval = null;
+    let waitPollInterval = null; // for host polling
 
     // Diagnostic
     function updateDebugInfo() {
@@ -417,6 +418,26 @@
     function startReconnect() { stopReconnect(); reconnectInterval = setInterval(() => { if (onlineGame && sb) { if (!onlineChannel || onlineChannel.state !== 'joined') { subscribeToGame(onlineGame.id); } } }, 3000); }
     function stopReconnect() { if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; } }
 
+    // ---------- Host polling (every 2 seconds, safety net for real‑time failures) ----------
+    function startHostPolling() {
+        stopHostPolling();
+        waitPollInterval = setInterval(async () => {
+            if (!onlineGame || !sb) return;
+            // only poll if we are the host and still waiting for joiner
+            if (onlineGame.host_player_id !== currentUserId) return;
+            if (onlineGame.status !== 'waiting_for_joiner') return;
+            const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
+            if (error || !data) return;
+            if (data.status !== onlineGame.status) {
+                // Status changed – simulate a real‑time update
+                handleGameUpdate({ new: data, old: onlineGame });
+            }
+        }, 2000);
+    }
+    function stopHostPolling() {
+        if (waitPollInterval) { clearInterval(waitPollInterval); waitPollInterval = null; }
+    }
+
     // ---------- Online menu navigation ----------
     window.showOnlineMenu = function(){
         if (!currentUserId) { document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none'; hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show'); return; }
@@ -459,7 +480,7 @@
             document.getElementById('waiting-title').textContent = username + ' room';
             document.getElementById('waiting-text').innerHTML = 'Room ID: <b>'+code+'</b><br>Waiting for opponent to join…';
             hideAllOnlinePanels(); panel.classList.add('show');
-            subscribeToGame(data.id); startReconnect();
+            subscribeToGame(data.id); startReconnect(); startHostPolling();
         }catch(e){ toast('Failed to create room: '+e.message); }
     };
 
@@ -505,7 +526,7 @@
         document.getElementById('waiting-title').textContent = username + ' room';
         document.getElementById('waiting-text').innerHTML = 'Room Code: <b>'+code+'</b><br>Waiting for opponent to join…';
         hideAllOnlinePanels(); panel.classList.add('show');
-        subscribeToGame(data.id); startReconnect();
+        subscribeToGame(data.id); startReconnect(); startHostPolling();
     };
 
     window.joinPrivateRoom = async function(){
@@ -542,29 +563,32 @@
 
     function handleGameUpdate(payload){
         if(!onlineGame) return;
-        // Debug: show the new status
         if (payload.new && payload.new.status !== onlineGame.status) {
-            toast('Status: ' + onlineGame.status + ' → ' + payload.new.status);
+            toast('Status: ' + onlineGame.status + ' → ' + payload.new.status); // debug
         }
         onlineGame = payload.new;
         const g = onlineGame;
-        if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
+        if(g.status==='terminated'){ stopHostPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
+            stopHostPolling();
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
             if(g.winner) document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins';
             startRematchCountdown(); return;
         }
-        if(g.status==='cancelled'){ toast('Host cancelled the room.'); resetOnlineState(); return; }
+        if(g.status==='cancelled'){ stopHostPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
         if(g.status==='color_selection'){
+            stopHostPolling();
             if(g.host_player_id===currentUserId) showColorChoice();
             else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
             return;
         }
         if(g.status==='countdown'){
+            stopHostPolling();
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(g.host_nickname||'Host')+' room – Room ID: '+g.room_code;
             showCountdown(); return;
         }
         if(g.status==='active'){
+            stopHostPolling();
             if(!g.board_state) return;
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
             timerW = g.timer_w; timerB = g.timer_b; syncAll(brd); updHL(); renderUI();
@@ -577,7 +601,7 @@
             document.getElementById('chat-box').classList.add('show');
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
-        if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
+        if(g.status==='frozen'){ stopHostPolling(); timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
     }
 
     async function hostChooseColor(col){
@@ -605,7 +629,7 @@
     // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
         if (onlineGame) { await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id); stopOnlineSync(); onlineGame=null; }
-        stopReconnect(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        stopReconnect(); stopHostPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
 
@@ -624,7 +648,7 @@
 
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
-        stopReconnect();
+        stopReconnect(); stopHostPolling();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
         sessionPlayerKey=null; onlineGame=null;
@@ -683,7 +707,7 @@
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
-        subscribeToGame(newGame.id); startReconnect();
+        subscribeToGame(newGame.id); startReconnect(); startHostPolling();
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
         showCountdown();
     }
