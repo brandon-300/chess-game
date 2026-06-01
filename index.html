@@ -140,8 +140,8 @@
         <div id="join-private" class="online-panel"><h2 style="color:var(--gold);">Join Private Room</h2><input type="text" id="private-room-code" placeholder="Room code" maxlength="20"><button class="db" onclick="joinPrivateRoom()">Join</button><button class="db back-btn" onclick="showPrivateMenu()">Back</button></div>
         <div id="waiting-host-color" class="online-panel"><h2 style="color:var(--gold);">Waiting for host to select colour of pieces...</h2><button class="db back-btn" onclick="cancelWaiting()">Cancel</button></div>
         <div id="color-choice-panel" class="online-panel"><h2 style="color:var(--gold);">Choose Your Colour</h2><button class="db" onclick="hostChooseColor('w')">Red</button><button class="db" onclick="hostChooseColor('b')">Black</button></div>
-        <div id="countdown-panel" class="online-panel"><h2 style="color:var(--gold);">Game Starting in</h2><div style="font-size:48px;color:var(--gold);" id="countdown-number">5</div></div>
-        <div id="waiting-panel" class="online-panel"><h2 style="color:var(--gold);">Waiting...</h2><p class="status-text" id="waiting-text"></p><button class="db back-btn" onclick="cancelWaiting()">Cancel</button></div>
+        <div id="countdown-panel" class="online-panel"><h2 style="color:var(--gold);" id="countdown-welcome"></h2><div style="font-size:48px;color:var(--gold);" id="countdown-number">5</div></div>
+        <div id="waiting-panel" class="online-panel"><h2 style="color:var(--gold);" id="waiting-title"></h2><p class="status-text" id="waiting-text"></p><button class="db back-btn" onclick="cancelWaiting()">Cancel</button></div>
         <div id="rematch-panel" class="online-panel"><h2 style="color:var(--gold);">Rematch</h2><p class="status-text" id="rematch-text"></p><button class="db" id="rematch-accept" onclick="acceptRematch()">Accept</button><button class="db back-btn" id="rematch-decline" onclick="declineRematch()">Decline</button></div>
         <div id="login-gate-panel"><h2>Login Required</h2><p>You need an account to play online.<br>Sign in or create a free account to continue.</p><button class="db" onclick="window.location.href='user_login.html'">Go to Login</button><button class="db back-btn" onclick="hideLoginGate()">Back</button></div>
         <div id="ai-diff-panel"><h2>Choose Difficulty</h2><button class="db" onclick="aiSelectDiff(1)">Novice</button><button class="db" onclick="aiSelectDiff(3)">Knight</button><button class="db" onclick="aiSelectDiff(4)">Master</button><button class="db back-btn" onclick="hideAiPanels()">Back</button></div>
@@ -200,11 +200,11 @@
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
-    let matchmakingChannel = null;
     let myColor = 'w';
     let sessionPlayerKey = null;
+    let reconnectInterval = null;
 
-    // Diagnostic update
+    // Diagnostic
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
         if (!debugEl) return;
@@ -218,11 +218,7 @@
     const authReadyPromise = new Promise(r => { authReadyResolve = r; });
 
     async function initAuth() {
-        if (!sb) {
-            authReadyResolve();
-            updateHeaderUI();
-            return;
-        }
+        if (!sb) { authReadyResolve(); updateHeaderUI(); return; }
         try {
             const { data: { session } } = await sb.auth.getSession();
             if (session?.user) {
@@ -268,17 +264,15 @@
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const FILES='abcdefgh'; const rc=i=>({r:i>>3,c:i&7}); const ix=(r,c)=>r*8+c; const inB=(r,c)=>r>=0&&r<8&&c>=0&&c<8; const cl=p=>p?p[0]:null; const tp=p=>p?p[1]:null; const op=c=>c==='w'?'b':'w';
     function initBrd(){ const b=Array(64).fill(null); ['R','N','B','Q','K','B','N','R'].forEach((p,c)=>{b[ix(0,c)]='b'+p;b[ix(7,c)]='w'+p;}); for(let c=0;c<8;c++){b[ix(1,c)]='bP';b[ix(6,c)]='wP';} return b; }
-    function getRaw(brd,fi,cas,ep){
-        const p=brd[fi];if(!p)return[]; const pc=cl(p),pt=tp(p),{r,c}=rc(fi),mv=[];
-        function push(nr,nc,f={}){if(!inB(nr,nc))return;const ti=ix(nr,nc),tg=brd[ti];if(tg&&cl(tg)===pc)return;mv.push({from:fi,to:ti,...f});}
-        function slide(ds){for(const[dr,dc]of ds){let nr=r+dr,nc=c+dc;while(inB(nr,nc)){const ti=ix(nr,nc),tg=brd[ti];if(tg){if(cl(tg)!==pc)mv.push({from:fi,to:ti});break;}mv.push({from:fi,to:ti});nr+=dr;nc+=dc;}}}
-        if(pt==='P'){ const dir=pc==='w'?-1:1,sr=pc==='w'?6:1,pr=pc==='w'?0:7,fr=r+dir,fi2=ix(fr,c); if(inB(fr,c)&&!brd[fi2]){ if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:fi2,promo:x})); else{mv.push({from:fi,to:fi2});if(r===sr&&!brd[ix(r+dir*2,c)])mv.push({from:fi,to:ix(r+dir*2,c),dp:true});} } for(const dc of[-1,1]){const nc=c+dc;if(!inB(fr,nc))continue;const ti=ix(fr,nc);if(brd[ti]&&cl(brd[ti])!==pc){if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:ti,promo:x}));else mv.push({from:fi,to:ti});}if(ep===ti)mv.push({from:fi,to:ti,ep:true});} }
-        if(pt==='N')[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>push(r+dr,c+dc));
-        if(pt==='B')slide([[-1,-1],[-1,1],[1,-1],[1,1]]); if(pt==='R')slide([[-1,0],[1,0],[0,-1],[0,1]]);
-        if(pt==='Q')slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
-        if(pt==='K'){ [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>push(r+dr,c+dc)); if(pc==='w'){if(cas.wK&&!brd[ix(7,5)]&&!brd[ix(7,6)])mv.push({from:fi,to:ix(7,6),castle:'K'});if(cas.wQ&&!brd[ix(7,3)]&&!brd[ix(7,2)]&&!brd[ix(7,1)])mv.push({from:fi,to:ix(7,2),castle:'Q'});} else{if(cas.bK&&!brd[ix(0,5)]&&!brd[ix(0,6)])mv.push({from:fi,to:ix(0,6),castle:'K'});if(cas.bQ&&!brd[ix(0,3)]&&!brd[ix(0,2)]&&!brd[ix(0,1)])mv.push({from:fi,to:ix(0,2),castle:'Q'});} }
-        return mv;
-    }
+    function getRaw(brd,fi,cas,ep){ /* ... same ... */ const p=brd[fi];if(!p)return[]; const pc=cl(p),pt=tp(p),{r,c}=rc(fi),mv=[];
+    function push(nr,nc,f={}){if(!inB(nr,nc))return;const ti=ix(nr,nc),tg=brd[ti];if(tg&&cl(tg)===pc)return;mv.push({from:fi,to:ti,...f});}
+    function slide(ds){for(const[dr,dc]of ds){let nr=r+dr,nc=c+dc;while(inB(nr,nc)){const ti=ix(nr,nc),tg=brd[ti];if(tg){if(cl(tg)!==pc)mv.push({from:fi,to:ti});break;}mv.push({from:fi,to:ti});nr+=dr;nc+=dc;}}}
+    if(pt==='P'){ const dir=pc==='w'?-1:1,sr=pc==='w'?6:1,pr=pc==='w'?0:7,fr=r+dir,fi2=ix(fr,c); if(inB(fr,c)&&!brd[fi2]){ if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:fi2,promo:x})); else{mv.push({from:fi,to:fi2});if(r===sr&&!brd[ix(r+dir*2,c)])mv.push({from:fi,to:ix(r+dir*2,c),dp:true});} } for(const dc of[-1,1]){const nc=c+dc;if(!inB(fr,nc))continue;const ti=ix(fr,nc);if(brd[ti]&&cl(brd[ti])!==pc){if(fr===pr)['Q','R','B','N'].forEach(x=>mv.push({from:fi,to:ti,promo:x}));else mv.push({from:fi,to:ti});}if(ep===ti)mv.push({from:fi,to:ti,ep:true});} }
+    if(pt==='N')[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>push(r+dr,c+dc));
+    if(pt==='B')slide([[-1,-1],[-1,1],[1,-1],[1,1]]); if(pt==='R')slide([[-1,0],[1,0],[0,-1],[0,1]]);
+    if(pt==='Q')slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+    if(pt==='K'){ [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>push(r+dr,c+dc)); if(pc==='w'){if(cas.wK&&!brd[ix(7,5)]&&!brd[ix(7,6)])mv.push({from:fi,to:ix(7,6),castle:'K'});if(cas.wQ&&!brd[ix(7,3)]&&!brd[ix(7,2)]&&!brd[ix(7,1)])mv.push({from:fi,to:ix(7,2),castle:'Q'});} else{if(cas.bK&&!brd[ix(0,5)]&&!brd[ix(0,6)])mv.push({from:fi,to:ix(0,6),castle:'K'});if(cas.bQ&&!brd[ix(0,3)]&&!brd[ix(0,2)]&&!brd[ix(0,1)])mv.push({from:fi,to:ix(0,2),castle:'Q'});} }
+    return mv; }
     function atk(brd,sq,by){const z={wK:false,wQ:false,bK:false,bQ:false};for(let i=0;i<64;i++){const p=brd[i];if(!p||cl(p)!==by)continue;if(getRaw(brd,i,z,null).some(m=>m.to===sq))return true;}return false;}
     function applyM(brd,mv,cas,ep){ const b=[...brd],p=b[mv.from],pc=cl(p); b[mv.to]=b[mv.from];b[mv.from]=null; if(mv.promo)b[mv.to]=pc+mv.promo; if(mv.ep){const{r,c}=rc(mv.to);b[ix(r+(pc==='w'?1:-1),c)]=null;} if(mv.castle){ if(pc==='w'){if(mv.castle==='K'){b[ix(7,5)]=b[ix(7,7)];b[ix(7,7)]=null;}else{b[ix(7,3)]=b[ix(7,0)];b[ix(7,0)]=null;}} else{if(mv.castle==='K'){b[ix(0,5)]=b[ix(0,7)];b[ix(0,7)]=null;}else{b[ix(0,3)]=b[ix(0,0)];b[ix(0,0)]=null;}} } const nc={...cas}; if(tp(p)==='K'){if(pc==='w'){nc.wK=false;nc.wQ=false;}else{nc.bK=false;nc.bQ=false;}} if(tp(p)==='R'){const{c:fc}=rc(mv.from);if(pc==='w'){if(fc===7)nc.wK=false;if(fc===0)nc.wQ=false;}else{if(fc===7)nc.bK=false;if(fc===0)nc.bQ=false;}} const nep=mv.dp?ix(rc(mv.from).r+(pc==='w'?-1:1),rc(mv.from).c):null; return{brd:b,cas:nc,ep:nep}; }
     function legalM(brd,fi,cas,ep){ const p=brd[fi];if(!p)return[]; const pc=cl(p); return getRaw(brd,fi,cas,ep).filter(m=>{ if(m.castle){const ps=m.castle==='K'?ix(rc(m.from).r,5):ix(rc(m.from).r,3);if(atk(brd,m.from,op(pc))||atk(brd,ps,op(pc)))return false;} const{brd:nb}=applyM(brd,m,cas,ep);const ki=nb.findIndex(s=>s===pc+'K'); return !atk(nb,ki,op(pc)); }); }
@@ -312,7 +306,7 @@
     const fillLight=new THREE.DirectionalLight(0xd0e8ff,0.5);fillLight.position.set(-4,10,-4);scene.add(fillLight);
     const rimLight=new THREE.DirectionalLight(0xc9a84c,0.28);rimLight.position.set(8,4,0);scene.add(rimLight);
     const SQ3D=Array(64).fill(null),SQ_BASE_COL=[];
-    function buildBoard(){ const woodMat=new THREE.MeshPhongMaterial({color:0x4a2810,shininess:20}); const frame=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.6,10.6),woodMat);frame.position.set(4,-0.3,4);frame.receiveShadow=true;scene.add(frame); const legMat=new THREE.MeshPhongMaterial({color:0x3a1c05}); [[0.6,0.6],[7.4,0.6],[0.6,7.4],[7.4,7.4]].forEach(([x,z])=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.8,10),legMat);leg.position.set(x,-0.8,z);leg.castShadow=true;scene.add(leg);}); const goldMat=new THREE.MeshPhongMaterial({color:0xc9a84c,shininess:90}); const border=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.025,10.6),goldMat);border.position.set(4,0.013,4);scene.add(border); const innerMat=new THREE.MeshPhongMaterial({color:0x3a1a08});const inner=new THREE.Mesh(new THREE.BoxGeometry(9.0,0.02,9.0),innerMat);inner.position.set(4,0.016,4);scene.add(inner); const LIGHT_COL=0xeee8d5,DARK_COL=0x2a2018; for(let i=0;i<64;i++){ const{r,c}=rc(i),isLight=(r+c)%2===0,col=isLight?LIGHT_COL:DARK_COL;SQ_BASE_COL[i]=col; const mat=new THREE.MeshPhongMaterial({color:col,shininess:isLight?32:6}); const sq=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.12,1.0),mat);sq.position.set(c+0.5,0.06,r+0.5);sq.receiveShadow=true; sq.userData={t:'sq',si:i};scene.add(sq);SQ3D[i]=sq; } for(let c=0;c<8;c++){mkLabel(FILES[c], c+0.5, 0.06, -0.65); mkLabel(FILES[c], c+0.5, 0.06, 8.65);} for(let r=0;r<8;r++){mkLabel(String(8-r), -0.65, 0.06, r+0.5); mkLabel(String(8-r), 8.65, 0.06, r+0.5);} }
+    function buildBoard(){ /* ... */ const woodMat=new THREE.MeshPhongMaterial({color:0x4a2810,shininess:20}); const frame=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.6,10.6),woodMat);frame.position.set(4,-0.3,4);frame.receiveShadow=true;scene.add(frame); const legMat=new THREE.MeshPhongMaterial({color:0x3a1c05}); [[0.6,0.6],[7.4,0.6],[0.6,7.4],[7.4,7.4]].forEach(([x,z])=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.8,10),legMat);leg.position.set(x,-0.8,z);leg.castShadow=true;scene.add(leg);}); const goldMat=new THREE.MeshPhongMaterial({color:0xc9a84c,shininess:90}); const border=new THREE.Mesh(new THREE.BoxGeometry(10.6,0.025,10.6),goldMat);border.position.set(4,0.013,4);scene.add(border); const innerMat=new THREE.MeshPhongMaterial({color:0x3a1a08});const inner=new THREE.Mesh(new THREE.BoxGeometry(9.0,0.02,9.0),innerMat);inner.position.set(4,0.016,4);scene.add(inner); const LIGHT_COL=0xeee8d5,DARK_COL=0x2a2018; for(let i=0;i<64;i++){ const{r,c}=rc(i),isLight=(r+c)%2===0,col=isLight?LIGHT_COL:DARK_COL;SQ_BASE_COL[i]=col; const mat=new THREE.MeshPhongMaterial({color:col,shininess:isLight?32:6}); const sq=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.12,1.0),mat);sq.position.set(c+0.5,0.06,r+0.5);sq.receiveShadow=true; sq.userData={t:'sq',si:i};scene.add(sq);SQ3D[i]=sq; } for(let c=0;c<8;c++){mkLabel(FILES[c], c+0.5, 0.06, -0.65); mkLabel(FILES[c], c+0.5, 0.06, 8.65);} for(let r=0;r<8;r++){mkLabel(String(8-r), -0.65, 0.06, r+0.5); mkLabel(String(8-r), 8.65, 0.06, r+0.5);} }
     function mkLabel(text,x,y,z){ const cv2=document.createElement('canvas');cv2.width=128;cv2.height=128; const ctx=cv2.getContext('2d'); ctx.fillStyle='rgba(201,168,76,1)';ctx.font='bold 70px serif'; ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,64,64); const tex=new THREE.CanvasTexture(cv2);tex.minFilter=THREE.LinearFilter; const m=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false})); m.rotation.x=-Math.PI/2;m.position.set(x,y,z);m.renderOrder=999;scene.add(m); }
     function pMat(isLight){ return new THREE.MeshPhongMaterial({ color: isLight ? 0xcc0000 : 0x1a0e06, specular: isLight ? 0xff6666 : 0x553311, shininess: isLight ? 110 : 55 }); }
     function cyl(g,mat,rt,rb,h,x,y,z,s=14){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);}
@@ -342,7 +336,7 @@
     let selSq,curLM,lastMv,over,pendP,isAnim,aiThink;
     let timerW=60,timerB=60,timerActive=false,lastTick=null;
     const BACKUP_KEY_AI='chess3d_backup_ai',BACKUP_KEY_2P='chess3d_backup_2p';
-    let autoSaveInterval=null,matchmakingTimeout=null,rematchCountdownInterval=null;
+    let autoSaveInterval=null,rematchCountdownInterval=null;
     function saveBackup(){ if(over||gameMode=='online')return; const key=gameMode=='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P; try{ const state={brd:brd.slice(),turn,cas:{...cas},ep,hist:hist.map(h=>({brd:h.brd.slice(),turn:h.turn,cas:{...h.cas},ep:h.ep,capW:h.capW.slice(),capB:h.capB.slice(),mlog:h.mlog.map(m=>({...m}))})),capW:capW.slice(),capB:capB.slice(),mlog:mlog.map(m=>({...m})),timerW,timerB,playerColor,aiDepth}; localStorage.setItem(key,JSON.stringify(state)); }catch(e){} }
     function clearBackup(mode){ localStorage.removeItem(mode=='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P); }
     function loadBackup(mode){ try{ return JSON.parse(localStorage.getItem(mode=='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P)); }catch(e){return null;} }
@@ -350,7 +344,7 @@
     function stopAutoSave(){ if(autoSaveInterval){ clearInterval(autoSaveInterval); autoSaveInterval=null; } }
     function getAiColor(){return playerColor=='w'?'b':'w';}
     function resetState(){ brd=initBrd();turn='w';cas={wK:true,wQ:true,bK:true,bQ:true};ep=null;hist=[];capW=[];capB=[];mlog=[]; selSq=null;curLM=[];lastMv=null;over=false;pendP=null;isAnim=false;aiThink=false;timerW=60;timerB=60;timerActive=false;lastTick=null; }
-    function endGame(title,subtitle,sfx){ over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on'); document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle; document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI(); if(gameMode=='online'){ stopOnlineSync(); startRematchCountdown(); } else { clearBackup(gameMode); stopAutoSave(); showOfflineGameOverButtons(); } }
+    function endGame(title,subtitle,sfx){ over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on'); document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle; document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI(); if(gameMode=='online'){ stopReconnect(); stopOnlineSync(); startRematchCountdown(); } else { clearBackup(gameMode); stopAutoSave(); showOfflineGameOverButtons(); } }
     function showOfflineGameOverButtons(){ document.getElementById('go-btns').innerHTML='<button onclick="newGame();document.getElementById(\'go\').classList.remove(\'on\');">New Game</button><button class="sec" onclick="handleExitGameOver();">Exit</button>'; }
     function scheduleAI(delay=80){ if(over||aiThink||gameMode!='ai'||turn!==getAiColor())return; aiThink=true;document.getElementById('thkstrip').classList.add('on');document.getElementById('smsg').textContent='Thinking…'; setTimeout(()=>{ if(over||!aiThink||gameMode!='ai'){aiThink=false;document.getElementById('thkstrip').classList.remove('on');renderUI();return;} const mv=getBestMove(brd,cas,ep,aiDepth,getAiColor()); aiThink=false;document.getElementById('thkstrip').classList.remove('on'); if(mv)execMove(mv); else{const ck=inCk(brd,turn),winner=turn=='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);} },delay); }
     function onSq(si){ if(over||isAnim||aiThink)return; if(gameMode=='online'&&turn!==myColor)return; if(gameMode=='ai'&&turn===getAiColor())return; SFX.select(); const p=brd[si];if(p&&cl(p)===turn){selSq=si;curLM=legalM(brd,si,cas,ep);updHL();return;} if(selSq!==null){const mv=curLM.find(m=>m.to===si);if(mv){if(mv.promo){pendP=mv;showPromo(turn);return;}execMove(mv);return;}} selSq=null;curLM=[];updHL(); }
@@ -412,7 +406,32 @@
     };
     function handleExitGameOver(){ if(gameMode=='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
 
-    // ---------- Online menu ----------
+    // ---------- Online helpers ----------
+    async function fetchUsername(uid) { if(!sb)return null; const {data}=await sb.from('profiles').select('username').eq('id',uid).maybeSingle(); return data?.username||null; }
+    function generateRoomCode(len=8){ const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'; let code=''; for(let i=0;i<len;i++) code+=chars[Math.floor(Math.random()*chars.length)]; return code; }
+    function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g,'_'); }
+    function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
+
+    // ---------- Reconnection (every 3 seconds) ----------
+    function startReconnect() {
+        stopReconnect();
+        reconnectInterval = setInterval(() => {
+            if (onlineGame && sb) {
+                // Check if channel is still connected; if not, re-subscribe
+                if (!onlineChannel || onlineChannel.state !== 'joined') {
+                    subscribeToGame(onlineGame.id);
+                }
+            }
+        }, 3000);
+    }
+    function stopReconnect() {
+        if (reconnectInterval) {
+            clearInterval(reconnectInterval);
+            reconnectInterval = null;
+        }
+    }
+
+    // ---------- Online menu navigation ----------
     window.showOnlineMenu = function(){
         if (!currentUserId) {
             document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
@@ -439,96 +458,80 @@
         ['online-menu','public-menu','private-menu','join-private','waiting-host-color','color-choice-panel','countdown-panel','waiting-panel','rematch-panel','login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('show'); });
     }
 
-    // ---------- Online: helpers ----------
-    async function fetchUsername(uid) { if(!sb)return null; const {data}=await sb.from('profiles').select('username').eq('id',uid).maybeSingle(); return data?.username||null; }
-    function generateRoomCode(len=8){ const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'; let code=''; for(let i=0;i<len;i++) code+=chars[Math.floor(Math.random()*chars.length)]; return code; }
-    function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g,'_'); }
-    function generatePlayerKey(){ return Math.random().toString(36).substring(2,15); }
-
-    // ---------- Online: public ----------
+    // ---------- Create / Join Public Room ----------
     window.createPublicRoom = async function(){
         if(!currentUserId) return;
         const username = await fetchUsername(currentUserId);
         if(!username){ toast('Please set a username on your profile page to play online.'); backToMenu(); return; }
         try{
-            await sb.from('matchmaking_queue').delete().eq('player_id',currentUserId).eq('status','searching');
-            sessionPlayerKey = generatePlayerKey();
-            const {data,error} = await sb.from('matchmaking_queue').insert({player_id:currentUserId,status:'searching'}).select().single();
+            // Create the room immediately
+            const code = generateRoomCode(8);
+            const hostKey = generatePlayerKey();
+            const {data,error} = await sb.from('online_games').insert({
+                room_code: code,
+                type: 'public',
+                host_player_id: currentUserId,
+                host_player_key: hostKey,
+                host_nickname: username,
+                status: 'waiting_for_joiner',
+                board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null},
+                timer_w:60, timer_b:60
+            }).select().single();
             if(error) throw error;
-            showWaitingScreen('Searching for an opponent… (max 20 min)');
-            checkMatchmaking(data.id);
-        }catch(e){ toast('Queue error: '+e.message); }
+            onlineGame = data;
+            sessionPlayerKey = hostKey;
+            sessionStorage.setItem('chess3d_playerkey_'+data.id, hostKey);
+            // Show waiting screen with host username, room ID, and waiting text
+            const panel = document.getElementById('waiting-panel');
+            document.getElementById('waiting-title').textContent = username + ' room';
+            document.getElementById('waiting-text').innerHTML = 'Room ID: <b>'+code+'</b><br>Waiting for opponent to join…';
+            hideAllOnlinePanels();
+            panel.classList.add('show');
+            subscribeToGame(data.id);
+            startReconnect();
+        }catch(e){ toast('Failed to create room: '+e.message); }
     };
+
     window.joinPublicRoom = async function(){
         if(!currentUserId) return;
         const username = await fetchUsername(currentUserId);
         if(!username){ toast('Please set a username on your profile page to play online.'); backToMenu(); return; }
-        const {data:existing}=await sb.from('online_games').select('*').eq('type','public').in('status',['active','frozen','countdown','color_selection']).or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`).maybeSingle();
-        if(existing){
-            const storedKey = sessionPlayerKey || sessionStorage.getItem('chess3d_playerkey_'+existing.id);
-            if(storedKey) sessionPlayerKey = storedKey;
-            const pKey = sessionPlayerKey;
-            const isHost = existing.host_player_id===currentUserId && pKey===existing.host_player_key;
-            const isJoiner = existing.joiner_player_id===currentUserId && pKey===existing.joiner_player_key;
-            if(isHost||isJoiner){
-                onlineGame=existing; subscribeToGame(existing.id);
-                if(existing.status==='active'||existing.status==='frozen'){
-                    document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
-                    if(!boardBuilt){buildBoard();boardBuilt=true;}
-                    brd=existing.board_state.brd; turn=existing.board_state.turn; cas=existing.board_state.cas; ep=existing.board_state.ep;
-                    timerW=existing.timer_w; timerB=existing.timer_b; syncAll(brd); updHL(); renderUI();
-                    timerActive=(existing.status==='active'&&turn===myColor); lastTick=performance.now();
-                    document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
-                    document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
-                    document.getElementById('chat-box').classList.add('show');
-                } else if(existing.status==='countdown'){ showCountdown(); } else if(existing.status==='color_selection'){
-                    if(existing.host_player_id===currentUserId) showColorChoice();
-                    else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
-                }
-                return;
+        try{
+            // Look for any waiting public room (oldest first)
+            const {data:rooms,error} = await sb.from('online_games')
+                .select('*')
+                .eq('type','public')
+                .eq('status','waiting_for_joiner')
+                .order('created_at',{ascending:true})
+                .limit(1);
+            if(error) throw error;
+            if(!rooms||rooms.length===0){
+                toast('No rooms available at the moment.'); return;
             }
-        }
-        const {data:hosts} = await sb.from('matchmaking_queue').select('*').eq('status','searching').neq('player_id',currentUserId).order('created_at',{ascending:true}).limit(1);
-        if(!hosts||!hosts.length){ toast('No rooms available at the moment.'); return; }
-        const hostEntry = hosts[0];
-        const {error:claimErr} = await sb.from('matchmaking_queue').update({status:'paired'}).eq('id',hostEntry.id).eq('status','searching');
-        if(claimErr){ toast('Room was just taken.'); return; }
-        sessionPlayerKey = generatePlayerKey();
-        const {data:game,error:createErr} = await sb.from('online_games').insert({
-            room_code:'pub_'+safeChannelToken(Math.random().toString(36).substring(2,8)), type:'public',
-            host_player_id:hostEntry.player_id, joiner_player_id:currentUserId,
-            host_player_key:'pending', joiner_player_key:sessionPlayerKey,
-            joiner_nickname:username, status:'color_selection',
-            board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null}, timer_w:60,timer_b:60
-        }).select().single();
-        if(createErr) throw createErr;
-        onlineGame = game; sessionStorage.setItem('chess3d_playerkey_'+game.id,sessionPlayerKey);
-        hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
-        subscribeToGame(game.id);
+            const game = rooms[0];
+            // Atomically claim this room
+            const joinerKey = generatePlayerKey();
+            const {error:updateErr} = await sb.from('online_games')
+                .update({
+                    joiner_player_id: currentUserId,
+                    joiner_player_key: joinerKey,
+                    joiner_nickname: username,
+                    status: 'color_selection'
+                })
+                .eq('id',game.id)
+                .eq('status','waiting_for_joiner'); // optimistic lock
+            if(updateErr){ toast('This room was just taken by another player.'); return; }
+            onlineGame = {...game, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
+            sessionPlayerKey = joinerKey;
+            sessionStorage.setItem('chess3d_playerkey_'+game.id, joinerKey);
+            hideAllOnlinePanels();
+            document.getElementById('waiting-host-color').classList.add('show');
+            subscribeToGame(game.id);
+            startReconnect();
+        }catch(e){ toast('Join failed: '+e.message); }
     };
 
-    function checkMatchmaking(queueRowId){
-        matchmakingChannel = sb.channel('mmq_'+safeChannelToken(currentUserId)).on('postgres_changes',{event:'UPDATE',schema:'public',table:'matchmaking_queue',filter:`id=eq.${queueRowId}`},async payload=>{
-            if(payload.new.status!=='paired')return;
-            if(matchmakingChannel){sb.removeChannel(matchmakingChannel);matchmakingChannel=null;}
-            if(matchmakingTimeout){clearTimeout(matchmakingTimeout);matchmakingTimeout=null;}
-            await new Promise(r=>setTimeout(r,1500));
-            const {data:gameRows}=await sb.from('online_games').select('*').eq('host_player_id',currentUserId).eq('type','public').eq('status','color_selection').order('created_at',{ascending:false}).limit(1);
-            if(!gameRows||gameRows.length===0){ toast('Opponent disconnected during handshake.'); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display=''; return; }
-            const g=gameRows[0];
-            const hostUsername = await fetchUsername(currentUserId) || 'Player';
-            await sb.from('online_games').update({host_player_key:sessionPlayerKey,host_nickname:hostUsername}).eq('id',g.id);
-            onlineGame = {...g,host_player_key:sessionPlayerKey};
-            showColorChoice();
-        }).subscribe();
-        matchmakingTimeout = setTimeout(async()=>{
-            if(matchmakingChannel){sb.removeChannel(matchmakingChannel);matchmakingChannel=null;}
-            await sb.from('matchmaking_queue').delete().eq('player_id',currentUserId);
-            toast('No opponent found within 20 minutes.'); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
-        },20*60*1000);
-    }
-
-    // ---------- Online: private ----------
+    // ---------- Private rooms ----------
     window.showCreatePrivate = async function(){
         if(!currentUserId) return;
         const username = await fetchUsername(currentUserId);
@@ -536,15 +539,26 @@
         const code = generateRoomCode(8);
         const hostKey = generatePlayerKey();
         const {data,error} = await sb.from('online_games').insert({
-            room_code:code, type:'private', host_player_id:currentUserId, host_player_key:hostKey,
-            host_nickname:username, status:'waiting_for_joiner',
-            board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null}, timer_w:60,timer_b:60
+            room_code: code,
+            type: 'private',
+            host_player_id: currentUserId,
+            host_player_key: hostKey,
+            host_nickname: username,
+            status: 'waiting_for_joiner',
+            board_state:{brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null},
+            timer_w:60, timer_b:60
         }).select().single();
         if(error){ toast('Failed to create room.'); return; }
-        onlineGame = data; sessionPlayerKey = hostKey;
+        onlineGame = data;
+        sessionPlayerKey = hostKey;
         sessionStorage.setItem('chess3d_playerkey_'+data.id, hostKey);
-        showWaitingScreen('Room code: <b>'+code+'</b><br>Waiting for opponent…');
+        const panel = document.getElementById('waiting-panel');
+        document.getElementById('waiting-title').textContent = username + ' room';
+        document.getElementById('waiting-text').innerHTML = 'Room Code: <b>'+code+'</b><br>Waiting for opponent to join…';
+        hideAllOnlinePanels();
+        panel.classList.add('show');
         subscribeToGame(data.id);
+        startReconnect();
     };
 
     window.joinPrivateRoom = async function(){
@@ -553,30 +567,39 @@
         if(!username){ toast('Please set a username on your profile page to play online.'); backToMenu(); return; }
         const code = document.getElementById('private-room-code').value.trim();
         if(!code){ toast('Enter a room code.'); return; }
-        const {data,error} = await sb.from('online_games').select('*').eq('room_code',code).eq('type','private').maybeSingle();
-        if(error||!data){ toast('Room not found.'); return; }
-        if(data.status==='cancelled'){ toast('This room has been cancelled.'); return; }
-        if(data.status!=='waiting_for_joiner'){ toast('This room is no longer open.'); return; }
-        const joinerKey = generatePlayerKey();
-        const {error:updateErr} = await sb.from('online_games').update({
-            joiner_player_id:currentUserId, joiner_player_key:joinerKey,
-            joiner_nickname:username, status:'color_selection'
-        }).eq('id',data.id).eq('status','waiting_for_joiner');
-        if(updateErr){ toast('Failed to join.'); return; }
-        onlineGame = {...data,joiner_player_id:currentUserId,joiner_player_key:joinerKey,joiner_nickname:username,status:'color_selection'};
-        sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_'+data.id,joinerKey);
-        hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show');
-        subscribeToGame(data.id);
+        try{
+            const {data,error} = await sb.from('online_games').select('*').eq('room_code',code).eq('type','private').maybeSingle();
+            if(error||!data){ toast('Room not found.'); return; }
+            if(data.status==='cancelled'){ toast('This room has been cancelled.'); return; }
+            if(data.status!=='waiting_for_joiner'){ toast('This room is no longer open.'); return; }
+            const joinerKey = generatePlayerKey();
+            const {error:updateErr} = await sb.from('online_games')
+                .update({ joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection' })
+                .eq('id',data.id)
+                .eq('status','waiting_for_joiner');
+            if(updateErr){ toast('Failed to join.'); return; }
+            onlineGame = {...data, joiner_player_id:currentUserId, joiner_player_key:joinerKey, joiner_nickname:username, status:'color_selection'};
+            sessionPlayerKey = joinerKey;
+            sessionStorage.setItem('chess3d_playerkey_'+data.id, joinerKey);
+            hideAllOnlinePanels();
+            document.getElementById('waiting-host-color').classList.add('show');
+            subscribeToGame(data.id);
+            startReconnect();
+        }catch(e){ toast('Join failed: '+e.message); }
     };
 
-    // ---------- Online: subscriptions and game flow ----------
+    // ---------- Subscriptions and game flow ----------
     function subscribeToGame(gameId){
         if(onlineChannel) sb.removeChannel(onlineChannel);
-        onlineChannel = sb.channel('game_'+safeChannelToken(String(gameId))).on('postgres_changes',{event:'UPDATE',schema:'public',table:'online_games',filter:`id=eq.${gameId}`},handleGameUpdate).subscribe();
+        onlineChannel = sb.channel('game_'+safeChannelToken(String(gameId)))
+            .on('postgres_changes',{event:'UPDATE',schema:'public',table:'online_games',filter:`id=eq.${gameId}`}, handleGameUpdate)
+            .subscribe();
     }
 
     function handleGameUpdate(payload){
-        if(!onlineGame) return; onlineGame = payload.new; const g = onlineGame;
+        if(!onlineGame) return;
+        onlineGame = payload.new;
+        const g = onlineGame;
         if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
@@ -589,7 +612,12 @@
             else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
             return;
         }
-        if(g.status==='countdown'){ showCountdown(); return; }
+        if(g.status==='countdown'){
+            // Update countdown welcome message
+            document.getElementById('countdown-welcome').textContent = 'Welcome to '+(g.host_nickname||'Host')+' room – Room ID: '+g.room_code;
+            showCountdown();
+            return;
+        }
         if(g.status==='active'){
             if(!g.board_state) return;
             brd = g.board_state.brd; turn = g.board_state.turn; cas = g.board_state.cas; ep = g.board_state.ep;
@@ -610,14 +638,20 @@
     async function hostChooseColor(col){
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
-        myColor = col; document.getElementById('color-choice-panel').classList.remove('show');
-        showCountdown();
+        myColor = col;
+        document.getElementById('color-choice-panel').classList.remove('show');
+        // Wait for the other client to receive the update (they will call showCountdown)
     }
     window.hostChooseColor = hostChooseColor;
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
 
-    function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec=5; document.getElementById('countdown-number').textContent=sec; const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);startOnlineGame();return;}document.getElementById('countdown-number').textContent=sec;},1000); }
+    function showCountdown(){
+        hideAllOnlinePanels();
+        document.getElementById('countdown-panel').classList.add('show');
+        let sec=5; document.getElementById('countdown-number').textContent=sec;
+        const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);startOnlineGame();return;}document.getElementById('countdown-number').textContent=sec;},1000);
+    }
 
     async function startOnlineGame(){
         hideAllOnlinePanels();
@@ -631,20 +665,13 @@
         camTheta = myColor==='w'?0:Math.PI; updateCamera();
     }
 
-    // ---------- Cancel / exit ----------
+    // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
         if (onlineGame) {
-            if (onlineGame.status==='waiting_for_joiner') {
-                await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id);
-            } else {
-                await sb.from('online_games').update({status:'terminated'}).eq('id',onlineGame.id);
-            }
+            await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id);
             stopOnlineSync(); onlineGame=null;
-        } else {
-            if(matchmakingTimeout){clearTimeout(matchmakingTimeout);matchmakingTimeout=null;}
-            if(matchmakingChannel){sb.removeChannel(matchmakingChannel);matchmakingChannel=null;}
-            await sb.from('matchmaking_queue').delete().eq('player_id',currentUserId);
         }
+        stopReconnect();
         hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
@@ -664,8 +691,7 @@
 
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
-        if(matchmakingChannel) sb.removeChannel(matchmakingChannel);
-        if(matchmakingTimeout){clearTimeout(matchmakingTimeout);matchmakingTimeout=null;}
+        stopReconnect();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
         sessionPlayerKey=null; onlineGame=null;
@@ -681,10 +707,9 @@
     function syncBoardToSupabase(){ if(!onlineGame)return; sb.from('online_games').update({board_state:{brd,turn,cas,ep},timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
     let _lastTimerSync=0;
     function syncTimersToSupabase(){ if(!onlineGame)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
-    function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); if(matchmakingChannel)sb.removeChannel(matchmakingChannel); }
+    function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); }
 
-    function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').innerHTML=msg; document.getElementById('waiting-panel').classList.add('show'); }
-
+    function showWaitingScreen(msg){ /* deprecated – now using waiting-panel with title/text */ }
     function sendChat(){ const input=document.getElementById('chat-input'); const msg=input.value.trim(); if(!msg||!onlineGame)return; sb.from('chat_messages').insert({game_id:onlineGame.id,player_id:currentUserId,nickname:onlineGame.host_player_id===currentUserId?onlineGame.host_nickname:onlineGame.joiner_nickname,message:msg}).then(()=>{input.value='';}); }
     window.sendChat = sendChat;
 
@@ -727,7 +752,9 @@
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
-        subscribeToGame(newGame.id); showCountdown();
+        subscribeToGame(newGame.id); startReconnect();
+        document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
+        showCountdown();
     }
     async function declineRematch(){
         await sb.from('online_games').update({status:'terminated'}).eq('id',onlineGame.id);
@@ -746,7 +773,7 @@
 
     function toast(msg,dur=2800){ const el=document.getElementById('toast'); el.textContent=msg;el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur); }
 
-    // ---------- Mouse/Touch (unchanged) ----------
+    // ---------- Touch/mouse (unchanged) ----------
     const ray=new THREE.Raycaster(),mp2=new THREE.Vector2();let drag=false,prevX=0,prevY=0,dragDist=0,touchStart=null,touchDrag=0,pinchStart=0;
     function pickAt(cx,cy){ const rect=CV.getBoundingClientRect(); mp2.x=((cx-rect.left)/rect.width)*2-1; mp2.y=-((cy-rect.top)/rect.height)*2+1; ray.setFromCamera(mp2,camera); const flatObjs=[...SQ3D.filter(Boolean),...DOTS]; const flatHits=ray.intersectObjects(flatObjs,false); if(flatHits.length){ const si=flatHits[0].object.userData.si; if(si!=null){onSq(si);return;} } const pMeshes=[]; P3D.forEach(g=>{if(g)g.traverse(m=>{if(m.isMesh)pMeshes.push(m);});}); const pHits=ray.intersectObjects(pMeshes,false); if(pHits.length){ const si=pHits[0].object.userData.si; if(si!=null)onSq(si); } }
     CV.addEventListener('mousedown',e=>{drag=true;prevX=e.clientX;prevY=e.clientY;dragDist=0;});
