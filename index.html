@@ -665,14 +665,23 @@
         hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
-    // ---------- Sync board to Supabase (now returns a promise and handles errors) ----------
+    // ---------- Sync board to Supabase (now updates local onlineGame immediately) ----------
     function syncBoardToSupabase(){
         if(!onlineGame || moveSyncing) return;
         moveSyncing = true;
         const stateStr = JSON.stringify({brd,turn,cas,ep});
+        toast('Saving move…', 1000);
         sb.from('online_games').update({board_state: stateStr, timer_w:timerW, timer_b:timerB}).eq('id',onlineGame.id)
           .then(({error}) => {
-              if (error) toast('Move sync failed: '+error.message);
+              if (error) {
+                  toast('Move failed: '+error.message);
+              } else {
+                  toast('Move saved', 1000);
+                  // update local onlineGame so polling won't overwrite
+                  onlineGame.board_state = stateStr;
+                  onlineGame.timer_w = timerW;
+                  onlineGame.timer_b = timerB;
+              }
           })
           .finally(() => {
               moveSyncing = false;
