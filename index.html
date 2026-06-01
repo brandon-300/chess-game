@@ -15,6 +15,45 @@
         html,body{width:100%;height:100%;overflow:hidden;background:#0a0806}
         #cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
+        /* ── New top header bar ── */
+        #main-header{
+            position:fixed;top:0;left:0;right:0;z-index:250;
+            display:flex;align-items:center;justify-content:space-between;
+            padding:8px 16px;
+            background:rgba(6,4,2,0.6);
+            backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+            border-bottom:1px solid var(--glass-border);
+            box-shadow:0 1px 0 var(--glass-shine);
+        }
+        .header-title{
+            font-family:'Cinzel',serif;font-size:clamp(18px,5vw,24px);letter-spacing:.22em;
+            color:var(--gold);text-shadow:0 0 18px rgba(201,168,76,0.5);
+        }
+        .header-right{
+            display:flex;align-items:center;gap:12px;
+        }
+        #login-btn{
+            font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;
+            background:transparent;border:1px solid var(--gold);color:var(--gold);
+            padding:6px 16px;cursor:pointer;transition:all .2s;text-transform:uppercase;
+            border-radius:2px;backdrop-filter:blur(4px);
+        }
+        #login-btn:hover{
+            background:rgba(201,168,76,0.12);box-shadow:0 0 10px rgba(201,168,76,0.2);
+        }
+        #avatar-btn{
+            display:none;width:36px;height:36px;border-radius:50%;
+            background:rgba(14,9,4,0.65);
+            backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+            border:1px solid rgba(201,168,76,0.5);
+            cursor:pointer;align-items:center;justify-content:center;overflow:hidden;
+            transition:box-shadow .2s,border-color .2s;
+            box-shadow:0 2px 12px rgba(0,0,0,0.4);
+        }
+        #avatar-btn:hover{box-shadow:0 0 14px rgba(201,168,76,0.45);border-color:var(--gold)}
+        #avatar-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+        #avatar-btn svg{width:20px;height:20px;fill:var(--gold)}
+
         /* ── Menu screen ── */
         #ms{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(12px,3vh,28px);background:rgba(4,2,1,0.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:50;padding:20px 24px;overflow-y:auto}
         .title-block{text-align:center;margin-bottom:6px}
@@ -243,20 +282,6 @@
         }
         #reconnect-indicator.show{display:block}
 
-        /* ── Avatar button ── */
-        #avatar-btn{
-            position:fixed;top:10px;right:12px;z-index:200;width:36px;height:36px;border-radius:50%;
-            background:rgba(14,9,4,0.65);
-            backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-            border:1px solid rgba(201,168,76,0.5);
-            cursor:pointer;display:none;align-items:center;justify-content:center;overflow:hidden;
-            transition:box-shadow .2s,border-color .2s;
-            box-shadow:0 2px 12px rgba(0,0,0,0.4);
-        }
-        #avatar-btn:hover{box-shadow:0 0 14px rgba(201,168,76,0.45);border-color:var(--gold)}
-        #avatar-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-        #avatar-btn svg{width:20px;height:20px;fill:var(--gold)}
-
         /* ── Login gate panel ── */
         #login-gate-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.1),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
         #login-gate-panel.show{display:flex}
@@ -268,7 +293,7 @@
         #ai-diff-panel.show,#ai-color-panel.show,#ai-countdown-panel.show{display:flex}
         #ai-diff-panel h2,#ai-color-panel h2,#ai-countdown-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
 
-        /* ── Global input styling (Cormorant Garamond 16px) ── */
+        /* ── Global input styling ── */
         input, textarea, select {
             font-family: 'Cormorant Garamond', serif;
             font-size: 16px;
@@ -276,11 +301,17 @@
     </style>
 </head>
 <body>
+    <header id="main-header">
+        <div class="header-title">Chess 3D</div>
+        <div class="header-right">
+            <button id="login-btn" onclick="window.location.href='user_login.html'" style="display:none;">Login</button>
+            <div id="avatar-btn" onclick="window.location.href='profile.html'" title="Profile">
+                <img src="" alt="Avatar" style="display:none">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </div>
+        </div>
+    </header>
     <canvas id="cv"></canvas>
-    <button id="avatar-btn" onclick="window.location.href='profile.html'" title="Profile">
-        <img src="" alt="Avatar" style="display:none">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-    </button>
     <div id="ms">
         <div class="title-block"><h1>Chess 3D</h1><p class="tag">Choose a mode to begin</p></div>
         <div class="cards" id="main-cards">
@@ -478,7 +509,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-    // ---------- Supabase init (resilient) ----------
+    // ---------- Supabase init ----------
     const SUPABASE_URL = 'https://akrxbxzcvnspbmvgdrci.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS';
     let sb;
@@ -496,17 +527,14 @@
     let sessionPlayerKey = null;
     let _avatarUrl = null;
 
-    // ---------- Auth ready promise (fixes async race) ----------
-    let authReady = false;
-    let authReadyResolve;
-    const authReadyPromise = new Promise(resolve => { authReadyResolve = resolve; });
+    // ---------- Auth ready (for cloud functions only) ----------
+    let authReadyPromiseResolve;
+    const authReadyPromise = new Promise(resolve => { authReadyPromiseResolve = resolve; });
 
-    // ---------- Auth init ----------
     async function initAuth() {
         if (!sb) {
-            authReady = true;
-            authReadyResolve();
-            renderAvatarBtn();
+            authReadyPromiseResolve();
+            updateHeaderUI();
             return;
         }
         try {
@@ -516,9 +544,8 @@
                 await loadUserAvatar(currentUserId);
             }
         } catch(e) {}
-        authReady = true;
-        authReadyResolve();
-        renderAvatarBtn();
+        authReadyPromiseResolve();
+        updateHeaderUI();
     }
     initAuth();
 
@@ -531,7 +558,7 @@
                 currentUserId = null;
                 _avatarUrl = null;
             }
-            renderAvatarBtn();
+            updateHeaderUI();
             if (!session && gameMode === 'online' && started) {
                 toast('Session expired. Exiting match.');
                 exitOnlineGame();
@@ -554,12 +581,19 @@
             }
         } catch(e) { _avatarUrl = null; }
     }
-    function renderAvatarBtn() {
-        const btn = document.getElementById('avatar-btn');
-        if (!btn) return;
+
+    function updateHeaderUI() {
+        const loginBtn = document.getElementById('login-btn');
+        const avatarBtn = document.getElementById('avatar-btn');
+        if (!loginBtn || !avatarBtn) return;
+
         if (currentUserId) {
-            btn.style.display = 'flex';
-            const img = btn.querySelector('img'), svg = btn.querySelector('svg');
+            // Logged in – show avatar, hide login button
+            loginBtn.style.display = 'none';
+            avatarBtn.style.display = 'flex';
+
+            const img = avatarBtn.querySelector('img');
+            const svg = avatarBtn.querySelector('svg');
             if (_avatarUrl) {
                 img.src = _avatarUrl;
                 img.style.display = 'block';
@@ -569,7 +603,11 @@
                 img.style.display = 'none';
                 svg.style.display = 'block';
             }
-        } else { btn.style.display = 'none'; }
+        } else {
+            // Logged out – show login button, hide avatar
+            loginBtn.style.display = 'inline-block';
+            avatarBtn.style.display = 'none';
+        }
     }
 
     // ---------- Chess engine (unchanged) ----------
@@ -986,7 +1024,7 @@
         document.getElementById('mode-btn').textContent = 'Exit'; document.getElementById('mode-btn').style.color = '#cc0000';
     };
 
-    // ---------- Online functions (all globally accessible) ----------
+    // ---------- Online functions (original, untouched) ----------
     window.startGame = function(mode){ gameMode=mode; document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true; if(!boardBuilt){buildBoard();boardBuilt=true;} newGame(); };
     window.newGame = function(){ resetState(); syncAll(brd); clearDots(); clearTints(); document.getElementById('go').classList.remove('on'); document.getElementById('pm').classList.remove('on'); document.getElementById('thkstrip').classList.remove('on'); renderUI(); if(gameMode=='ai'&&playerColor=='b'){ timerActive=true; lastTick=performance.now(); scheduleAI(500); } clearBackup(gameMode); startAutoSave(); };
     window.undoMove = function(){ if(gameMode=='online') return; if(isAnim||aiThink||!hist.length) return; aiThink=false; document.getElementById('thkstrip').classList.remove('on'); const steps=(gameMode=='ai'&&hist.length>=2)?2:1; for(let i=0;i<steps;i++){ if(!hist.length) break; const s=hist.pop(); brd=s.brd; turn=s.turn; cas=s.cas; ep=s.ep; capW=s.capW; capB=s.capB; mlog=s.mlog; } timerW=60;timerB=60; timerActive=hist.length>0; lastTick=timerActive?performance.now():null; lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on'); syncAll(brd);updHL();renderUI(); if(gameMode=='ai'&&turn===getAiColor()&&!over&&hist.length>0){ timerActive=true;lastTick=performance.now();scheduleAI(400); } saveBackup(); };
@@ -1002,8 +1040,7 @@
     };
     function handleExitGameOver(){ if(gameMode=='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
 
-    window.showOnlineMenu = async function(){
-        await authReadyPromise;
+    window.showOnlineMenu = function(){
         if (!currentUserId) {
             document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
             hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show');
@@ -1031,8 +1068,6 @@
     }
 
     async function cancelWaiting(){
-        await authReadyPromise;
-        if (!sb) return;
         if (onlineGame) {
             const g = onlineGame;
             if (g.status === 'waiting_for_joiner') { await sb.from('online_games').delete().eq('id', g.id); toast('Room cancelled'); }
@@ -1052,8 +1087,7 @@
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
 
     window.createPrivateRoom = async function(){
-        await authReadyPromise;
-        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
@@ -1084,8 +1118,7 @@
     };
 
     window.joinPrivateRoom = async function(){
-        await authReadyPromise;
-        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-room-code').value.trim();
         if(!code){ toast('Please enter a room code.'); return; }
         try {
@@ -1112,8 +1145,7 @@
     };
 
     window.createPublicRoom = async function(){
-        await authReadyPromise;
-        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
             const { data: existingGame } = await sb.from('online_games')
@@ -1135,8 +1167,7 @@
     };
 
     window.joinPublicRoom = async function(){
-        await authReadyPromise;
-        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
+        if(!currentUserId){ toast('Please log in to play online.'); return; }
         try {
             const { data: pending } = await sb.from('online_games')
                 .select('*')
@@ -1215,7 +1246,6 @@
     };
 
     function checkMatchmaking(queueRowId){
-        if (!sb) return;
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         const chanName = 'mmq_' + safeChannelToken(currentUserId);
         matchmakingChannel = sb.channel(chanName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` }, async (payload) => {
@@ -1231,7 +1261,6 @@
             showNicknamePrompt(); subscribeToGame(onlineGame.id);
         }).subscribe();
         matchmakingTimeout = setTimeout(async ()=>{
-            if (!sb) return;
             if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
             toast('No opponent found within 20 minutes. Returning to menu.');
@@ -1241,7 +1270,6 @@
     }
 
     function subscribeToGame(gameId){
-        if (!sb) return;
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         const safeName = 'game_' + safeChannelToken(String(gameId));
         onlineChannel = sb.channel(safeName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` }, handleGameUpdate).subscribe();
@@ -1272,8 +1300,6 @@
 
     function showNicknamePrompt(){ hideAllOnlinePanels(); document.getElementById('nickname-panel').classList.add('show'); document.getElementById('nickname-status').textContent = 'Waiting for both players to set nicknames...'; }
     async function submitNickname(){
-        await authReadyPromise;
-        if (!sb || !onlineGame) return;
         const nick = document.getElementById('nickname-input').value.trim();
         if(!nick){ toast('Enter a nickname'); return; }
         const g = onlineGame;
@@ -1290,14 +1316,12 @@
     window.submitNickname = submitNickname;
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
-    async function hostChooseColor(col){ await authReadyPromise; if (!sb) return; await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
+    async function hostChooseColor(col){ await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
     window.hostChooseColor = hostChooseColor;
 
     function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec = 5; document.getElementById('countdown-number').textContent = sec; const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000); }
 
     async function startOnlineGame(){
-        await authReadyPromise;
-        if (!sb) return;
         hideAllOnlinePanels();
         if(onlineGame.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'active' }).eq('id', onlineGame.id); }
         document.getElementById('gu').style.display='block'; document.getElementById('ms').style.display='none'; started = true;
@@ -1308,13 +1332,11 @@
     }
 
     function confirmExitOnline(){ document.getElementById('exit-online-panel').classList.add('show'); }
-    async function confirmExitOnlineYes(){ await authReadyPromise; document.getElementById('exit-online-panel').classList.remove('show'); exitOnlineGame(); }
+    function confirmExitOnlineYes(){ document.getElementById('exit-online-panel').classList.remove('show'); exitOnlineGame(); }
     window.confirmExitOnline = confirmExitOnline;
     window.confirmExitOnlineYes = confirmExitOnlineYes;
 
     async function exitOnlineGame(){
-        await authReadyPromise;
-        if (!sb || !onlineGame) { resetOnlineState(); return; }
         timerActive=false; over=true;
         if(onlineGame?.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); }
         else if(onlineGame?.joiner_player_id===currentUserId){ await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id); }
@@ -1322,8 +1344,8 @@
     }
 
     function resetOnlineState(){
-        if(onlineChannel){ sb?.removeChannel(onlineChannel); onlineChannel=null; }
-        if(matchmakingChannel){ sb?.removeChannel(matchmakingChannel); matchmakingChannel=null; }
+        if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
+        if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
         if (onlineGame) sessionStorage.removeItem('chess3d_playerkey_' + onlineGame.id);
         sessionPlayerKey = null; onlineGame=null;
@@ -1335,28 +1357,21 @@
         hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
-    function syncBoardToSupabase(){ if(!onlineGame || !sb) return; sb.from('online_games').update({ board_state: { brd, turn, cas, ep }, timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
+    function syncBoardToSupabase(){ if(!onlineGame) return; sb.from('online_games').update({ board_state: { brd, turn, cas, ep }, timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
     let _lastTimerSync = 0;
-    function syncTimersToSupabase(){ if(!onlineGame || !sb) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
-    function stopOnlineSync(){ if(onlineChannel){ sb?.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb?.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
+    function syncTimersToSupabase(){ if(!onlineGame) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
+    function stopOnlineSync(){ if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
 
     function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
 
-    async function sendChat(){
-        await authReadyPromise;
-        if (!sb || !onlineGame) return;
-        const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg) return;
-        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; });
-    }
+    function sendChat(){ const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg || !onlineGame) return; sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; }); }
     window.sendChat = sendChat;
-    function subscribeChat(gameId){ if(!sb) return; sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
+    function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
 
-    async function requestRematch(){ await authReadyPromise; if(!sb || !onlineGame) return; await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
+    async function requestRematch(){ await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
     window.requestRematch = requestRematch;
     function showRematchUI(){ if(onlineGame.rematch_requested_by && onlineGame.rematch_requested_by!==currentUserId){ document.getElementById('rematch-text').textContent = 'Opponent wants a rematch!'; document.getElementById('rematch-panel').classList.add('show'); setTimeout(()=>{ if(document.getElementById('rematch-panel').classList.contains('show')) declineRematch(); }, 30000); } }
     async function acceptRematch(){
-        await authReadyPromise;
-        if(!sb || !onlineGame) return;
         document.getElementById('rematch-panel').classList.remove('show'); const g = onlineGame; const newHostColor = g.host_color==='w'?'b':'w';
         const newRoomCode = g.room_code + '_r' + Date.now().toString(36);
         const { data: newGame, error } = await sb.from('online_games').insert({
@@ -1371,10 +1386,10 @@
         subscribeToGame(newGame.id); showCountdown();
     }
     window.acceptRematch = acceptRematch;
-    async function declineRematch(){ await authReadyPromise; if(!sb) return; await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
+    async function declineRematch(){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
     window.declineRematch = declineRematch;
 
-    // ---------- Cloud sync / restore / delete (fixed) ----------
+    // ---------- Cloud sync / restore / delete (fixed, no online modifications) ----------
     window.syncOfflineToCloud = async function(){
         await authReadyPromise;
         if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
