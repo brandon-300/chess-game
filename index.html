@@ -13,12 +13,8 @@
         #main-header{position:fixed;top:0;left:0;right:0;z-index:250;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine)}
         .header-title{font-family:'Cinzel',serif;font-size:clamp(18px,5vw,24px);letter-spacing:.22em;color:var(--gold);text-shadow:0 0 18px rgba(201,168,76,0.5)}
         .header-right{display:flex;align-items:center;gap:12px}
-        #login-btn{font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:6px 16px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:2px;backdrop-filter:blur(4px)}
-        #login-btn:hover{background:rgba(201,168,76,0.12);box-shadow:0 0 10px rgba(201,168,76,0.2)}
-        #avatar-btn{display:none;width:36px;height:36px;border-radius:50%;background:rgba(14,9,4,0.65);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(201,168,76,0.5);cursor:pointer;align-items:center;justify-content:center;overflow:hidden;transition:box-shadow .2s,border-color .2s;box-shadow:0 2px 12px rgba(0,0,0,0.4)}
-        #avatar-btn:hover{box-shadow:0 0 14px rgba(201,168,76,0.45);border-color:var(--gold)}
-        #avatar-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-        #avatar-btn svg{width:20px;height:20px;fill:var(--gold)}
+        #login-btn,#profile-btn{font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:6px 16px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:2px;backdrop-filter:blur(4px)}
+        #login-btn:hover,#profile-btn:hover{background:rgba(201,168,76,0.12);box-shadow:0 0 10px rgba(201,168,76,0.2)}
         #ms{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(12px,3vh,28px);background:rgba(4,2,1,0.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:50;padding:20px 24px;overflow-y:auto}
         .title-block{text-align:center;margin-bottom:6px}
         #ms h1{font-family:'Cinzel',serif;font-size:clamp(32px,8vw,56px);font-weight:700;letter-spacing:.28em;color:var(--gold);text-shadow:0 0 28px rgba(201,168,76,0.5),0 0 60px rgba(201,168,76,0.2);margin-top:0}
@@ -136,10 +132,7 @@
         <div class="header-title">Chess 3D</div>
         <div class="header-right">
             <button id="login-btn" onclick="window.location.href='user_login.html'" style="display:none;">Login</button>
-            <div id="avatar-btn" onclick="window.location.href='profile.html'" title="Profile">
-                <img src="" alt="Avatar" style="display:none">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            </div>
+            <button id="profile-btn" onclick="window.location.href='profile.html'" style="display:none;">Profile</button>
         </div>
     </header>
     <div id="debug-overlay">Loading...</div>
@@ -221,7 +214,6 @@
     let matchmakingChannel = null;
     let myColor = 'w';
     let sessionPlayerKey = null;
-    let _avatarUrl = null;
 
     // Diagnostic update
     function updateDebugInfo() {
@@ -247,7 +239,6 @@
             const { data: { session } } = await sb.auth.getSession();
             if (session?.user) {
                 currentUserId = session.user.id;
-                await loadUserAvatar(currentUserId);
             }
         } catch(e) {}
         updateDebugInfo();
@@ -260,10 +251,8 @@
         sb.auth.onAuthStateChange(async (event, session) => {
             if (session?.user) {
                 currentUserId = session.user.id;
-                await loadUserAvatar(currentUserId);
             } else {
                 currentUserId = null;
-                _avatarUrl = null;
             }
             updateDebugInfo();
             updateHeaderUI();
@@ -274,42 +263,17 @@
         });
     }
 
-    async function loadUserAvatar(uid) {
-        if (!sb) return;
-        try {
-            const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle();
-            const raw = data?.avatar_url || null;
-            if (!raw) { _avatarUrl = null; return; }
-            if (/^https?:\/\//i.test(raw)) {
-                _avatarUrl = raw;
-            } else {
-                const path = raw.replace(/^\/+/, '');
-                const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
-                _avatarUrl = urlData?.publicUrl || null;
-            }
-        } catch(e) { _avatarUrl = null; }
-    }
-
     function updateHeaderUI() {
         const loginBtn = document.getElementById('login-btn');
-        const avatarBtn = document.getElementById('avatar-btn');
-        if (!loginBtn || !avatarBtn) return;
+        const profileBtn = document.getElementById('profile-btn');
+        if (!loginBtn || !profileBtn) return;
+
         if (currentUserId) {
             loginBtn.style.display = 'none';
-            avatarBtn.style.display = 'flex';
-            const img = avatarBtn.querySelector('img'), svg = avatarBtn.querySelector('svg');
-            if (_avatarUrl) {
-                img.src = _avatarUrl;
-                img.style.display = 'block';
-                svg.style.display = 'none';
-                img.onerror = () => { img.style.display = 'none'; svg.style.display = 'block'; img.onerror = null; };
-            } else {
-                img.style.display = 'none';
-                svg.style.display = 'block';
-            }
+            profileBtn.style.display = 'inline-block';
         } else {
             loginBtn.style.display = 'inline-block';
-            avatarBtn.style.display = 'none';
+            profileBtn.style.display = 'none';
         }
     }
 
