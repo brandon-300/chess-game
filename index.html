@@ -32,13 +32,7 @@
         .db:active,.db:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10);box-shadow:0 0 10px rgba(201,168,76,0.15)}
         .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
-        #top{
-            position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;
-            padding:6px 10px;gap:8px;
-            background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-            border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);
-            pointer-events:auto;
-        }
+        #top{position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;padding:6px 10px;gap:8px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);pointer-events:auto}
         .tpill{display:flex;align-items:center;gap:7px;flex-shrink:0}
         .tdot{width:11px;height:11px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
         .tdot.w{background:#cc0000;box-shadow:0 0 8px rgba(204,0,0,.65)}
@@ -147,7 +141,6 @@
             <div class="card local-mode" onclick="showAiDiffPanel()"><div class="ic">♜</div><h2>vs Computer</h2><p>Play against the engine</p></div>
             <div class="card" onclick="showOnlineMenu()"><div class="ic">🌐</div><h2>Online</h2><p>Play with others</p></div>
         </div>
-        <!-- Online submenus unchanged -->
         <div id="online-menu" class="online-panel"><h2 style="color:var(--gold);">Online Mode</h2><button class="db" onclick="showPublicMenu()">Public Room</button><button class="db" onclick="showPrivateMenu()">Private Room</button><button class="db back-btn" onclick="hideOnlineMenu()">Back</button></div>
         <div id="public-menu" class="online-panel"><h2 style="color:var(--gold);">Public Room</h2><button class="db" onclick="createPublicRoom()">Create Public Room</button><button class="db" onclick="joinPublicRoom()">Join Public Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
         <div id="private-menu" class="online-panel"><h2 style="color:var(--gold);">Private Room</h2><button class="db" onclick="showCreatePrivate()">Create Private Room</button><button class="db" onclick="showJoinPrivate()">Join Private Room</button><button class="db back-btn" onclick="showOnlineMenu()">Back</button></div>
@@ -215,6 +208,7 @@
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
+    let chatChannel = null;
     let myColor = 'w';
     let sessionPlayerKey = null;
     let reconnectInterval = null;
@@ -435,21 +429,32 @@
     // ---------- Chat toggle ----------
     function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
 
-    // ---------- Polling for game state (every 2 seconds, keeps board in sync) ----------
+    // ---------- Polling (every 1 second, keeps board in perfect sync) ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
             if (!onlineGame || !sb || !currentUserId) return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            // Update local state only if server state differs (prevents unnecessary redraws)
-            if (JSON.stringify(data) !== JSON.stringify(onlineGame)) {
-                handleGameUpdate({ new: data, old: onlineGame });
-            }
-        }, 2000);
+            // Always apply the fetched state – this keeps timers, board, and status in sync
+            handleGameUpdate({ new: data, old: onlineGame });
+        }, 1000);
     }
     function stopPolling() {
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    }
+
+    // ---------- Chat subscription ----------
+    function subscribeChat(gameId) {
+        if (chatChannel) sb.removeChannel(chatChannel);
+        chatChannel = sb.channel('chat_'+safeChannelToken(String(gameId)))
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `game_id=eq.${gameId}` }, payload => {
+                const box = document.getElementById('chat-messages');
+                const msg = payload.new;
+                box.innerHTML += `<div><b>${msg.nickname}:</b> ${msg.message}</div>`;
+                box.scrollTop = box.scrollHeight;
+            })
+            .subscribe();
     }
 
     // ---------- Online menu navigation ----------
@@ -605,7 +610,7 @@
             document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
-            document.getElementById('chat-box').classList.add('show');
+            subscribeChat(g.id); // start chat subscription
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
@@ -615,7 +620,7 @@
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
         myColor = col;
-        // Immediately show the countdown on the host's screen
+        // Immediately show countdown on host's screen
         document.getElementById('color-choice-panel').classList.remove('show');
         onlineGame.status = 'countdown';
         onlineGame.host_color = col;
@@ -635,7 +640,7 @@
         if(!boardBuilt){buildBoard();boardBuilt=true;}
         document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
         document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000';
-        document.getElementById('mode-btn').onclick=confirmExitOnline; document.getElementById('chat-box').classList.add('show');
+        document.getElementById('mode-btn').onclick=confirmExitOnline;
         camTheta = myColor==='w'?0:Math.PI; updateCamera();
     }
 
@@ -661,6 +666,7 @@
 
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
+        if(chatChannel) sb.removeChannel(chatChannel);
         stopReconnect(); stopPolling();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
@@ -679,7 +685,13 @@
     function syncTimersToSupabase(){ if(!onlineGame)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
     function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); }
 
-    function sendChat(){ const input=document.getElementById('chat-input'); const msg=input.value.trim(); if(!msg||!onlineGame)return; sb.from('chat_messages').insert({game_id:onlineGame.id,player_id:currentUserId,nickname:onlineGame.host_player_id===currentUserId?onlineGame.host_nickname:onlineGame.joiner_nickname,message:msg}).then(()=>{input.value='';}); }
+    function sendChat(){
+        const input = document.getElementById('chat-input');
+        const msg = input.value.trim();
+        if(!msg || !onlineGame) return;
+        const nickname = onlineGame.host_player_id === currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname;
+        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: nickname, message: msg }).then(()=>{ input.value=''; });
+    }
     window.sendChat = sendChat;
 
     // ---------- Rematch flow ----------
