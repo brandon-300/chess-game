@@ -215,6 +215,7 @@
     let reconnectInterval = null;
     let pollInterval = null;
     let chatPollInterval = null;
+    let moveSyncing = false; // prevent polling from overwriting a move in progress
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -415,14 +416,18 @@
     // ---------- Chat toggle ----------
     function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
 
-    // ---------- Polling (every 1 second) – syncs board and timers ----------
+    // ---------- Polling (every 1 second) – respects moveSyncing flag ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
+            if (moveSyncing) return; // skip while a move sync is in progress
             if (!onlineGame || !sb || !currentUserId) return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            handleGameUpdate({ new: data, old: onlineGame });
+            // Only update if server state is different from local state
+            if (JSON.stringify(data) !== JSON.stringify(onlineGame)) {
+                handleGameUpdate({ new: data, old: onlineGame });
+            }
         }, 1000);
     }
     function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
@@ -660,13 +665,21 @@
         hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
+    // ---------- Sync board to Supabase (now returns a promise and handles errors) ----------
     function syncBoardToSupabase(){
-        if(!onlineGame)return;
+        if(!onlineGame || moveSyncing) return;
+        moveSyncing = true;
         const stateStr = JSON.stringify({brd,turn,cas,ep});
-        sb.from('online_games').update({board_state: stateStr, timer_w:timerW, timer_b:timerB}).eq('id',onlineGame.id);
+        sb.from('online_games').update({board_state: stateStr, timer_w:timerW, timer_b:timerB}).eq('id',onlineGame.id)
+          .then(({error}) => {
+              if (error) toast('Move sync failed: '+error.message);
+          })
+          .finally(() => {
+              moveSyncing = false;
+          });
     }
     let _lastTimerSync=0;
-    function syncTimersToSupabase(){ if(!onlineGame)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
+    function syncTimersToSupabase(){ if(!onlineGame||moveSyncing)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
     function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); }
 
     function sendChat(){
