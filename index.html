@@ -105,12 +105,13 @@
         .exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
         .exit-online-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
         .exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
-        #chat-box{position:fixed;bottom:50px;right:10px;width:220px;max-height:300px;background:rgba(8,5,2,0.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:6px;display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em;box-shadow:0 4px 24px rgba(0,0,0,0.5)}
+        #chat-box{position:fixed;bottom:50px;right:10px;width:260px;max-height:300px;background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:6px;display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em;box-shadow:0 4px 24px rgba(0,0,0,0.5)}
         #chat-box.show{display:flex}
         #chat-messages{flex:1;overflow-y:auto;padding:8px;min-height:100px;max-height:200px}
         #chat-input-row{display:flex;border-top:1px solid var(--glass-border)}
         #chat-input-row input{flex:1;background:transparent;border:none;color:var(--gold);padding:6px;outline:none;font-family:'Cormorant Garamond',serif;font-size:16px}
-        #chat-input-row button{background:transparent;border:none;color:var(--gold);padding:6px 10px;cursor:pointer;font-family:'Cinzel',serif}
+        #chat-input-row button{background:transparent;border:none;color:var(--gold);padding:6px 10px;cursor:pointer;font-family:'Cinzel',serif;display:flex;align-items:center;justify-content:center}
+        #chat-input-row button svg{width:16px;height:16px;fill:var(--gold)}
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:4px;color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
         #reconnect-indicator.show{display:block}
         #login-gate-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.1),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
@@ -185,7 +186,7 @@
     <div id="cloud-choice-panel"><div class="cloud-choice-box"><h2 style="color:var(--gold);">Choose mode to restore</h2><button class="db" onclick="selectCloudRestore('ai')">AI Match</button><button class="db" onclick="selectCloudRestore('2p')">PvP Match</button><button class="db back-btn" onclick="document.getElementById('cloud-choice-panel').classList.remove('show')">Cancel</button></div></div>
     <div id="delete-confirm-panel"><div class="delete-confirm-box"><h2>Delete Synced Data</h2><p>Are you sure you want to delete all synced offline data from the cloud?</p><button class="db" onclick="confirmDeleteSyncedData()">Delete</button><button class="db back-btn" onclick="document.getElementById('delete-confirm-panel').classList.remove('show')">Cancel</button></div></div>
     <div id="exit-online-panel"><div class="exit-online-box"><h2>Leave Match?</h2><p>Are you sure you want to leave? The match will be terminated or frozen.</p><button class="db" style="border-color:#cc0000;color:#cc0000;" onclick="confirmExitOnlineYes()">Leave</button><button class="db back-btn" onclick="document.getElementById('exit-online-panel').classList.remove('show')">Stay</button></div></div>
-    <div id="chat-box"><div id="chat-messages"></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button onclick="sendChat()">Send</button></div></div>
+    <div id="chat-box"><div id="chat-messages"></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button onclick="sendChat()" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button></div></div>
     <div id="reconnect-indicator">Reconnecting...</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -196,15 +197,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS';
     let sb = null;
     let sbError = null;
-    try {
-        if (typeof supabase !== 'undefined') {
-            sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } else {
-            sbError = 'supabase object not defined (CDN load failed)';
-        }
-    } catch(e) {
-        sbError = e.message;
-    }
+    try { if (typeof supabase !== 'undefined') { sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } else { sbError = 'supabase object not defined (CDN load failed)'; } } catch(e) { sbError = e.message; }
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
@@ -228,46 +221,14 @@
 
     async function initAuth() {
         if (!sb) { authReadyResolve(); updateHeaderUI(); return; }
-        try {
-            const { data: { session } } = await sb.auth.getSession();
-            if (session?.user) {
-                currentUserId = session.user.id;
-            }
-        } catch(e) {}
-        updateDebugInfo();
-        authReadyResolve();
-        updateHeaderUI();
+        try { const { data: { session } } = await sb.auth.getSession(); if (session?.user) { currentUserId = session.user.id; } } catch(e) {}
+        updateDebugInfo(); authReadyResolve(); updateHeaderUI();
     }
     initAuth();
 
-    if (sb) {
-        sb.auth.onAuthStateChange(async (event, session) => {
-            if (session?.user) {
-                currentUserId = session.user.id;
-            } else {
-                currentUserId = null;
-            }
-            updateDebugInfo();
-            updateHeaderUI();
-            if (!session && gameMode === 'online' && started) {
-                toast('Session expired. Exiting match.');
-                exitOnlineGame();
-            }
-        });
-    }
+    if (sb) { sb.auth.onAuthStateChange(async (event, session) => { if (session?.user) { currentUserId = session.user.id; } else { currentUserId = null; } updateDebugInfo(); updateHeaderUI(); if (!session && gameMode === 'online' && started) { toast('Session expired. Exiting match.'); exitOnlineGame(); } }); }
 
-    function updateHeaderUI() {
-        const loginBtn = document.getElementById('login-btn');
-        const profileBtn = document.getElementById('profile-btn');
-        if (!loginBtn || !profileBtn) return;
-        if (currentUserId) {
-            loginBtn.style.display = 'none';
-            profileBtn.style.display = 'inline-block';
-        } else {
-            loginBtn.style.display = 'inline-block';
-            profileBtn.style.display = 'none';
-        }
-    }
+    function updateHeaderUI() { const loginBtn = document.getElementById('login-btn'); const profileBtn = document.getElementById('profile-btn'); if (!loginBtn || !profileBtn) return; if (currentUserId) { loginBtn.style.display = 'none'; profileBtn.style.display = 'inline-block'; } else { loginBtn.style.display = 'inline-block'; profileBtn.style.display = 'none'; } }
 
     // ---------- Chess engine (unchanged) ----------
     const GLS={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
@@ -360,11 +321,21 @@
     function onSq(si){ if(over||isAnim||aiThink)return; if(gameMode=='online'&&turn!==myColor)return; if(gameMode=='ai'&&turn===getAiColor())return; SFX.select(); const p=brd[si];if(p&&cl(p)===turn){selSq=si;curLM=legalM(brd,si,cas,ep);updHL();return;} if(selSq!==null){const mv=curLM.find(m=>m.to===si);if(mv){if(mv.promo){pendP=mv;showPromo(turn);return;}execMove(mv);return;}} selSq=null;curLM=[];updHL(); }
     function execMove(mv){ if(isAnim||over)return; const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to); hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))}); const an=algN(brd,mv); if(capP)(wt=='w'?capW:capB).push(capP); if(mv.ep){const{r,c}=rc(mv.to),e2=brd[ix(r+(wt=='w'?1:-1),c)];if(e2)(wt=='w'?capW:capB).push(e2);} const{brd:nb,cas:nc,ep:ne}=applyM(brd,mv,cas,ep);brd=nb;cas=nc;ep=ne; if(wt=='w')mlog.push({w:an,b:''});else{if(!mlog.length)mlog.push({w:'',b:''});mlog[mlog.length-1].b=an;} turn=op(wt);lastMv=mv;selSq=null;curLM=[]; timerW=60;timerB=60;timerActive=true;lastTick=performance.now(); let pg=P3D[mv.from];if(capP)removePiece(mv.to); if(mv.ep){const{r,c}=rc(mv.to);removePiece(ix(r+(wt=='w'?1:-1),c));} if(mv.promo){scene.remove(pg);pg.traverse(m=>{if(m.geometry)m.geometry.dispose();});pg=PIECE_BUILDERS[mv.promo](wt=='w');pg.position.set(rc(mv.from).c+0.5,PY,rc(mv.from).r+0.5);pg.userData={si:mv.to,isPG:true};pg.traverse(m=>{if(m.isMesh)m.userData={si:mv.to,isPiece:true};});scene.add(pg);} P3D[mv.from]=null;P3D[mv.to]=pg;pg.userData.si=mv.to;pg.traverse(m=>{if(m.isMesh)m.userData.si=mv.to;}); if(mv.castle){let rf,rt2;if(wt=='w'){if(mv.castle=='K'){rf=ix(7,7);rt2=ix(7,5);}else{rf=ix(7,0);rt2=ix(7,3);}}else{if(mv.castle=='K'){rf=ix(0,7);rt2=ix(0,5);}else{rf=ix(0,0);rt2=ix(0,3);}}const rg=P3D[rf];if(rg){const{r:rr,c:rc2}=rc(rt2);rg.position.set(rc2+0.5,PY,rr+0.5);P3D[rt2]=rg;P3D[rf]=null;rg.userData.si=rt2;rg.traverse(m=>{if(m.isMesh)m.userData.si=rt2;});}} if(capP||mv.ep)SFX.capture();else if(mv.castle)SFX.castle();else SFX.move(); isAnim=true;updHL();renderUI(); startAnim(pg,tr,tc,()=>{isAnim=false;updHL();renderUI(); const am2=allM(brd,turn,cas,ep); if(!am2.length){const ck=inCk(brd,turn),winner=turn=='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;} if(inCk(brd,turn))SFX.check(); if(gameMode=='online')syncBoardToSupabase(); if(gameMode=='ai'&&turn===getAiColor()&&!over)scheduleAI(100); saveBackup(); }); }
     function showPromo(pc){ const el=document.getElementById('po');el.innerHTML=''; ['Q','R','B','N'].forEach(t=>{ const b=document.createElement('div');b.className='po-b';b.textContent=GLS[pc+t]; b.onclick=()=>{document.getElementById('pm').classList.remove('on');const mv={...pendP,promo:t};pendP=null;execMove(mv);}; el.appendChild(b); }); document.getElementById('pm').classList.add('on'); }
-    function tickTimer(){ if(!timerActive||over||isAnim||aiThink||!started)return; const now=performance.now();if(lastTick===null){lastTick=now;return;} const dt=(now-lastTick)/1000;lastTick=now; if(turn=='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}} else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}} updateTimerUI(); if(gameMode=='online'&&turn===myColor)syncTimersToSupabase(); }
+    function tickTimer(){ if(!timerActive||over||isAnim||aiThink||!started)return; if(gameMode==='online' && turn !== myColor) return; // Only active player's timer ticks locally
+        const now=performance.now();if(lastTick===null){lastTick=now;return;} const dt=(now-lastTick)/1000;lastTick=now; if(turn=='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}} else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}} updateTimerUI(); if(gameMode=='online'&&turn===myColor)syncTimersToSupabase(); }
     function timeOut(loser){ if(gameMode=='online'){ turn=op(loser); timerW=60;timerB=60; selSq=null;curLM=[];updHL();renderUI(); syncBoardToSupabase(); toast((loser=='w'?'Red':'Black')+' ran out of time – turn passes'); return; } turn=op(loser);timerW=60;timerB=60;timerActive=true;lastTick=performance.now(); selSq=null;curLM=[];updHL();renderUI(); if(gameMode=='ai'&&turn===getAiColor())scheduleAI(300); saveBackup(); }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){ document.getElementById('tvW').textContent=fmt(timerW); document.getElementById('tvB').textContent=fmt(timerB); document.getElementById('tmrW').className='tmr'+(turn=='w'&&!over?' active':'')+(timerW<=10&&turn=='w'?' low':''); document.getElementById('tmrB').className='tmr'+(turn=='b'&&!over?' active':'')+(timerB<=10&&turn=='b'?' low':''); }
-    function renderUI(){ document.getElementById('tdot').className='tdot '+(turn=='w'?'w':'b'); document.getElementById('tlbl').textContent=turn=='w'?'Red':'Black'; if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':''; updateTimerUI(); }
+    function renderUI(){
+        document.getElementById('tdot').className='tdot '+(turn=='w'?'w':'b');
+        const redLabel = myColor === 'w' ? 'Red (You)' : 'Red (Opponent)';
+        const blackLabel = myColor === 'b' ? 'Black (You)' : 'Black (Opponent)';
+        document.getElementById('tlbl').textContent = turn === 'w' ? redLabel : blackLabel;
+        document.getElementById('tmrW').querySelector('.tn').textContent = redLabel;
+        document.getElementById('tmrB').querySelector('.tn').textContent = blackLabel;
+        if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';
+        updateTimerUI();
+    }
 
     function handleBottomRight(){ if(gameMode=='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
     function exitWithSave(){ saveBackup(); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); }
@@ -429,20 +400,17 @@
     // ---------- Chat toggle ----------
     function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
 
-    // ---------- Polling (every 1 second, keeps board in perfect sync) ----------
+    // ---------- Polling (every 1 second) ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
             if (!onlineGame || !sb || !currentUserId) return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            // Always apply the fetched state – this keeps timers, board, and status in sync
             handleGameUpdate({ new: data, old: onlineGame });
         }, 1000);
     }
-    function stopPolling() {
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-    }
+    function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
     // ---------- Chat subscription ----------
     function subscribeChat(gameId) {
