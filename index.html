@@ -267,6 +267,12 @@
         #ai-diff-panel,#ai-color-panel,#ai-countdown-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.1),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
         #ai-diff-panel.show,#ai-color-panel.show,#ai-countdown-panel.show{display:flex}
         #ai-diff-panel h2,#ai-color-panel h2,#ai-countdown-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em}
+
+        /* ── Global input styling (Cormorant Garamond 16px) ── */
+        input, textarea, select {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -472,10 +478,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-    // ---------- Supabase init ----------
+    // ---------- Supabase init (resilient) ----------
     const SUPABASE_URL = 'https://akrxbxzcvnspbmvgdrci.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS';
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let sb;
+    try {
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+        console.warn('Supabase client failed to initialise. Offline features will still work.');
+        sb = null;
+    }
     let currentUserId = null;
     let onlineGame = null;
     let onlineChannel = null;
@@ -484,8 +496,19 @@
     let sessionPlayerKey = null;
     let _avatarUrl = null;
 
-    // ---------- Auth init (runs immediately, synchronous check first) ----------
+    // ---------- Auth ready promise (fixes async race) ----------
+    let authReady = false;
+    let authReadyResolve;
+    const authReadyPromise = new Promise(resolve => { authReadyResolve = resolve; });
+
+    // ---------- Auth init ----------
     async function initAuth() {
+        if (!sb) {
+            authReady = true;
+            authReadyResolve();
+            renderAvatarBtn();
+            return;
+        }
         try {
             const { data: { session } } = await sb.auth.getSession();
             if (session?.user) {
@@ -493,36 +516,38 @@
                 await loadUserAvatar(currentUserId);
             }
         } catch(e) {}
+        authReady = true;
+        authReadyResolve();
         renderAvatarBtn();
     }
     initAuth();
 
-    sb.auth.onAuthStateChange(async (event, session) => {
-        if (session?.user) {
-            currentUserId = session.user.id;
-            await loadUserAvatar(currentUserId);
-        } else {
-            currentUserId = null;
-            _avatarUrl = null;
-        }
-        renderAvatarBtn();
-        if (!session && gameMode === 'online' && started) {
-            toast('Session expired. Exiting match.');
-            exitOnlineGame();
-        }
-    });
+    if (sb) {
+        sb.auth.onAuthStateChange(async (event, session) => {
+            if (session?.user) {
+                currentUserId = session.user.id;
+                await loadUserAvatar(currentUserId);
+            } else {
+                currentUserId = null;
+                _avatarUrl = null;
+            }
+            renderAvatarBtn();
+            if (!session && gameMode === 'online' && started) {
+                toast('Session expired. Exiting match.');
+                exitOnlineGame();
+            }
+        });
+    }
 
     async function loadUserAvatar(uid) {
+        if (!sb) return;
         try {
             const { data } = await sb.from('profiles').select('avatar_url').eq('id', uid).maybeSingle();
             const raw = data?.avatar_url || null;
             if (!raw) { _avatarUrl = null; return; }
-            // If it's already an absolute URL (starts with http/https) use it directly.
-            // Otherwise treat it as a storage path in the 'avatars' bucket.
             if (/^https?:\/\//i.test(raw)) {
                 _avatarUrl = raw;
             } else {
-                // Strip any accidental leading slash so getPublicUrl works correctly.
                 const path = raw.replace(/^\/+/, '');
                 const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
                 _avatarUrl = urlData?.publicUrl || null;
@@ -539,7 +564,6 @@
                 img.src = _avatarUrl;
                 img.style.display = 'block';
                 svg.style.display = 'none';
-                // Fallback to SVG icon if the image URL is broken / 404
                 img.onerror = () => { img.style.display = 'none'; svg.style.display = 'block'; img.onerror = null; };
             } else {
                 img.style.display = 'none';
@@ -793,8 +817,8 @@
     let matchmakingTimeout = null;
 
     function saveBackup(){
-        if(over || gameMode==='online') return;
-        const key = gameMode==='ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P;
+        if(over || gameMode=='online') return;
+        const key = gameMode=='ai' ? BACKUP_KEY_AI : BACKUP_KEY_2P;
         try {
             const state = {
                 brd: brd.slice(), turn, cas: {...cas}, ep,
@@ -807,13 +831,13 @@
         } catch(e){}
     }
 
-    function clearBackup(mode){ localStorage.removeItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P); }
-    function loadBackup(mode){ try { return JSON.parse(localStorage.getItem(mode==='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P)); } catch(e){ return null; } }
+    function clearBackup(mode){ localStorage.removeItem(mode=='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P); }
+    function loadBackup(mode){ try { return JSON.parse(localStorage.getItem(mode=='ai'?BACKUP_KEY_AI:BACKUP_KEY_2P)); } catch(e){ return null; } }
 
     function startAutoSave() { stopAutoSave(); autoSaveInterval = setInterval(() => { if (!over && started && gameMode!=='online') saveBackup(); }, 2000); }
     function stopAutoSave() { if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; } }
 
-    function getAiColor(){return playerColor==='w'?'b':'w';}
+    function getAiColor(){return playerColor=='w'?'b':'w';}
     function resetState(){
         brd=initBrd();turn='w';cas={wK:true,wQ:true,bK:true,bQ:true};ep=null;hist=[];capW=[];capB=[];mlog=[];
         selSq=null;curLM=[];lastMv=null;over=false;pendP=null;isAnim=false;aiThink=false;timerW=60;timerB=60;timerActive=false;lastTick=null;
@@ -822,24 +846,24 @@
         over=true;timerActive=false;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('got').textContent=title;document.getElementById('gos').textContent=subtitle;
         document.getElementById('go').classList.add('on');if(sfx)sfx();renderUI();
-        if(gameMode==='online') stopOnlineSync();
+        if(gameMode=='online') stopOnlineSync();
         clearBackup(gameMode); stopAutoSave();
     }
     function scheduleAI(delay=80){
-        if(over||aiThink||gameMode!=='ai'||turn!==getAiColor())return;
+        if(over||aiThink||gameMode!='ai'||turn!==getAiColor())return;
         aiThink=true;document.getElementById('thkstrip').classList.add('on');document.getElementById('smsg').textContent='Thinking…';
         setTimeout(()=>{
-            if(over||!aiThink||gameMode!=='ai'){aiThink=false;document.getElementById('thkstrip').classList.remove('on');renderUI();return;}
+            if(over||!aiThink||gameMode!='ai'){aiThink=false;document.getElementById('thkstrip').classList.remove('on');renderUI();return;}
             const mv = getBestMove(brd,cas,ep,aiDepth,getAiColor());
             aiThink=false;document.getElementById('thkstrip').classList.remove('on');
             if(mv)execMove(mv);
-            else{const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);}
+            else{const ck=inCk(brd,turn),winner=turn=='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);}
         },delay);
     }
     function onSq(si){
         if(over||isAnim||aiThink)return;
-        if(gameMode==='online' && turn !== myColor) return;
-        if(gameMode==='ai' && turn===getAiColor()) return;
+        if(gameMode=='online' && turn !== myColor) return;
+        if(gameMode=='ai' && turn===getAiColor()) return;
         SFX.select();
         const p=brd[si];if(p&&cl(p)===turn){selSq=si;curLM=legalM(brd,si,cas,ep);updHL();return;}
         if(selSq!==null){const mv=curLM.find(m=>m.to===si);if(mv){if(mv.promo){pendP=mv;showPromo(turn);return;}execMove(mv);return;}}
@@ -850,25 +874,25 @@
         const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to);
         hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))});
         const an=algN(brd,mv);
-        if(capP)(wt==='w'?capW:capB).push(capP);
-        if(mv.ep){const{r,c}=rc(mv.to),e2=brd[ix(r+(wt==='w'?1:-1),c)];if(e2)(wt==='w'?capW:capB).push(e2);}
+        if(capP)(wt=='w'?capW:capB).push(capP);
+        if(mv.ep){const{r,c}=rc(mv.to),e2=brd[ix(r+(wt=='w'?1:-1),c)];if(e2)(wt=='w'?capW:capB).push(e2);}
         const{brd:nb,cas:nc,ep:ne}=applyM(brd,mv,cas,ep);brd=nb;cas=nc;ep=ne;
-        if(wt==='w')mlog.push({w:an,b:''});else{if(!mlog.length)mlog.push({w:'',b:''});mlog[mlog.length-1].b=an;}
+        if(wt=='w')mlog.push({w:an,b:''});else{if(!mlog.length)mlog.push({w:'',b:''});mlog[mlog.length-1].b=an;}
         turn=op(wt);lastMv=mv;selSq=null;curLM=[];
         timerW=60;timerB=60;timerActive=true;lastTick=performance.now();
         let pg=P3D[mv.from];if(capP)removePiece(mv.to);
-        if(mv.ep){const{r,c}=rc(mv.to);removePiece(ix(r+(wt==='w'?1:-1),c));}
-        if(mv.promo){scene.remove(pg);pg.traverse(m=>{if(m.geometry)m.geometry.dispose();});pg=PIECE_BUILDERS[mv.promo](wt==='w');pg.position.set(rc(mv.from).c+0.5,PY,rc(mv.from).r+0.5);pg.userData={si:mv.to,isPG:true};pg.traverse(m=>{if(m.isMesh)m.userData={si:mv.to,isPiece:true};});scene.add(pg);}
+        if(mv.ep){const{r,c}=rc(mv.to);removePiece(ix(r+(wt=='w'?1:-1),c));}
+        if(mv.promo){scene.remove(pg);pg.traverse(m=>{if(m.geometry)m.geometry.dispose();});pg=PIECE_BUILDERS[mv.promo](wt=='w');pg.position.set(rc(mv.from).c+0.5,PY,rc(mv.from).r+0.5);pg.userData={si:mv.to,isPG:true};pg.traverse(m=>{if(m.isMesh)m.userData={si:mv.to,isPiece:true};});scene.add(pg);}
         P3D[mv.from]=null;P3D[mv.to]=pg;pg.userData.si=mv.to;pg.traverse(m=>{if(m.isMesh)m.userData.si=mv.to;});
-        if(mv.castle){let rf,rt2;if(wt==='w'){if(mv.castle==='K'){rf=ix(7,7);rt2=ix(7,5);}else{rf=ix(7,0);rt2=ix(7,3);}}else{if(mv.castle==='K'){rf=ix(0,7);rt2=ix(0,5);}else{rf=ix(0,0);rt2=ix(0,3);}}const rg=P3D[rf];if(rg){const{r:rr,c:rc2}=rc(rt2);rg.position.set(rc2+0.5,PY,rr+0.5);P3D[rt2]=rg;P3D[rf]=null;rg.userData.si=rt2;rg.traverse(m=>{if(m.isMesh)m.userData.si=rt2;});}}
+        if(mv.castle){let rf,rt2;if(wt=='w'){if(mv.castle=='K'){rf=ix(7,7);rt2=ix(7,5);}else{rf=ix(7,0);rt2=ix(7,3);}}else{if(mv.castle=='K'){rf=ix(0,7);rt2=ix(0,5);}else{rf=ix(0,0);rt2=ix(0,3);}}const rg=P3D[rf];if(rg){const{r:rr,c:rc2}=rc(rt2);rg.position.set(rc2+0.5,PY,rr+0.5);P3D[rt2]=rg;P3D[rf]=null;rg.userData.si=rt2;rg.traverse(m=>{if(m.isMesh)m.userData.si=rt2;});}}
         if(capP||mv.ep)SFX.capture();else if(mv.castle)SFX.castle();else SFX.move();
         isAnim=true;updHL();renderUI();
         startAnim(pg,tr,tc,()=>{isAnim=false;updHL();renderUI();
             const am2=allM(brd,turn,cas,ep);
-            if(!am2.length){const ck=inCk(brd,turn),winner=turn==='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
+            if(!am2.length){const ck=inCk(brd,turn),winner=turn=='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;}
             if(inCk(brd,turn))SFX.check();
-            if(gameMode==='online') syncBoardToSupabase();
-            if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(100);
+            if(gameMode=='online') syncBoardToSupabase();
+            if(gameMode=='ai' && turn===getAiColor() && !over) scheduleAI(100);
             saveBackup();
         });
     }
@@ -885,41 +909,41 @@
         if(!timerActive||over||isAnim||aiThink||!started)return;
         const now=performance.now();if(lastTick===null){lastTick=now;return;}
         const dt=(now-lastTick)/1000;lastTick=now;
-        if(turn==='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}}
+        if(turn=='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}}
         else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}}
         updateTimerUI();
-        if(gameMode==='online' && turn===myColor) syncTimersToSupabase();
+        if(gameMode=='online' && turn===myColor) syncTimersToSupabase();
     }
     function timeOut(loser){
-        if(gameMode==='online'){
+        if(gameMode=='online'){
             turn = op(loser);
             timerW=60; timerB=60;
             selSq=null; curLM=[]; updHL(); renderUI();
             syncBoardToSupabase();
-            toast((loser==='w'?'Red':'Black') + ' ran out of time – turn passes');
+            toast((loser=='w'?'Red':'Black') + ' ran out of time – turn passes');
             return;
         }
         turn = op(loser); timerW=60; timerB=60; timerActive=true; lastTick=performance.now();
         selSq=null; curLM=[]; updHL(); renderUI();
-        if(gameMode==='ai' && turn===getAiColor()) scheduleAI(300);
+        if(gameMode=='ai' && turn===getAiColor()) scheduleAI(300);
         saveBackup();
     }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){
         document.getElementById('tvW').textContent=fmt(timerW);
         document.getElementById('tvB').textContent=fmt(timerB);
-        document.getElementById('tmrW').className='tmr'+(turn==='w'&&!over?' active':'')+(timerW<=10&&turn==='w'?' low':'');
-        document.getElementById('tmrB').className='tmr'+(turn==='b'&&!over?' active':'')+(timerB<=10&&turn==='b'?' low':'');
+        document.getElementById('tmrW').className='tmr'+(turn=='w'&&!over?' active':'')+(timerW<=10&&turn=='w'?' low':'');
+        document.getElementById('tmrB').className='tmr'+(turn=='b'&&!over?' active':'')+(timerB<=10&&turn=='b'?' low':'');
     }
     function renderUI(){
-        document.getElementById('tdot').className='tdot '+(turn==='w'?'w':'b');
-        document.getElementById('tlbl').textContent=turn==='w'?'Red':'Black';
+        document.getElementById('tdot').className='tdot '+(turn=='w'?'w':'b');
+        document.getElementById('tlbl').textContent=turn=='w'?'Red':'Black';
         if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';
         updateTimerUI();
     }
 
     // ---------- Bottom-right button handler ----------
-    function handleBottomRight(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
+    function handleBottomRight(){ if(gameMode=='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
     function exitWithSave(){ saveBackup(); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); }
     window.exitWithSave = exitWithSave;
     function exitWithoutSave(){ if(confirm('Are you sure? Any progress will be lost and the match will not be saved.')){ clearBackup(gameMode); document.getElementById('exit-choice-panel').classList.remove('show'); backToMenu(); } }
@@ -938,9 +962,9 @@
     window.selectLocalRestore = selectLocalRestore;
 
     window.restoreGame = function(mode){
-        if (gameMode==='online') return;
+        if (gameMode=='online') return;
         const backup = loadBackup(mode);
-        if (!backup) { toast('No backup found for ' + (mode==='ai'?'AI':'PvP')); return; }
+        if (!backup) { toast('No backup found for ' + (mode=='ai'?'AI':'PvP')); return; }
         gameMode = mode; aiDepth = backup.aiDepth; playerColor = backup.playerColor;
         brd = backup.brd; turn = backup.turn; cas = backup.cas; ep = backup.ep;
         hist = backup.hist; capW = backup.capW; capB = backup.capB; mlog = backup.mlog;
@@ -956,29 +980,30 @@
         const diffBtn = document.querySelector(`#ms .db[data-d="${aiDepth}"]`);
         if(diffBtn) diffBtn.classList.add('on');
         document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on'));
-        document.getElementById('pc'+(playerColor==='w'?'W':'B')).classList.add('on');
-        if(gameMode==='ai' && turn===getAiColor() && !over) scheduleAI(300);
+        document.getElementById('pc'+(playerColor=='w'?'W':'B')).classList.add('on');
+        if(gameMode=='ai' && turn===getAiColor() && !over) scheduleAI(300);
         startAutoSave();
         document.getElementById('mode-btn').textContent = 'Exit'; document.getElementById('mode-btn').style.color = '#cc0000';
     };
 
     // ---------- Online functions (all globally accessible) ----------
     window.startGame = function(mode){ gameMode=mode; document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true; if(!boardBuilt){buildBoard();boardBuilt=true;} newGame(); };
-    window.newGame = function(){ resetState(); syncAll(brd); clearDots(); clearTints(); document.getElementById('go').classList.remove('on'); document.getElementById('pm').classList.remove('on'); document.getElementById('thkstrip').classList.remove('on'); renderUI(); if(gameMode==='ai'&&playerColor==='b'){ timerActive=true; lastTick=performance.now(); scheduleAI(500); } clearBackup(gameMode); startAutoSave(); };
-    window.undoMove = function(){ if(gameMode==='online') return; if(isAnim||aiThink||!hist.length) return; aiThink=false; document.getElementById('thkstrip').classList.remove('on'); const steps=(gameMode==='ai'&&hist.length>=2)?2:1; for(let i=0;i<steps;i++){ if(!hist.length) break; const s=hist.pop(); brd=s.brd; turn=s.turn; cas=s.cas; ep=s.ep; capW=s.capW; capB=s.capB; mlog=s.mlog; } timerW=60;timerB=60; timerActive=hist.length>0; lastTick=timerActive?performance.now():null; lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on'); syncAll(brd);updHL();renderUI(); if(gameMode==='ai'&&turn===getAiColor()&&!over&&hist.length>0){ timerActive=true;lastTick=performance.now();scheduleAI(400); } saveBackup(); };
+    window.newGame = function(){ resetState(); syncAll(brd); clearDots(); clearTints(); document.getElementById('go').classList.remove('on'); document.getElementById('pm').classList.remove('on'); document.getElementById('thkstrip').classList.remove('on'); renderUI(); if(gameMode=='ai'&&playerColor=='b'){ timerActive=true; lastTick=performance.now(); scheduleAI(500); } clearBackup(gameMode); startAutoSave(); };
+    window.undoMove = function(){ if(gameMode=='online') return; if(isAnim||aiThink||!hist.length) return; aiThink=false; document.getElementById('thkstrip').classList.remove('on'); const steps=(gameMode=='ai'&&hist.length>=2)?2:1; for(let i=0;i<steps;i++){ if(!hist.length) break; const s=hist.pop(); brd=s.brd; turn=s.turn; cas=s.cas; ep=s.ep; capW=s.capW; capB=s.capB; mlog=s.mlog; } timerW=60;timerB=60; timerActive=hist.length>0; lastTick=timerActive?performance.now():null; lastMv=null;selSq=null;curLM=[];over=false;document.getElementById('go').classList.remove('on'); syncAll(brd);updHL();renderUI(); if(gameMode=='ai'&&turn===getAiColor()&&!over&&hist.length>0){ timerActive=true;lastTick=performance.now();scheduleAI(400); } saveBackup(); };
     window.setDiff = function(btn){ document.querySelectorAll('#ms .db[data-d]').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); selDiff=parseInt(btn.dataset.d); };
     window.setPlayerColor = function(btn){ document.querySelectorAll('#pcW,#pcB').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); playerColor=btn.dataset.pc; };
     window.backToMenu = function(){
-        if(gameMode==='online'){ confirmExitOnline(); return; }
+        if(gameMode=='online'){ confirmExitOnline(); return; }
         timerActive=false;over=true;aiThink=false;document.getElementById('thkstrip').classList.remove('on');
         document.getElementById('gu').style.display='none';document.getElementById('go').classList.remove('on');document.getElementById('pm').classList.remove('on');
         document.getElementById('ms').style.display='flex';
         document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
         stopAutoSave();
     };
-    function handleExitGameOver(){ if(gameMode==='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
+    function handleExitGameOver(){ if(gameMode=='online'){ confirmExitOnline(); } else { document.getElementById('exit-choice-panel').classList.add('show'); } }
 
-    window.showOnlineMenu = function(){
+    window.showOnlineMenu = async function(){
+        await authReadyPromise;
         if (!currentUserId) {
             document.getElementById('main-cards').style.display='none'; document.getElementById('original-buttons').style.display='none';
             hideAllOnlinePanels(); document.getElementById('login-gate-panel').classList.add('show');
@@ -1006,6 +1031,8 @@
     }
 
     async function cancelWaiting(){
+        await authReadyPromise;
+        if (!sb) return;
         if (onlineGame) {
             const g = onlineGame;
             if (g.status === 'waiting_for_joiner') { await sb.from('online_games').delete().eq('id', g.id); toast('Room cancelled'); }
@@ -1025,22 +1052,21 @@
     function safeChannelToken(str){ return String(str).replace(/[^a-zA-Z0-9]/g, '_'); }
 
     window.createPrivateRoom = async function(){
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
-        // Code is used exactly as typed — NO .toUpperCase(), case-sensitive.
+        await authReadyPromise;
+        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-create-code').value.trim();
         if(!code || code.length < 6){ toast('Room code must be at least 6 characters'); return; }
         if(!/^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(code)){ toast('Invalid characters in room code'); return; }
         try {
-            // Check for an existing room with the exact same code (case-sensitive match).
             const { data: existing } = await sb.from('online_games')
                 .select('id')
-                .eq('room_code', code)      // exact string — no transformation
+                .eq('room_code', code)
                 .eq('type', 'private')
                 .maybeSingle();
             if (existing) { toast('A room already exists with this code, please create another.'); return; }
             const hostKey = generatePlayerKey();
             const { data, error } = await sb.from('online_games').insert({
-                room_code: code,            // stored exactly as entered
+                room_code: code,
                 type: 'private',
                 host_player_id: currentUserId,
                 host_player_key: hostKey,
@@ -1058,16 +1084,14 @@
     };
 
     window.joinPrivateRoom = async function(){
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
-        // Code is used exactly as typed — NO .toUpperCase(), case-sensitive.
+        await authReadyPromise;
+        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
         const code = document.getElementById('private-room-code').value.trim();
         if(!code){ toast('Please enter a room code.'); return; }
         try {
-            // Exact case-sensitive match; also filter by type:'private' to avoid
-            // accidentally matching a public room that happens to share a code.
             const { data, error } = await sb.from('online_games')
                 .select('*')
-                .eq('room_code', code)      // exact string — no transformation
+                .eq('room_code', code)
                 .eq('type', 'private')
                 .maybeSingle();
             if(error || !data){ toast('Room not found. Check the code and try again.'); return; }
@@ -1078,7 +1102,7 @@
             const { error: updateErr } = await sb.from('online_games')
                 .update({ joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' })
                 .eq('id', data.id)
-                .eq('status', 'waiting_for_joiner');  // optimistic lock — prevents double-join
+                .eq('status', 'waiting_for_joiner');
             if(updateErr) throw updateErr;
             onlineGame = { ...data, joiner_player_id: currentUserId, joiner_player_key: joinerKey, status: 'waiting_for_nicknames' };
             sessionPlayerKey = joinerKey;
@@ -1088,11 +1112,10 @@
     };
 
     window.createPublicRoom = async function(){
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
+        await authReadyPromise;
+        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
         try {
-            // Clean up any stale searching entry from a previous session.
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId).eq('status', 'searching');
-            // Prevent creating a second game while one is already active.
             const { data: existingGame } = await sb.from('online_games')
                 .select('*')
                 .eq('type', 'public')
@@ -1100,25 +1123,21 @@
                 .or(`host_player_id.eq.${currentUserId},joiner_player_id.eq.${currentUserId}`)
                 .maybeSingle();
             if(existingGame){ toast('You already have an active public game. Please rejoin that room.'); return; }
-            // Reserve a player key now; it will be written to online_games once the joiner pairs us.
             sessionPlayerKey = generatePlayerKey();
-            // Insert a 'searching' row into the matchmaking queue.
             const { data, error } = await sb.from('matchmaking_queue')
                 .insert({ player_id: currentUserId, status: 'searching' })
                 .select()
                 .single();
             if(error) throw error;
             showWaitingScreen('Searching for an opponent… (up to 20 min)');
-            // Listen for when the joiner claims this queue entry (status → 'paired').
             checkMatchmaking(data.id);
         } catch(e) { toast('Queue error: ' + e.message); }
     };
 
     window.joinPublicRoom = async function(){
-        if(!currentUserId){ toast('Please log in to play online.'); return; }
+        await authReadyPromise;
+        if (!sb || !currentUserId) { toast('Please log in to play online.'); return; }
         try {
-            // ── 1. Reconnection check ────────────────────────────────────────
-            // Look for an existing public game this user is already part of.
             const { data: pending } = await sb.from('online_games')
                 .select('*')
                 .eq('type', 'public')
@@ -1159,8 +1178,6 @@
                     return;
                 }
             }
-
-            // ── 2. Find an open host in the matchmaking queue ────────────────
             const { data: hosts, error } = await sb.from('matchmaking_queue')
                 .select('*')
                 .eq('status', 'searching')
@@ -1171,19 +1188,11 @@
                 toast('No rooms available at the moment.'); return;
             }
             const hostEntry = hosts[0];
-
-            // ── 3. Atomically claim the host's queue entry ───────────────────
-            // Update only if it is still 'searching' — prevents double-join.
             const { error: claimErr } = await sb.from('matchmaking_queue')
                 .update({ status: 'paired' })
                 .eq('id', hostEntry.id)
                 .eq('status', 'searching');
             if(claimErr){ toast('Room was just taken — please try again.'); return; }
-
-            // ── 4. Create the online_games row immediately ───────────────────
-            // The host is listening for UPDATE on their queue row (status → 'paired').
-            // They will wait 1.5 s (checkMatchmaking) before reading online_games, so
-            // this insert must complete before that window expires — it will.
             sessionPlayerKey = generatePlayerKey();
             const roomCode = 'pub_' + safeChannelToken(Math.random().toString(36).substring(2, 8));
             const { data: game, error: createErr } = await sb.from('online_games').insert({
@@ -1191,14 +1200,13 @@
                 type: 'public',
                 host_player_id: hostEntry.player_id,
                 joiner_player_id: currentUserId,
-                host_player_key: 'pending',         // host fills this in after the 1.5 s delay
+                host_player_key: 'pending',
                 joiner_player_key: sessionPlayerKey,
                 status: 'waiting_for_nicknames',
                 board_state: { brd: initBrd(), turn: 'w', cas: {wK:true,wQ:true,bK:true,bQ:true}, ep: null },
                 timer_w: 60, timer_b: 60
             }).select().single();
             if(createErr) throw createErr;
-
             onlineGame = game;
             sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
             showNicknamePrompt();
@@ -1207,6 +1215,7 @@
     };
 
     function checkMatchmaking(queueRowId){
+        if (!sb) return;
         if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         const chanName = 'mmq_' + safeChannelToken(currentUserId);
         matchmakingChannel = sb.channel(chanName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchmaking_queue', filter: `id=eq.${queueRowId}` }, async (payload) => {
@@ -1222,6 +1231,7 @@
             showNicknamePrompt(); subscribeToGame(onlineGame.id);
         }).subscribe();
         matchmakingTimeout = setTimeout(async ()=>{
+            if (!sb) return;
             if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
             await sb.from('matchmaking_queue').delete().eq('player_id', currentUserId);
             toast('No opponent found within 20 minutes. Returning to menu.');
@@ -1231,6 +1241,7 @@
     }
 
     function subscribeToGame(gameId){
+        if (!sb) return;
         if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
         const safeName = 'game_' + safeChannelToken(String(gameId));
         onlineChannel = sb.channel(safeName).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_games', filter: `id=eq.${gameId}` }, handleGameUpdate).subscribe();
@@ -1261,6 +1272,8 @@
 
     function showNicknamePrompt(){ hideAllOnlinePanels(); document.getElementById('nickname-panel').classList.add('show'); document.getElementById('nickname-status').textContent = 'Waiting for both players to set nicknames...'; }
     async function submitNickname(){
+        await authReadyPromise;
+        if (!sb || !onlineGame) return;
         const nick = document.getElementById('nickname-input').value.trim();
         if(!nick){ toast('Enter a nickname'); return; }
         const g = onlineGame;
@@ -1277,12 +1290,14 @@
     window.submitNickname = submitNickname;
 
     function showColorChoice(){ hideAllOnlinePanels(); document.getElementById('color-choice-panel').classList.add('show'); }
-    async function hostChooseColor(col){ await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
+    async function hostChooseColor(col){ await authReadyPromise; if (!sb) return; await sb.from('online_games').update({ host_color: col, status: 'countdown' }).eq('id', onlineGame.id); myColor = col; document.getElementById('color-choice-panel').classList.remove('show'); showCountdown(); }
     window.hostChooseColor = hostChooseColor;
 
     function showCountdown(){ hideAllOnlinePanels(); document.getElementById('countdown-panel').classList.add('show'); let sec = 5; document.getElementById('countdown-number').textContent = sec; const iv = setInterval(()=>{ sec--; if(sec<=0){ clearInterval(iv); startOnlineGame(); return; } document.getElementById('countdown-number').textContent = sec; },1000); }
 
     async function startOnlineGame(){
+        await authReadyPromise;
+        if (!sb) return;
         hideAllOnlinePanels();
         if(onlineGame.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'active' }).eq('id', onlineGame.id); }
         document.getElementById('gu').style.display='block'; document.getElementById('ms').style.display='none'; started = true;
@@ -1293,11 +1308,13 @@
     }
 
     function confirmExitOnline(){ document.getElementById('exit-online-panel').classList.add('show'); }
-    function confirmExitOnlineYes(){ document.getElementById('exit-online-panel').classList.remove('show'); exitOnlineGame(); }
+    async function confirmExitOnlineYes(){ await authReadyPromise; document.getElementById('exit-online-panel').classList.remove('show'); exitOnlineGame(); }
     window.confirmExitOnline = confirmExitOnline;
     window.confirmExitOnlineYes = confirmExitOnlineYes;
 
     async function exitOnlineGame(){
+        await authReadyPromise;
+        if (!sb || !onlineGame) { resetOnlineState(); return; }
         timerActive=false; over=true;
         if(onlineGame?.host_player_id===currentUserId){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); }
         else if(onlineGame?.joiner_player_id===currentUserId){ await sb.from('online_games').update({ status: 'frozen', leaver_id: currentUserId, leave_time: new Date() }).eq('id', onlineGame.id); }
@@ -1305,8 +1322,8 @@
     }
 
     function resetOnlineState(){
-        if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; }
-        if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; }
+        if(onlineChannel){ sb?.removeChannel(onlineChannel); onlineChannel=null; }
+        if(matchmakingChannel){ sb?.removeChannel(matchmakingChannel); matchmakingChannel=null; }
         if(matchmakingTimeout){ clearTimeout(matchmakingTimeout); matchmakingTimeout=null; }
         if (onlineGame) sessionStorage.removeItem('chess3d_playerkey_' + onlineGame.id);
         sessionPlayerKey = null; onlineGame=null;
@@ -1318,21 +1335,28 @@
         hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
-    function syncBoardToSupabase(){ if(!onlineGame) return; sb.from('online_games').update({ board_state: { brd, turn, cas, ep }, timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
+    function syncBoardToSupabase(){ if(!onlineGame || !sb) return; sb.from('online_games').update({ board_state: { brd, turn, cas, ep }, timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
     let _lastTimerSync = 0;
-    function syncTimersToSupabase(){ if(!onlineGame) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
-    function stopOnlineSync(){ if(onlineChannel){ sb.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
+    function syncTimersToSupabase(){ if(!onlineGame || !sb) return; const now = Date.now(); if (now - _lastTimerSync < 3000) return; _lastTimerSync = now; sb.from('online_games').update({ timer_w: timerW, timer_b: timerB }).eq('id', onlineGame.id); }
+    function stopOnlineSync(){ if(onlineChannel){ sb?.removeChannel(onlineChannel); onlineChannel=null; } if(matchmakingChannel){ sb?.removeChannel(matchmakingChannel); matchmakingChannel=null; } }
 
     function showWaitingScreen(msg){ hideAllOnlinePanels(); document.getElementById('waiting-text').textContent = msg; document.getElementById('waiting-panel').classList.add('show'); }
 
-    function sendChat(){ const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg || !onlineGame) return; sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; }); }
+    async function sendChat(){
+        await authReadyPromise;
+        if (!sb || !onlineGame) return;
+        const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(!msg) return;
+        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: onlineGame.host_player_id===currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname, message: msg }).then(()=>{ input.value=''; });
+    }
     window.sendChat = sendChat;
-    function subscribeChat(gameId){ sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
+    function subscribeChat(gameId){ if(!sb) return; sb.channel('chat_'+safeChannelToken(String(gameId))).on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages', filter:`game_id=eq.${gameId}` }, payload => { const box = document.getElementById('chat-messages'); box.innerHTML += `<div><b>${payload.new.nickname}:</b> ${payload.new.message}</div>`; box.scrollTop = box.scrollHeight; }).subscribe(); }
 
-    async function requestRematch(){ await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
+    async function requestRematch(){ await authReadyPromise; if(!sb || !onlineGame) return; await sb.from('online_games').update({ rematch_requested_by: currentUserId, rematch_approved: false }).eq('id', onlineGame.id); toast('Rematch requested'); }
     window.requestRematch = requestRematch;
     function showRematchUI(){ if(onlineGame.rematch_requested_by && onlineGame.rematch_requested_by!==currentUserId){ document.getElementById('rematch-text').textContent = 'Opponent wants a rematch!'; document.getElementById('rematch-panel').classList.add('show'); setTimeout(()=>{ if(document.getElementById('rematch-panel').classList.contains('show')) declineRematch(); }, 30000); } }
     async function acceptRematch(){
+        await authReadyPromise;
+        if(!sb || !onlineGame) return;
         document.getElementById('rematch-panel').classList.remove('show'); const g = onlineGame; const newHostColor = g.host_color==='w'?'b':'w';
         const newRoomCode = g.room_code + '_r' + Date.now().toString(36);
         const { data: newGame, error } = await sb.from('online_games').insert({
@@ -1347,15 +1371,17 @@
         subscribeToGame(newGame.id); showCountdown();
     }
     window.acceptRematch = acceptRematch;
-    async function declineRematch(){ await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
+    async function declineRematch(){ await authReadyPromise; if(!sb) return; await sb.from('online_games').update({ status: 'terminated' }).eq('id', onlineGame.id); document.getElementById('rematch-panel').classList.remove('show'); resetOnlineState(); }
     window.declineRematch = declineRematch;
 
-
+    // ---------- Cloud sync / restore / delete (fixed) ----------
     window.syncOfflineToCloud = async function(){
+        await authReadyPromise;
         if (!navigator.onLine) { toast('Sync offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
         const aiBackup = loadBackup('ai'), pvpBackup = loadBackup('2p');
         if (!aiBackup && !pvpBackup) { toast('No offline data to sync.'); return; }
         if (!currentUserId) { toast('Please log in to sync data.'); return; }
+        if (!sb) { toast('Service unavailable.'); return; }
         toast('Syncing offline data…');
         try {
             if (aiBackup) { const { error } = await sb.from('offline_backups').upsert({ user_id: currentUserId, mode: 'ai', backup_data: aiBackup }, { onConflict: 'user_id, mode' }); if (error) throw new Error(error.message); }
@@ -1364,8 +1390,10 @@
         } catch (err) { toast('Sync data failed: ' + err.message); }
     };
     window.restoreOfflineFromCloud = async function(){
+        await authReadyPromise;
         if (!navigator.onLine) { toast('Restore offline data failed due to no Internet connection, please check your Internet connection and try again.'); return; }
         if (!currentUserId) { toast('Please log in to restore cloud data.'); return; }
+        if (!sb) { toast('Service unavailable.'); return; }
         const { data, error } = await sb.from('offline_backups').select('*').eq('user_id', currentUserId);
         if (error) { toast('Restore data failed: ' + error.message); return; }
         if (!data || data.length === 0) { toast('No cloud backup found.'); return; }
@@ -1375,7 +1403,6 @@
             window.restoreGame(backup.mode);
             toast('Restored data from cloud');
         } else {
-            // Both AI and PvP backups exist — show choice panel
             window._cloudBackups = data;
             document.getElementById('cloud-choice-panel').classList.add('show');
         }
@@ -1390,14 +1417,16 @@
         window.restoreGame(mode);
         toast('Restored data from cloud');
     };
-    // Shows the custom modal — actual delete runs in confirmDeleteSyncedData()
-    window.deleteAllSyncedData = function(){
+    window.deleteAllSyncedData = async function(){
+        await authReadyPromise;
         if (!navigator.onLine) { toast('Delete failed due to no Internet connection.'); return; }
         if (!currentUserId) { toast('Please log in to delete synced data.'); return; }
+        if (!sb) { toast('Service unavailable.'); return; }
         document.getElementById('delete-confirm-panel').classList.add('show');
     };
-    // Called by the "Delete" button inside the custom confirm modal
     window.confirmDeleteSyncedData = async function(){
+        await authReadyPromise;
+        if (!sb || !currentUserId) return;
         document.getElementById('delete-confirm-panel').classList.remove('show');
         const { error } = await sb.from('offline_backups').delete().eq('user_id', currentUserId);
         if (error) { toast('Delete failed: ' + error.message); return; }
@@ -1425,7 +1454,7 @@
         tickAnim();
         tickTimer();
         if(started&&!over&&timerActive&&!aiThink){
-            const cs=turn==='w'?Math.ceil(timerW):Math.ceil(timerB);
+            const cs=turn=='w'?Math.ceil(timerW):Math.ceil(timerB);
             if(cs!==prevSec&&cs<=5&&cs>0)SFX.tick();
             prevSec=cs;
         }
