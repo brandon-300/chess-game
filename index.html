@@ -105,6 +105,19 @@
         .exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
         .exit-online-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
         .exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
+
+        /* Chat container fixes (Opera layout bug) */
+        .chat-container{
+            display:flex;flex-direction:column;
+            max-height:300px;overflow-y:auto;
+            position:absolute;bottom:60px;width:260px;
+            z-index:10;pointer-events:auto;
+        }
+        .chat-messages{
+            flex-grow:1;overflow-y:scroll;
+            -webkit-overflow-scrolling:touch;
+        }
+
         #chat-box{position:fixed;bottom:50px;right:10px;width:260px;max-height:300px;background:rgba(8,5,2,1);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:6px;display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em;box-shadow:0 4px 24px rgba(0,0,0,0.5)}
         #chat-box.show{display:flex}
         #chat-messages{flex:1;overflow-y:auto;padding:8px;min-height:100px;max-height:200px}
@@ -186,7 +199,7 @@
     <div id="cloud-choice-panel"><div class="cloud-choice-box"><h2 style="color:var(--gold);">Choose mode to restore</h2><button class="db" onclick="selectCloudRestore('ai')">AI Match</button><button class="db" onclick="selectCloudRestore('2p')">PvP Match</button><button class="db back-btn" onclick="document.getElementById('cloud-choice-panel').classList.remove('show')">Cancel</button></div></div>
     <div id="delete-confirm-panel"><div class="delete-confirm-box"><h2>Delete Synced Data</h2><p>Are you sure you want to delete all synced offline data from the cloud?</p><button class="db" onclick="confirmDeleteSyncedData()">Delete</button><button class="db back-btn" onclick="document.getElementById('delete-confirm-panel').classList.remove('show')">Cancel</button></div></div>
     <div id="exit-online-panel"><div class="exit-online-box"><h2>Leave Match?</h2><p>Are you sure you want to leave? The match will be terminated or frozen.</p><button class="db" style="border-color:#cc0000;color:#cc0000;" onclick="confirmExitOnlineYes()">Leave</button><button class="db back-btn" onclick="document.getElementById('exit-online-panel').classList.remove('show')">Stay</button></div></div>
-    <div id="chat-box"><div id="chat-messages"></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button onclick="sendChat()" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button></div></div>
+    <div id="chat-box"><div class="chat-container"><div class="chat-messages" id="chat-messages"></div></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button onclick="sendChat()" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button></div></div>
     <div id="reconnect-indicator">Reconnecting...</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -200,14 +213,11 @@
     try { if (typeof supabase !== 'undefined') { sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } else { sbError = 'supabase object not defined (CDN load failed)'; } } catch(e) { sbError = e.message; }
     let currentUserId = null;
     let onlineGame = null;
-    let onlineChannel = null;
-    let chatChannel = null;
+    let onlineChannel = null; // broadcast channel
     let myColor = 'w';
     let sessionPlayerKey = null;
     let reconnectInterval = null;
     let pollInterval = null;
-    let chatPollInterval = null;
-    let lastChatId = 0;
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -408,20 +418,43 @@
     // ---------- Chat toggle ----------
     function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
 
-    // ---------- Polling (every 1 second) ----------
+    // ---------- Polling (fallback, every 2 seconds) ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
             if (!onlineGame || !sb || !currentUserId) return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            handleGameUpdate({ new: data, old: onlineGame });
-        }, 1000);
+            // Only update if something changed to avoid unnecessary redraws
+            if (JSON.stringify(data) !== JSON.stringify(onlineGame)) {
+                handleGameUpdate({ new: data, old: onlineGame });
+            }
+        }, 2000);
     }
     function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
-    // ---------- Chat subscription + polling fallback ----------
-    const sentMsgIds = new Set(); // track IDs to avoid duplicates
+    // ---------- Broadcast channel for real-time events ----------
+    function subscribeToGame(gameId) {
+        if (onlineChannel) sb.removeChannel(onlineChannel);
+        const channelName = `game_${safeChannelToken(String(gameId))}`;
+        onlineChannel = sb.channel(channelName, {
+            config: { broadcast: { self: true } } // allow self-broadcast for immediate UI update
+        })
+        .on('broadcast', { event: 'game_state' }, (payload) => {
+            handleGameUpdate({ new: payload.payload, old: onlineGame });
+        })
+        .on('broadcast', { event: 'chat_message' }, (payload) => {
+            appendChatMsg(payload.payload);
+        })
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('Connected to game broadcast channel');
+            }
+        });
+    }
+
+    // ---------- Chat message handling ----------
+    const sentMsgIds = new Set();
     function appendChatMsg(msg) {
         if (!msg || sentMsgIds.has(msg.id)) return;
         sentMsgIds.add(msg.id);
@@ -429,26 +462,6 @@
         box.innerHTML += `<div><b>${msg.nickname}:</b> ${msg.message}</div>`;
         box.scrollTop = box.scrollHeight;
     }
-
-    function subscribeChat(gameId) {
-        if (chatChannel) sb.removeChannel(chatChannel);
-        chatChannel = sb.channel('chat_'+safeChannelToken(String(gameId)))
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `game_id=eq.${gameId}` }, payload => {
-                appendChatMsg(payload.new);
-            })
-            .subscribe();
-    }
-
-    function startChatPolling(gameId) {
-        stopChatPolling();
-        chatPollInterval = setInterval(async () => {
-            if (!sb || !gameId) return;
-            const { data, error } = await sb.from('chat_messages').select('*').eq('game_id', gameId).order('id', { ascending: true });
-            if (error || !data) return;
-            data.forEach(msg => appendChatMsg(msg));
-        }, 2000);
-    }
-    function stopChatPolling() { if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; } }
 
     // ---------- Online menu navigation ----------
     window.showOnlineMenu = function(){
@@ -565,25 +578,18 @@
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
-    // ---------- Subscriptions and game flow ----------
-    function subscribeToGame(gameId){
-        if(onlineChannel) sb.removeChannel(onlineChannel);
-        onlineChannel = sb.channel('game_'+safeChannelToken(String(gameId)))
-            .on('postgres_changes',{event:'UPDATE',schema:'public',table:'online_games',filter:`id=eq.${gameId}`}, handleGameUpdate)
-            .subscribe();
-    }
-
+    // ---------- Game update handler ----------
     function handleGameUpdate(payload){
         if(!onlineGame) return;
         onlineGame = payload.new;
         const g = onlineGame;
-        if(g.status==='terminated'){ stopPolling(); stopChatPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
+        if(g.status==='terminated'){ stopPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
             if(g.winner) document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins';
             startRematchCountdown(); return;
         }
-        if(g.status==='cancelled'){ stopPolling(); stopChatPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
+        if(g.status==='cancelled'){ stopPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
         if(g.status==='color_selection'){
             if(g.host_player_id===currentUserId) showColorChoice();
             else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
@@ -603,7 +609,6 @@
             document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
-            subscribeChat(g.id); startChatPolling(g.id);
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
@@ -613,7 +618,6 @@
         if(!onlineGame)return;
         await sb.from('online_games').update({host_color:col,status:'countdown'}).eq('id',onlineGame.id);
         myColor = col;
-        // Immediately show countdown on host's screen
         document.getElementById('color-choice-panel').classList.remove('show');
         onlineGame.status = 'countdown';
         onlineGame.host_color = col;
@@ -640,7 +644,7 @@
     // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
         if (onlineGame) { await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id); stopOnlineSync(); onlineGame=null; }
-        stopReconnect(); stopPolling(); stopChatPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        stopReconnect(); stopPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
 
@@ -659,8 +663,7 @@
 
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
-        if(chatChannel) sb.removeChannel(chatChannel);
-        stopReconnect(); stopPolling(); stopChatPolling();
+        stopReconnect(); stopPolling();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
         sessionPlayerKey=null; onlineGame=null;
@@ -683,7 +686,20 @@
         const msg = input.value.trim();
         if(!msg || !onlineGame) return;
         const nickname = onlineGame.host_player_id === currentUserId ? onlineGame.host_nickname : onlineGame.joiner_nickname;
-        sb.from('chat_messages').insert({ game_id: onlineGame.id, player_id: currentUserId, nickname: nickname, message: msg }).then(()=>{ input.value=''; });
+        const chatMsg = { game_id: onlineGame.id, player_id: currentUserId, nickname: nickname, message: msg };
+        sb.from('chat_messages').insert(chatMsg).then(({ data, error }) => {
+            if (!error && data) {
+                // broadcast immediately to other players via the channel
+                if (onlineChannel) {
+                    onlineChannel.send({
+                        type: 'broadcast',
+                        event: 'chat_message',
+                        payload: { id: data[0].id, nickname: nickname, message: msg }
+                    });
+                }
+            }
+        });
+        input.value = '';
     }
     window.sendChat = sendChat;
 
@@ -725,7 +741,7 @@
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; sentMsgIds.clear(); over=false;
-        subscribeToGame(newGame.id); startReconnect(); startPolling(); subscribeChat(newGame.id); startChatPolling(newGame.id);
+        subscribeToGame(newGame.id); startReconnect(); startPolling();
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
         showCountdown();
     }
