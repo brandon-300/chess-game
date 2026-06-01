@@ -215,8 +215,6 @@
     let reconnectInterval = null;
     let pollInterval = null;
     let chatPollInterval = null;
-    let moveSyncing = false; // prevent polling from overwriting a move in progress
-    let lastSavedBoard = null; // used to compare poll results
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -417,23 +415,15 @@
     // ---------- Chat toggle ----------
     function toggleChat(){ document.getElementById('chat-box').classList.toggle('show'); }
 
-    // ---------- Polling (every 2 seconds once game is active) ----------
+    // ---------- Polling (every 1 second) – syncs board and timers ----------
     function startPolling() {
         stopPolling();
         pollInterval = setInterval(async () => {
-            if (moveSyncing) return;
             if (!onlineGame || !sb || !currentUserId) return;
-            // Poll only when game is active; during countdown, realtime is sufficient
-            if (onlineGame.status !== 'active') return;
             const { data, error } = await sb.from('online_games').select('*').eq('id', onlineGame.id).maybeSingle();
             if (error || !data) return;
-            // Only update if the server state is different from our last saved state
-            const serverStr = JSON.stringify(data);
-            if (serverStr !== lastSavedBoard) {
-                lastSavedBoard = serverStr;
-                handleGameUpdate({ new: data, old: onlineGame });
-            }
-        }, 2000);
+            handleGameUpdate({ new: data, old: onlineGame });
+        }, 1000);
     }
     function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
@@ -500,7 +490,7 @@
             document.getElementById('waiting-title').textContent = username + ' room';
             document.getElementById('waiting-text').innerHTML = 'Room ID: <b>'+code+'</b><br>Waiting for opponent to join…';
             hideAllOnlinePanels(); panel.classList.add('show');
-            subscribeToGame(data.id); startReconnect();
+            subscribeToGame(data.id); startReconnect(); startPolling();
         }catch(e){ toast('Failed to create room: '+e.message); }
     };
 
@@ -526,7 +516,7 @@
             myColor = 'b';
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(game.host_nickname||'Host')+' room – Room ID: '+game.room_code;
             showCountdown();
-            subscribeToGame(game.id); startReconnect();
+            subscribeToGame(game.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -549,7 +539,7 @@
         document.getElementById('waiting-title').textContent = username + ' room';
         document.getElementById('waiting-text').innerHTML = 'Room Code: <b>'+code+'</b><br>Waiting for opponent to join…';
         hideAllOnlinePanels(); panel.classList.add('show');
-        subscribeToGame(data.id); startReconnect();
+        subscribeToGame(data.id); startReconnect(); startPolling();
     };
 
     window.joinPrivateRoom = async function(){
@@ -574,7 +564,7 @@
             myColor = 'b';
             document.getElementById('countdown-welcome').textContent = 'Welcome to '+(data.host_nickname||'Host')+' room – Room ID: '+data.room_code;
             showCountdown();
-            subscribeToGame(data.id); startReconnect();
+            subscribeToGame(data.id); startReconnect(); startPolling();
         }catch(e){ toast('Join failed: '+e.message); }
     };
 
@@ -616,7 +606,6 @@
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
             startChatPolling(g.id);
-            startPolling(); // start polling now that game is active
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
@@ -671,31 +660,13 @@
         hideAllOnlinePanels(); myColor='w'; started=false;
     }
 
-    // ---------- Sync board to Supabase (now updates local onlineGame immediately) ----------
     function syncBoardToSupabase(){
-        if(!onlineGame || moveSyncing) return;
-        moveSyncing = true;
+        if(!onlineGame)return;
         const stateStr = JSON.stringify({brd,turn,cas,ep});
-        toast('Saving move…', 1000);
-        sb.from('online_games').update({board_state: stateStr, timer_w:timerW, timer_b:timerB}).eq('id',onlineGame.id)
-          .then(({error}) => {
-              if (error) {
-                  toast('Move failed: '+error.message);
-              } else {
-                  toast('Move saved', 1000);
-                  // update local onlineGame so polling won't overwrite
-                  onlineGame.board_state = stateStr;
-                  onlineGame.timer_w = timerW;
-                  onlineGame.timer_b = timerB;
-                  lastSavedBoard = JSON.stringify(onlineGame); // update our last saved snapshot
-              }
-          })
-          .finally(() => {
-              moveSyncing = false;
-          });
+        sb.from('online_games').update({board_state: stateStr, timer_w:timerW, timer_b:timerB}).eq('id',onlineGame.id);
     }
     let _lastTimerSync=0;
-    function syncTimersToSupabase(){ if(!onlineGame||moveSyncing)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
+    function syncTimersToSupabase(){ if(!onlineGame)return; const now=Date.now(); if(now-_lastTimerSync<3000)return; _lastTimerSync=now; sb.from('online_games').update({timer_w:timerW,timer_b:timerB}).eq('id',onlineGame.id); }
     function stopOnlineSync(){ if(onlineChannel)sb.removeChannel(onlineChannel); }
 
     function sendChat(){
@@ -754,7 +725,7 @@
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?'w':'b';
         document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
-        subscribeToGame(newGame.id); startReconnect();
+        subscribeToGame(newGame.id); startReconnect(); startPolling();
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
         showCountdown();
     }
