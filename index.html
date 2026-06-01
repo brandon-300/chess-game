@@ -105,7 +105,7 @@
         .exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;max-width:320px;width:90%;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
         .exit-online-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
         .exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
-        #chat-box{position:fixed;bottom:50px;right:10px;width:260px;max-height:300px;background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:6px;display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em;box-shadow:0 4px 24px rgba(0,0,0,0.5)}
+        #chat-box{position:fixed;bottom:50px;right:10px;width:260px;max-height:300px;background:rgba(8,5,2,1);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:6px;display:none;flex-direction:column;z-index:60;font-family:'Cinzel',serif;font-size:10px;color:var(--cream);letter-spacing:.05em;box-shadow:0 4px 24px rgba(0,0,0,0.5)}
         #chat-box.show{display:flex}
         #chat-messages{flex:1;overflow-y:auto;padding:8px;min-height:100px;max-height:200px}
         #chat-input-row{display:flex;border-top:1px solid var(--glass-border)}
@@ -206,6 +206,8 @@
     let sessionPlayerKey = null;
     let reconnectInterval = null;
     let pollInterval = null;
+    let chatPollInterval = null;
+    let lastChatId = 0;
 
     function updateDebugInfo() {
         const debugEl = document.getElementById('debug-overlay');
@@ -321,18 +323,24 @@
     function onSq(si){ if(over||isAnim||aiThink)return; if(gameMode=='online'&&turn!==myColor)return; if(gameMode=='ai'&&turn===getAiColor())return; SFX.select(); const p=brd[si];if(p&&cl(p)===turn){selSq=si;curLM=legalM(brd,si,cas,ep);updHL();return;} if(selSq!==null){const mv=curLM.find(m=>m.to===si);if(mv){if(mv.promo){pendP=mv;showPromo(turn);return;}execMove(mv);return;}} selSq=null;curLM=[];updHL(); }
     function execMove(mv){ if(isAnim||over)return; const wt=turn,capP=brd[mv.to],{r:tr,c:tc}=rc(mv.to); hist.push({brd:[...brd],turn,cas:{...cas},ep,capW:[...capW],capB:[...capB],mlog:mlog.map(e=>({...e}))}); const an=algN(brd,mv); if(capP)(wt=='w'?capW:capB).push(capP); if(mv.ep){const{r,c}=rc(mv.to),e2=brd[ix(r+(wt=='w'?1:-1),c)];if(e2)(wt=='w'?capW:capB).push(e2);} const{brd:nb,cas:nc,ep:ne}=applyM(brd,mv,cas,ep);brd=nb;cas=nc;ep=ne; if(wt=='w')mlog.push({w:an,b:''});else{if(!mlog.length)mlog.push({w:'',b:''});mlog[mlog.length-1].b=an;} turn=op(wt);lastMv=mv;selSq=null;curLM=[]; timerW=60;timerB=60;timerActive=true;lastTick=performance.now(); let pg=P3D[mv.from];if(capP)removePiece(mv.to); if(mv.ep){const{r,c}=rc(mv.to);removePiece(ix(r+(wt=='w'?1:-1),c));} if(mv.promo){scene.remove(pg);pg.traverse(m=>{if(m.geometry)m.geometry.dispose();});pg=PIECE_BUILDERS[mv.promo](wt=='w');pg.position.set(rc(mv.from).c+0.5,PY,rc(mv.from).r+0.5);pg.userData={si:mv.to,isPG:true};pg.traverse(m=>{if(m.isMesh)m.userData={si:mv.to,isPiece:true};});scene.add(pg);} P3D[mv.from]=null;P3D[mv.to]=pg;pg.userData.si=mv.to;pg.traverse(m=>{if(m.isMesh)m.userData.si=mv.to;}); if(mv.castle){let rf,rt2;if(wt=='w'){if(mv.castle=='K'){rf=ix(7,7);rt2=ix(7,5);}else{rf=ix(7,0);rt2=ix(7,3);}}else{if(mv.castle=='K'){rf=ix(0,7);rt2=ix(0,5);}else{rf=ix(0,0);rt2=ix(0,3);}}const rg=P3D[rf];if(rg){const{r:rr,c:rc2}=rc(rt2);rg.position.set(rc2+0.5,PY,rr+0.5);P3D[rt2]=rg;P3D[rf]=null;rg.userData.si=rt2;rg.traverse(m=>{if(m.isMesh)m.userData.si=rt2;});}} if(capP||mv.ep)SFX.capture();else if(mv.castle)SFX.castle();else SFX.move(); isAnim=true;updHL();renderUI(); startAnim(pg,tr,tc,()=>{isAnim=false;updHL();renderUI(); const am2=allM(brd,turn,cas,ep); if(!am2.length){const ck=inCk(brd,turn),winner=turn=='w'?'Black':'Red';endGame(ck?winner+' Wins':'Stalemate',ck?'Checkmate':'Draw — no legal moves',ck?(turn===playerColor?SFX.lose:SFX.win):SFX.stale);return;} if(inCk(brd,turn))SFX.check(); if(gameMode=='online')syncBoardToSupabase(); if(gameMode=='ai'&&turn===getAiColor()&&!over)scheduleAI(100); saveBackup(); }); }
     function showPromo(pc){ const el=document.getElementById('po');el.innerHTML=''; ['Q','R','B','N'].forEach(t=>{ const b=document.createElement('div');b.className='po-b';b.textContent=GLS[pc+t]; b.onclick=()=>{document.getElementById('pm').classList.remove('on');const mv={...pendP,promo:t};pendP=null;execMove(mv);}; el.appendChild(b); }); document.getElementById('pm').classList.add('on'); }
-    function tickTimer(){ if(!timerActive||over||isAnim||aiThink||!started)return; if(gameMode==='online' && turn !== myColor) return; // Only active player's timer ticks locally
+    function tickTimer(){ if(!timerActive||over||isAnim||aiThink||!started)return; if(gameMode==='online' && turn !== myColor) return;
         const now=performance.now();if(lastTick===null){lastTick=now;return;} const dt=(now-lastTick)/1000;lastTick=now; if(turn=='w'){timerW=Math.max(0,timerW-dt);if(timerW<=0){timeOut('w');return;}} else{timerB=Math.max(0,timerB-dt);if(timerB<=0){timeOut('b');return;}} updateTimerUI(); if(gameMode=='online'&&turn===myColor)syncTimersToSupabase(); }
     function timeOut(loser){ if(gameMode=='online'){ turn=op(loser); timerW=60;timerB=60; selSq=null;curLM=[];updHL();renderUI(); syncBoardToSupabase(); toast((loser=='w'?'Red':'Black')+' ran out of time – turn passes'); return; } turn=op(loser);timerW=60;timerB=60;timerActive=true;lastTick=performance.now(); selSq=null;curLM=[];updHL();renderUI(); if(gameMode=='ai'&&turn===getAiColor())scheduleAI(300); saveBackup(); }
     function fmt(s){return Math.floor(s/60)+':'+(Math.floor(s%60)).toString().padStart(2,'0');}
     function updateTimerUI(){ document.getElementById('tvW').textContent=fmt(timerW); document.getElementById('tvB').textContent=fmt(timerB); document.getElementById('tmrW').className='tmr'+(turn=='w'&&!over?' active':'')+(timerW<=10&&turn=='w'?' low':''); document.getElementById('tmrB').className='tmr'+(turn=='b'&&!over?' active':'')+(timerB<=10&&turn=='b'?' low':''); }
     function renderUI(){
         document.getElementById('tdot').className='tdot '+(turn=='w'?'w':'b');
-        const redLabel = myColor === 'w' ? 'Red (You)' : 'Red (Opponent)';
-        const blackLabel = myColor === 'b' ? 'Black (You)' : 'Black (Opponent)';
-        document.getElementById('tlbl').textContent = turn === 'w' ? redLabel : blackLabel;
-        document.getElementById('tmrW').querySelector('.tn').textContent = redLabel;
-        document.getElementById('tmrB').querySelector('.tn').textContent = blackLabel;
+        if (gameMode === 'online') {
+            const redLabel = myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)';
+            const blackLabel = myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)';
+            document.getElementById('tlbl').textContent = turn === 'w' ? redLabel : blackLabel;
+            document.getElementById('tmrW').querySelector('.tn').textContent = redLabel;
+            document.getElementById('tmrB').querySelector('.tn').textContent = blackLabel;
+        } else {
+            document.getElementById('tlbl').textContent = turn === 'w' ? 'Red' : 'Black';
+            document.getElementById('tmrW').querySelector('.tn').textContent = 'Red';
+            document.getElementById('tmrB').querySelector('.tn').textContent = 'Black';
+        }
         if(!aiThink)document.getElementById('smsg').textContent=inCk(brd,turn)?'⚠ Check!':'';
         updateTimerUI();
     }
@@ -412,18 +420,35 @@
     }
     function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
-    // ---------- Chat subscription ----------
+    // ---------- Chat subscription + polling fallback ----------
+    const sentMsgIds = new Set(); // track IDs to avoid duplicates
+    function appendChatMsg(msg) {
+        if (!msg || sentMsgIds.has(msg.id)) return;
+        sentMsgIds.add(msg.id);
+        const box = document.getElementById('chat-messages');
+        box.innerHTML += `<div><b>${msg.nickname}:</b> ${msg.message}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
     function subscribeChat(gameId) {
         if (chatChannel) sb.removeChannel(chatChannel);
         chatChannel = sb.channel('chat_'+safeChannelToken(String(gameId)))
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `game_id=eq.${gameId}` }, payload => {
-                const box = document.getElementById('chat-messages');
-                const msg = payload.new;
-                box.innerHTML += `<div><b>${msg.nickname}:</b> ${msg.message}</div>`;
-                box.scrollTop = box.scrollHeight;
+                appendChatMsg(payload.new);
             })
             .subscribe();
     }
+
+    function startChatPolling(gameId) {
+        stopChatPolling();
+        chatPollInterval = setInterval(async () => {
+            if (!sb || !gameId) return;
+            const { data, error } = await sb.from('chat_messages').select('*').eq('game_id', gameId).order('id', { ascending: true });
+            if (error || !data) return;
+            data.forEach(msg => appendChatMsg(msg));
+        }, 2000);
+    }
+    function stopChatPolling() { if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; } }
 
     // ---------- Online menu navigation ----------
     window.showOnlineMenu = function(){
@@ -552,13 +577,13 @@
         if(!onlineGame) return;
         onlineGame = payload.new;
         const g = onlineGame;
-        if(g.status==='terminated'){ stopPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
+        if(g.status==='terminated'){ stopPolling(); stopChatPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
             if(g.winner) document.getElementById('got').textContent = g.winner==='red'?'Red Wins':'Black Wins';
             startRematchCountdown(); return;
         }
-        if(g.status==='cancelled'){ stopPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
+        if(g.status==='cancelled'){ stopPolling(); stopChatPolling(); toast('Host cancelled the room.'); resetOnlineState(); return; }
         if(g.status==='color_selection'){
             if(g.host_player_id===currentUserId) showColorChoice();
             else { hideAllOnlinePanels(); document.getElementById('waiting-host-color').classList.add('show'); }
@@ -578,7 +603,7 @@
             document.getElementById('ms').style.display='none'; document.getElementById('gu').style.display='block'; started=true;
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
-            subscribeChat(g.id); // start chat subscription
+            subscribeChat(g.id); startChatPolling(g.id);
             camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
@@ -615,7 +640,7 @@
     // ---------- Cancel / Exit ----------
     async function cancelWaiting(){
         if (onlineGame) { await sb.from('online_games').update({status:'cancelled'}).eq('id',onlineGame.id); stopOnlineSync(); onlineGame=null; }
-        stopReconnect(); stopPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
+        stopReconnect(); stopPolling(); stopChatPolling(); hideAllOnlinePanels(); document.getElementById('main-cards').style.display='flex'; document.getElementById('original-buttons').style.display='';
     }
     window.cancelWaiting = cancelWaiting;
 
@@ -635,7 +660,7 @@
     function resetOnlineState(){
         if(onlineChannel) sb.removeChannel(onlineChannel);
         if(chatChannel) sb.removeChannel(chatChannel);
-        stopReconnect(); stopPolling();
+        stopReconnect(); stopPolling(); stopChatPolling();
         if(rematchCountdownInterval){clearInterval(rematchCountdownInterval);rematchCountdownInterval=null;}
         if(onlineGame) sessionStorage.removeItem('chess3d_playerkey_'+onlineGame.id);
         sessionPlayerKey=null; onlineGame=null;
@@ -699,8 +724,8 @@
         if(error){toast('Rematch failed');return;}
         await sb.from('online_games').update({status:'terminated'}).eq('id',g.id);
         onlineGame=newGame; myColor=(currentUserId===newGame.host_player_id)?newHostColor:(newHostColor==='w'?'b':'w');
-        document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; over=false;
-        subscribeToGame(newGame.id); startReconnect(); startPolling();
+        document.getElementById('go').classList.remove('on'); document.getElementById('chat-messages').innerHTML=''; sentMsgIds.clear(); over=false;
+        subscribeToGame(newGame.id); startReconnect(); startPolling(); subscribeChat(newGame.id); startChatPolling(newGame.id);
         document.getElementById('countdown-welcome').textContent = 'Welcome to '+(newGame.host_nickname||'Host')+' room – Room ID: '+newGame.room_code;
         showCountdown();
     }
