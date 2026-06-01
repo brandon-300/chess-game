@@ -541,7 +541,13 @@
     }
 
     function handleGameUpdate(payload){
-        if(!onlineGame) return; onlineGame = payload.new; const g = onlineGame;
+        if(!onlineGame) return;
+        // Debug: show the new status
+        if (payload.new && payload.new.status !== onlineGame.status) {
+            toast('Status: ' + onlineGame.status + ' → ' + payload.new.status);
+        }
+        onlineGame = payload.new;
+        const g = onlineGame;
         if(g.status==='terminated'){ toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
             over = true; timerActive = false; document.getElementById('go').classList.add('on');
