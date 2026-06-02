@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v7 – profile avatar)
+// main.js — Orchestrator for Chess 3D (v8 – avatar fixed)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -42,9 +42,9 @@ async function init() {
 
     try {
         currentUserId = await db.initAuth();
-        await updateHeaderWithAvatar();   // fetch avatar and update header
         updateDebugOverlay();
 
+        // 1. Init UI (does not touch header anymore)
         ui.initUI({
             onStart2P: () => startOfflineGame('2p'),
             onStartAI: showAiDiffPanel,
@@ -130,6 +130,8 @@ async function init() {
             });
         }
 
+        // 2. Now set the correct header state (after UI is ready)
+        await updateHeaderWithAvatar();
         ui.showMenu();
         updateDebugOverlay();
         showError('main', 'Initialization complete');
@@ -400,7 +402,7 @@ function restoreLocalMode(mode) {
     }
 }
 
-// ---------- Cloud sync (with proper messages) ----------
+// ---------- Cloud sync ----------
 async function syncOfflineToCloud() {
     if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
     if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
