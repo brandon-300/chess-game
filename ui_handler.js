@@ -27,32 +27,87 @@ export function initUI(cb) {
 }
 
 function cacheElements() {
+    // Gather every ID that will be used later
     const ids = [
+        // Header
         'login-btn', 'profile-btn', 'debug-overlay', 'error-log',
+
+        // Main menu
         'ms', 'main-cards', 'original-buttons',
         'card-2p', 'card-ai', 'card-online',
+
+        // Online panels
         'online-menu', 'public-menu', 'private-menu', 'join-private',
         'countdown-panel', 'waiting-panel', 'rematch-panel',
-        'login-gate-panel', 'ai-diff-panel', 'ai-color-panel', 'ai-countdown-panel',
+        'login-gate-panel',
+
+        // AI panels
+        'ai-diff-panel', 'ai-color-panel', 'ai-countdown-panel',
+
+        // In-game UI
         'gu', 'top', 'bot',
         'tdot', 'tlbl', 'smsg',
         'tmrW', 'tmrB', 'tvW', 'tvB',
         'thkstrip', 'chat-toggle-btn', 'chat-box', 'chat-messages', 'chat-input', 'btn-send-chat',
+
+        // Game over / promotion
         'go', 'got', 'gos', 'go-btns',
         'pm', 'po',
+
+        // Toast
         'toast',
+
+        // Exit & restore & cloud panels
         'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel',
         'delete-confirm-panel', 'exit-online-panel',
+
+        // Bottom bar buttons
         'new-game-btn', 'undo-btn', 'mode-btn',
+
+        // Online join input
         'private-room-code',
+
+        // Countdown / waiting
         'countdown-welcome', 'countdown-number',
         'waiting-title', 'waiting-text',
         'rematch-text', 'rematch-accept', 'rematch-decline',
+
+        // ---- All the new button IDs ----
+        // Online menu buttons
+        'btn-public-menu', 'btn-private-menu', 'btn-online-back',
+        'btn-create-public', 'btn-join-public', 'btn-public-back',
+        'btn-show-create-private', 'btn-show-join-private', 'btn-private-back',
+        'btn-join-private', 'btn-join-private-back',
+        'btn-cancel-waiting',
+        'btn-rematch-accept', 'btn-rematch-decline',
+
+        // Login gate
+        'btn-go-login', 'btn-login-gate-back',
+
+        // AI difficulty & colour
+        'btn-ai-novice', 'btn-ai-knight', 'btn-ai-master', 'btn-ai-diff-back',
+        'btn-ai-red', 'btn-ai-black', 'btn-ai-color-back',
+        'btn-cancel-ai-countdown',
+
+        // Offline / cloud buttons
+        'btn-restore-local', 'btn-sync-offline-cloud', 'btn-restore-offline-cloud',
+        'btn-delete-all-synced',
+        'btn-delete-confirm', 'btn-delete-cancel',
+
+        // Exit dialogs
+        'btn-exit-save', 'btn-exit-no-save', 'btn-exit-cancel',
+        'btn-exit-online-yes', 'btn-exit-online-stay',
+
+        // Restore choice
+        'btn-restore-ai', 'btn-restore-2p', 'btn-restore-cancel',
+        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
     ];
+
     ids.forEach(id => {
         els[id] = document.getElementById(id);
     });
-    // Additional querySelector results
+
+    // Sub-elements (e.g. timer labels)
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
 }
@@ -104,24 +159,34 @@ function attachListeners() {
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
     btn('btn-delete-all-synced', () => {
-        if (!callbacks.onDeleteSynced) return;
-        // check if logged in? main.js will handle, but we open confirm dialog directly
-        els['delete-confirm-panel']?.classList.add('show');
+        // Show confirmation dialog
+        const panel = els['delete-confirm-panel'];
+        if (panel) panel.classList.add('show');
     });
     btn('btn-delete-confirm', () => {
-        els['delete-confirm-panel']?.classList.remove('show');
+        const panel = els['delete-confirm-panel'];
+        if (panel) panel.classList.remove('show');
         callbacks.onDeleteSynced();
     });
-    btn('btn-delete-cancel', () => els['delete-confirm-panel']?.classList.remove('show'));
+    btn('btn-delete-cancel', () => {
+        const panel = els['delete-confirm-panel'];
+        if (panel) panel.classList.remove('show');
+    });
 
     // Exit choice (offline)
     btn('btn-exit-save', () => callbacks.onExitSave());
     btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
-    btn('btn-exit-cancel', () => els['exit-choice-panel']?.classList.remove('show'));
+    btn('btn-exit-cancel', () => {
+        const panel = els['exit-choice-panel'];
+        if (panel) panel.classList.remove('show');
+    });
 
     // Exit online confirmation
     btn('btn-exit-online-yes', () => callbacks.onExitOnline());
-    btn('btn-exit-online-stay', () => els['exit-online-panel']?.classList.remove('show'));
+    btn('btn-exit-online-stay', () => {
+        const panel = els['exit-online-panel'];
+        if (panel) panel.classList.remove('show');
+    });
 
     // In‑game buttons (bottom bar)
     btn('new-game-btn', () => callbacks.onNewGame());
@@ -140,25 +205,35 @@ function attachListeners() {
         }
     });
 
-    // Restore choice panels
+    // Restore choice panels (local and cloud)
     btn('btn-restore-ai', () => {
-        els['restore-choice-panel']?.classList.remove('show');
+        const panel = els['restore-choice-panel'];
+        if (panel) panel.classList.remove('show');
         if (callbacks.onRestoreAI) callbacks.onRestoreAI();
     });
     btn('btn-restore-2p', () => {
-        els['restore-choice-panel']?.classList.remove('show');
+        const panel = els['restore-choice-panel'];
+        if (panel) panel.classList.remove('show');
         if (callbacks.onRestore2P) callbacks.onRestore2P();
     });
-    btn('btn-restore-cancel', () => els['restore-choice-panel']?.classList.remove('show'));
+    btn('btn-restore-cancel', () => {
+        const panel = els['restore-choice-panel'];
+        if (panel) panel.classList.remove('show');
+    });
     btn('btn-cloud-restore-ai', () => {
-        els['cloud-choice-panel']?.classList.remove('show');
+        const panel = els['cloud-choice-panel'];
+        if (panel) panel.classList.remove('show');
         if (callbacks.onCloudRestoreAI) callbacks.onCloudRestoreAI();
     });
     btn('btn-cloud-restore-2p', () => {
-        els['cloud-choice-panel']?.classList.remove('show');
+        const panel = els['cloud-choice-panel'];
+        if (panel) panel.classList.remove('show');
         if (callbacks.onCloudRestore2P) callbacks.onCloudRestore2P();
     });
-    btn('btn-cloud-restore-cancel', () => els['cloud-choice-panel']?.classList.remove('show'));
+    btn('btn-cloud-restore-cancel', () => {
+        const panel = els['cloud-choice-panel'];
+        if (panel) panel.classList.remove('show');
+    });
 
     // Header login/profile buttons
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
@@ -328,10 +403,12 @@ export function showPromotion(color) {
     pieces.forEach(t => {
         const btn = document.createElement('div');
         btn.className = 'po-b';
-        btn.textContent = color === 'w' ? '♕♖♗♘'[pieces.indexOf(t)] : '♛♜♝♞'[pieces.indexOf(t)]; // rough glyph
-        // Better to use GLS from engine, but we simplify by showing piece letter
-        // Actually we can use color + t for simplicity: e.g., "wQ"
-        btn.textContent = (color === 'w' ? '♕♖♗♘' : '♛♜♝♞')[pieces.indexOf(t)];
+        // Use Unicode chess piece symbols to show the piece
+        const glyphs = {
+            wQ: '\u2655', wR: '\u2656', wB: '\u2657', wN: '\u2658',
+            bQ: '\u265B', bR: '\u265C', bB: '\u265D', bN: '\u265E'
+        };
+        btn.textContent = glyphs[color + t];
         btn.addEventListener('click', () => {
             if (els['pm']) els['pm'].classList.remove('on');
             engine.completePromotion(t);
