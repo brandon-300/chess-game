@@ -188,11 +188,51 @@
     <div id="chat-box"><div id="chat-messages"></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button id="btn-send-chat" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button></div></div>
     <div id="reconnect-indicator">Reconnecting...</div>
 
-    <!-- Three.js (global) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Supabase (global) — creates window.supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Module entry point -->
-    <script type="module" src="main.js"></script>
+    <!-- Three.js and Supabase with fallback loader -->
+    <script>
+        // Load Three.js
+        function loadThreeJS(cb) {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
+            s.onload = cb;
+            s.onerror = function() {
+                // fallback to cdnjs
+                var s2 = document.createElement('script');
+                s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+                s2.onload = cb;
+                s2.onerror = function() {
+                    document.getElementById('error-log').style.display = 'block';
+                    document.getElementById('error-log').textContent += 'Failed to load Three.js\n';
+                };
+                document.head.appendChild(s2);
+            };
+            document.head.appendChild(s);
+        }
+        // Load Supabase
+        function loadSupabase(cb) {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+            s.onload = cb;
+            s.onerror = function() {
+                document.getElementById('error-log').style.display = 'block';
+                document.getElementById('error-log').textContent += 'Failed to load Supabase\n';
+            };
+            document.head.appendChild(s);
+        }
+
+        var scriptsToLoad = 2;
+        function onScriptLoaded() {
+            scriptsToLoad--;
+            if (scriptsToLoad === 0) {
+                // Both loaded, now load main module
+                var main = document.createElement('script');
+                main.type = 'module';
+                main.src = 'main.js';
+                document.body.appendChild(main);
+            }
+        }
+        loadThreeJS(onScriptLoaded);
+        loadSupabase(onScriptLoaded);
+    </script>
 </body>
 </html>
