@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v6 – restore mode fix + cloud messages)
+// main.js — Orchestrator for Chess 3D (v7 – profile avatar)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -42,6 +42,7 @@ async function init() {
 
     try {
         currentUserId = await db.initAuth();
+        await updateHeaderWithAvatar();   // fetch avatar and update header
         updateDebugOverlay();
 
         ui.initUI({
@@ -116,11 +117,12 @@ async function init() {
             db.sb.auth.onAuthStateChange(async (event, session) => {
                 if (session?.user) {
                     currentUserId = session.user.id;
+                    await updateHeaderWithAvatar();
                 } else {
                     currentUserId = null;
+                    ui.updateHeaderUI(null);
                 }
                 updateDebugOverlay();
-                ui.updateHeaderUI(currentUserId);
                 if (!session && gameMode === 'online' && started) {
                     ui.toast('Session expired. Exiting match.');
                     exitOnlineGame();
@@ -128,12 +130,20 @@ async function init() {
             });
         }
 
-        ui.updateHeaderUI(currentUserId);
         ui.showMenu();
         updateDebugOverlay();
         showError('main', 'Initialization complete');
     } catch (err) {
         showError('init()', err);
+    }
+}
+
+async function updateHeaderWithAvatar() {
+    if (currentUserId && db) {
+        const profile = await db.fetchProfileData(currentUserId);
+        ui.updateHeaderUI(currentUserId, profile.avatar_url);
+    } else {
+        ui.updateHeaderUI(null);
     }
 }
 
@@ -376,8 +386,8 @@ function restoreLocalMode(mode) {
     const dataStr = localStorage.getItem('chess3d_backup_' + mode);
     if (!dataStr) { ui.toast('No backup found.'); return; }
     const data = JSON.parse(dataStr);
-    gameMode = mode;                       // set global mode
-    engine.setGameMode(mode);              // set engine mode (so AI scheduling works)
+    gameMode = mode;
+    engine.setGameMode(mode);
     engine.restoreBackup(data);
     ui.hideAllPanels();
     ui.showGameUI();
@@ -394,7 +404,7 @@ function restoreLocalMode(mode) {
 async function syncOfflineToCloud() {
     if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
     if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
-    ui.toast('Syncing data to cloud…', 0); // 0 = stay until overwritten
+    ui.toast('Syncing data to cloud…', 0);
     try {
         await db.syncOfflineToCloud(currentUserId);
         ui.toast('Synced data successfully');
@@ -412,7 +422,7 @@ async function restoreOfflineFromCloud() {
         if (Array.isArray(result)) {
             window._cloudBackups = result;
             ui.showCloudChoicePanel();
-            ui.toast(''); // clear the "restoring…" toast
+            ui.toast('');
         } else {
             ui.toast('Restored data successfully');
         }

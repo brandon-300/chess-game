@@ -32,7 +32,7 @@ export function initUI(cb) {
 function cacheElements() {
     const ids = [
         // Header
-        'login-btn', 'profile-btn', 'debug-overlay', 'error-log',
+        'login-btn', 'profile-avatar', 'profile-avatar-img', 'debug-overlay', 'error-log',
 
         // Main menu
         'ms', 'main-cards', 'original-buttons',
@@ -105,6 +105,13 @@ function cacheElements() {
 
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
+
+    // Add click listener to the avatar (it's already in the DOM)
+    if (els['profile-avatar']) {
+        els['profile-avatar'].addEventListener('click', () => {
+            window.location.href = 'profile.html';
+        });
+    }
 }
 
 function attachListeners() {
@@ -218,8 +225,8 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
+    // Header login button is already handled, avatar click already set in cacheElements
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
-    if (els['profile-btn']) els['profile-btn'].addEventListener('click', () => { window.location.href = 'profile.html'; });
 }
 
 // ---------- Panel helpers ----------
@@ -266,14 +273,23 @@ export function hideGameOver() {
 }
 
 // ---------- Header UI ----------
-export function updateHeaderUI(userId) {
-    if (!els['login-btn'] || !els['profile-btn']) return;
+export function updateHeaderUI(userId, avatarUrl) {
+    if (!els['login-btn'] || !els['profile-avatar'] || !els['profile-avatar-img']) return;
     if (userId) {
+        // Logged in – hide login button, show avatar
         els['login-btn'].style.display = 'none';
-        els['profile-btn'].style.display = 'inline-block';
+        els['profile-avatar'].style.display = 'block';
+        if (avatarUrl) {
+            els['profile-avatar-img'].src = avatarUrl;
+        } else {
+            // No avatar – show a fallback gold circle (CSS background will handle)
+            els['profile-avatar-img'].src = ''; // let CSS background show
+        }
     } else {
+        // Logged out
         els['login-btn'].style.display = 'inline-block';
-        els['profile-btn'].style.display = 'none';
+        els['profile-avatar'].style.display = 'none';
+        els['profile-avatar-img'].src = '';
     }
 }
 
@@ -315,7 +331,7 @@ export function updateThinkingIndicator(thinking) {
 
 // ---------- Chat visibility ----------
 export function setChatVisibility(visible) {
-    const toggle = els['chat-toggle-btn']?.parentElement; // .chat-toggle div
+    const toggle = els['chat-toggle-btn']?.parentElement;
     const box = els['chat-box'];
     if (toggle) toggle.style.display = visible ? '' : 'none';
     if (box && !visible) box.classList.remove('show');

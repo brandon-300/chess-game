@@ -52,6 +52,21 @@ export async function fetchUsername(userId) {
     return data?.username || null;
 }
 
+// NEW: fetch full profile data (username + avatar_url)
+export async function fetchProfileData(userId) {
+    if (!sb) return { username: null, avatar_url: null };
+    const { data, error } = await sb
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (error) {
+        console.error('fetchProfileData error:', error);
+        return { username: null, avatar_url: null };
+    }
+    return data || { username: null, avatar_url: null };
+}
+
 // ---------- Online Games ----------
 
 // Fetch full game row
@@ -273,10 +288,8 @@ export async function restoreOfflineFromCloud(userId, onSelectMode) {
             backup.mode === 'ai' ? 'chess3d_backup_ai' : 'chess3d_backup_2p',
             JSON.stringify(backup.backup_data)
         );
-        // Callback to main.js to restore the mode
         if (onSelectMode) onSelectMode(backup.mode);
     } else {
-        // More than one backup – return array so main.js can show choice
         return data;
     }
 }
