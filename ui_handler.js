@@ -24,10 +24,12 @@ export function initUI(cb) {
     // Initial UI state
     updateHeaderUI(null);
     if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
+
+    // Hide chat by default (will be shown only for online games)
+    setChatVisibility(false);
 }
 
 function cacheElements() {
-    // Gather every ID that will be used later
     const ids = [
         // Header
         'login-btn', 'profile-btn', 'debug-overlay', 'error-log',
@@ -72,8 +74,7 @@ function cacheElements() {
         'waiting-title', 'waiting-text',
         'rematch-text', 'rematch-accept', 'rematch-decline',
 
-        // ---- All the new button IDs ----
-        // Online menu buttons
+        // ---- All button IDs ----
         'btn-public-menu', 'btn-private-menu', 'btn-online-back',
         'btn-create-public', 'btn-join-public', 'btn-public-back',
         'btn-show-create-private', 'btn-show-join-private', 'btn-private-back',
@@ -81,24 +82,19 @@ function cacheElements() {
         'btn-cancel-waiting',
         'btn-rematch-accept', 'btn-rematch-decline',
 
-        // Login gate
         'btn-go-login', 'btn-login-gate-back',
 
-        // AI difficulty & colour
         'btn-ai-novice', 'btn-ai-knight', 'btn-ai-master', 'btn-ai-diff-back',
         'btn-ai-red', 'btn-ai-black', 'btn-ai-color-back',
         'btn-cancel-ai-countdown',
 
-        // Offline / cloud buttons
         'btn-restore-local', 'btn-sync-offline-cloud', 'btn-restore-offline-cloud',
         'btn-delete-all-synced',
         'btn-delete-confirm', 'btn-delete-cancel',
 
-        // Exit dialogs
         'btn-exit-save', 'btn-exit-no-save', 'btn-exit-cancel',
         'btn-exit-online-yes', 'btn-exit-online-stay',
 
-        // Restore choice
         'btn-restore-ai', 'btn-restore-2p', 'btn-restore-cancel',
         'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
     ];
@@ -107,24 +103,20 @@ function cacheElements() {
         els[id] = document.getElementById(id);
     });
 
-    // Sub-elements (e.g. timer labels)
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
 }
 
 function attachListeners() {
-    // Helper to safely attach a listener if element exists
     const btn = (id, handler) => {
         const el = els[id];
         if (el) el.addEventListener('click', handler);
     };
 
-    // Mode selection cards
     btn('card-2p', () => callbacks.onStart2P());
     btn('card-ai', () => callbacks.onStartAI());
     btn('card-online', () => callbacks.onOnlineMenu());
 
-    // Online menus
     btn('btn-public-menu', () => { hideAllPanels(); showPanel('public-menu'); });
     btn('btn-private-menu', () => { hideAllPanels(); showPanel('private-menu'); });
     btn('btn-online-back', () => { hideAllPanels(); showMenu(); });
@@ -140,11 +132,9 @@ function attachListeners() {
     btn('btn-rematch-accept', () => callbacks.onAcceptRematch());
     btn('btn-rematch-decline', () => callbacks.onDeclineRematch());
 
-    // Login gate
     btn('btn-go-login', () => { window.location.href = 'user_login.html'; });
     btn('btn-login-gate-back', () => { hideAllPanels(); showMenu(); });
 
-    // AI panels
     btn('btn-ai-novice', () => { engine.setAiDepth(1); hideAllPanels(); showPanel('ai-color-panel'); });
     btn('btn-ai-knight', () => { engine.setAiDepth(3); hideAllPanels(); showPanel('ai-color-panel'); });
     btn('btn-ai-master', () => { engine.setAiDepth(4); hideAllPanels(); showPanel('ai-color-panel'); });
@@ -154,12 +144,10 @@ function attachListeners() {
     btn('btn-ai-color-back', () => { hideAllPanels(); showPanel('ai-diff-panel'); });
     btn('btn-cancel-ai-countdown', cancelAiCountdown);
 
-    // Cloud sync / offline buttons
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
     btn('btn-delete-all-synced', () => {
-        // Show confirmation dialog
         const panel = els['delete-confirm-panel'];
         if (panel) panel.classList.add('show');
     });
@@ -173,7 +161,6 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Exit choice (offline)
     btn('btn-exit-save', () => callbacks.onExitSave());
     btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
     btn('btn-exit-cancel', () => {
@@ -181,19 +168,16 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Exit online confirmation
     btn('btn-exit-online-yes', () => callbacks.onExitOnline());
     btn('btn-exit-online-stay', () => {
         const panel = els['exit-online-panel'];
         if (panel) panel.classList.remove('show');
     });
 
-    // In‑game buttons (bottom bar)
     btn('new-game-btn', () => callbacks.onNewGame());
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    // Chat toggle and send
     btn('chat-toggle-btn', () => callbacks.onToggleChat());
     btn('btn-send-chat', () => {
         const input = els['chat-input'];
@@ -205,7 +189,6 @@ function attachListeners() {
         }
     });
 
-    // Restore choice panels (local and cloud)
     btn('btn-restore-ai', () => {
         const panel = els['restore-choice-panel'];
         if (panel) panel.classList.remove('show');
@@ -235,7 +218,6 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Header login/profile buttons
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
     if (els['profile-btn']) els['profile-btn'].addEventListener('click', () => { window.location.href = 'profile.html'; });
 }
@@ -331,6 +313,14 @@ export function updateThinkingIndicator(thinking) {
     }
 }
 
+// ---------- Chat visibility ----------
+export function setChatVisibility(visible) {
+    const toggle = els['chat-toggle-btn']?.parentElement; // .chat-toggle div
+    const box = els['chat-box'];
+    if (toggle) toggle.style.display = visible ? '' : 'none';
+    if (box && !visible) box.classList.remove('show');
+}
+
 // ---------- Online waiting / countdown ----------
 export function showWaitingRoom(hostNickname, roomCode) {
     hideAllPanels();
@@ -403,7 +393,6 @@ export function showPromotion(color) {
     pieces.forEach(t => {
         const btn = document.createElement('div');
         btn.className = 'po-b';
-        // Use Unicode chess piece symbols to show the piece
         const glyphs = {
             wQ: '\u2655', wR: '\u2656', wB: '\u2657', wN: '\u2658',
             bQ: '\u265B', bR: '\u265C', bB: '\u265D', bN: '\u265E'
