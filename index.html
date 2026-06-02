@@ -589,7 +589,13 @@
         onlineGame = payload.new;
         const g = onlineGame;
         if (typeof g.board_state === 'string') {
-            try { g.board_state = JSON.parse(g.board_state); } catch(e) { return; }
+            try { g.board_state = JSON.parse(g.board_state); } catch(e) { 
+                toast('Board state corrupted – resetting', 2000);
+                // Reset to initial state to recover
+                g.board_state = {brd:initBrd(),turn:'w',cas:{wK:true,wQ:true,bK:true,bQ:true},ep:null};
+                // Save fresh state back to database immediately
+                sb.from('online_games').update({ board_state: JSON.stringify(g.board_state) }).eq('id', g.id);
+            }
         }
         if(g.status==='terminated'){ stopPolling(); stopChatPolling(); toast('Match terminated by opponent.'); resetOnlineState(); return; }
         if(g.status==='finished' && !over){
@@ -614,7 +620,9 @@
             document.getElementById('new-game-btn').style.display='none'; document.getElementById('undo-btn').style.display='none';
             document.getElementById('mode-btn').textContent='Exit'; document.getElementById('mode-btn').style.color='#cc0000'; document.getElementById('mode-btn').onclick=confirmExitOnline;
             startChatPolling(g.id);
-            camTheta = myColor==='w'?0:Math.PI; updateCamera(); return;
+            camTheta = myColor==='w'?0:Math.PI; updateCamera();
+            toast('Board updated', 1000); // debug toast
+            return;
         }
         if(g.status==='frozen'){ timerActive=false; document.getElementById('smsg').textContent='Opponent left – waiting...'; }
     }
