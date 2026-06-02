@@ -3,6 +3,9 @@
 
 // ---------- Internal state ----------
 
+// Engine initialization flag
+let engineInitialized = false;
+
 // Chess state
 let brd = [];
 let turn = 'w';
@@ -29,9 +32,9 @@ let timerActive = false;
 let lastTick = null;
 
 // Game mode & AI
-let gameMode = '2p';        // '2p', 'ai', 'online'
-let playerColor = 'w';      // used for AI (human colour)
-let myColor = 'w';          // used for online (my assigned colour)
+let gameMode = '2p';
+let playerColor = 'w';
+let myColor = 'w';
 let aiDepth = 3;
 let selDiff = 3;
 
@@ -332,14 +335,21 @@ function getBestMove(board, cas, ep, depth, color) {
     return bestMove;
 }
 
-// ---------- Three.js rendering ----------
-function buildBoard() {
-    // Safety guard: scene must be initialized before building the board
-    if (!scene) {
-        console.error('buildBoard() called before scene was initialized. Did you call initEngine()?');
-        return;
+// ---------- Three.js rendering (all guarded) ----------
+function ensureEngineReady() {
+    if (!engineInitialized) {
+        console.error('Game engine not initialized. Did you call initEngine()?');
+        return false;
     }
-    
+    if (!scene) {
+        console.error('Scene not created. initEngine() may have failed.');
+        return false;
+    }
+    return true;
+}
+
+function buildBoard() {
+    if (!ensureEngineReady()) return;
     const woodMat = new THREE.MeshPhongMaterial({ color: 0x4a2810, shininess: 20 });
     const frame = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.6, 10.6), woodMat);
     frame.position.set(4, -0.3, 4); frame.receiveShadow = true; scene.add(frame);
@@ -378,6 +388,7 @@ function buildBoard() {
 }
 
 function mkLabel(text, x, y, z) {
+    if (!ensureEngineReady()) return;
     const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
     const ctx = cv.getContext('2d');
     ctx.fillStyle = 'rgba(201,168,76,1)'; ctx.font = 'bold 70px serif';
@@ -408,6 +419,7 @@ const PIECE_BUILDERS = {
 };
 
 function placePiece(si, ps) {
+    if (!ensureEngineReady()) return;
     const { r, c } = rc(si), isW = cl(ps) === 'w';
     const g = PIECE_BUILDERS[tp(ps)](isW);
     g.position.set(c + 0.5, PY, r + 0.5);
@@ -417,6 +429,7 @@ function placePiece(si, ps) {
 }
 
 function removePiece(si) {
+    if (!ensureEngineReady()) return;
     if (!P3D[si]) return;
     scene.remove(P3D[si]);
     P3D[si].traverse(m => { if (m.geometry) m.geometry.dispose(); });
@@ -424,21 +437,25 @@ function removePiece(si) {
 }
 
 function syncAll(board) {
+    if (!ensureEngineReady()) return;
     for (let i = 0; i < 64; i++) removePiece(i);
     board.forEach((p, i) => { if (p) placePiece(i, p); });
 }
 
 function clearDots() {
+    if (!ensureEngineReady()) return;
     DOTS.forEach(d => { scene.remove(d); if (d.geometry) d.geometry.dispose(); });
     DOTS.length = 0;
 }
 
 function clearTints() {
+    if (!ensureEngineReady()) return;
     TINTED.forEach(({ si, oc }) => { if (SQ3D[si]) SQ3D[si].material.color.setHex(oc); });
     TINTED = [];
 }
 
 function tintSq(si, hex, blend) {
+    if (!ensureEngineReady()) return;
     if (!SQ3D[si]) return;
     const orig = SQ_BASE_COL[si];
     SQ3D[si].material.color.copy(new THREE.Color(orig).lerp(new THREE.Color(hex), blend));
@@ -446,6 +463,7 @@ function tintSq(si, hex, blend) {
 }
 
 function showDots(mvs, board) {
+    if (!ensureEngineReady()) return;
     clearDots();
     mvs.forEach(mv => {
         const { r, c } = rc(mv.to), isCap = !!(board[mv.to] || mv.ep);
@@ -462,6 +480,7 @@ function showDots(mvs, board) {
 }
 
 function updHL() {
+    if (!ensureEngineReady()) return;
     clearTints(); clearDots();
     if (lastMv) { tintSq(lastMv.from, 0xc9a84c, 0.30); tintSq(lastMv.to, 0xc9a84c, 0.30); }
     if (inCk(brd, turn)) { const ki = brd.findIndex(s => s === turn + 'K'); if (ki >= 0) tintSq(ki, 0xff2020, 0.65); }
@@ -489,6 +508,7 @@ function tickAnim() {
 
 // ---------- Move execution ----------
 function execMove(mv) {
+    if (!ensureEngineReady()) return;
     if (isAnim || over) return;
     const wt = turn, capP = brd[mv.to], { r: tr, c: tc } = rc(mv.to);
     hist.push({
@@ -564,11 +584,7 @@ function execMove(mv) {
             return;
         }
         if (inCk(brd, turn)) SFX.check();
-
-        // Call move callback for online sync
         if (moveExecutedCallback) moveExecutedCallback(mv);
-
-        // AI scheduling
         if (gameMode === 'ai' && turn === (playerColor === 'w' ? 'b' : 'w') && !over) scheduleAI(100);
     });
 }
@@ -669,6 +685,7 @@ export function initEngine(canvas, moveCallback) {
     moveExecutedCallback = moveCallback;
     boardBuilt = false;
     resetState();
+    engineInitialized = true;
     startAnimationLoop();
 }
 
@@ -679,6 +696,7 @@ function onResize() {
 }
 
 function updateCamera() {
+    if (!camera) return;
     const x = BOARD_CENTER.x + camDist * Math.sin(camPhi) * Math.sin(camTheta);
     const y = BOARD_CENTER.y + camDist * Math.cos(camPhi);
     const z = BOARD_CENTER.z + camDist * Math.sin(camPhi) * Math.cos(camTheta);
@@ -750,6 +768,7 @@ function setupInputHandlers(canvas) {
 }
 
 export function startGame(mode) {
+    if (!ensureEngineReady()) return;
     gameMode = mode;
     resetState();
     if (!boardBuilt) {
@@ -765,6 +784,7 @@ export function startGame(mode) {
 }
 
 export function newGame() {
+    if (!ensureEngineReady()) return;
     resetState();
     syncAll(brd);
     clearDots(); clearTints();
@@ -775,6 +795,7 @@ export function newGame() {
 }
 
 export function undoMove() {
+    if (!ensureEngineReady()) return;
     if (isAnim || aiThink || !hist.length) return;
     aiThink = false;
     const steps = (gameMode === 'ai' && hist.length >= 2) ? 2 : 1;
@@ -834,6 +855,7 @@ export function isPromotionPending() { return promotionPending; }
 export function getGameOverInfo() { const info = gameOverInfo; gameOverInfo = null; return info; }
 
 export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
+    if (!ensureEngineReady()) return;
     brd = newBoard; turn = newTurn; cas = newCas; ep = newEp;
     timerW = tW; timerB = tB;
     timerActive = true; lastTick = performance.now();
@@ -849,6 +871,7 @@ export function getBackupData() {
 }
 
 export function restoreBackup(data) {
+    if (!ensureEngineReady()) return;
     brd = data.brd; turn = data.turn; cas = data.cas; ep = data.ep;
     hist = data.hist; capW = data.capW; capB = data.capB; mlog = data.mlog;
     timerW = data.timerW; timerB = data.timerB;
@@ -873,6 +896,10 @@ export function rotateForPlayer(color) {
 }
 
 export function startAnimationLoop() {
+    if (!engineInitialized) {
+        console.error('Cannot start animation loop – engine not initialized.');
+        return;
+    }
     function animate() {
         requestAnimationFrame(animate);
         tickAnim();
