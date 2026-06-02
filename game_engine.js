@@ -594,9 +594,9 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer ----------
+// ---------- Timer (FIXED: removed aiThink check so AI’s timer ticks while thinking) ----------
 function tickTimer() {
-    if (!timerActive || over || isAnim || aiThink) return;
+    if (!timerActive || over || isAnim) return;
     if (gameMode === 'online' && turn !== myColor) return;
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
@@ -778,7 +778,7 @@ export function startGame(mode) {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    // ** FIX: activate timers for ALL modes **
+    // Activate timers for ALL modes
     timerActive = true;
     lastTick = performance.now();
     if (mode === 'ai' && playerColor === 'b') {
@@ -792,7 +792,7 @@ export function newGame() {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    // ** FIX: activate timers for ALL modes **
+    // Activate timers for ALL modes
     timerActive = true;
     lastTick = performance.now();
     if (gameMode === 'ai' && playerColor === 'b') {
