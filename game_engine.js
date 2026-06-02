@@ -778,8 +778,11 @@ export function startGame(mode) {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
+    // ** FIX: activate timers for ALL modes **
+    timerActive = true;
+    lastTick = performance.now();
     if (mode === 'ai' && playerColor === 'b') {
-        timerActive = true; lastTick = performance.now(); scheduleAI(500);
+        scheduleAI(500);
     }
 }
 
@@ -789,8 +792,11 @@ export function newGame() {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
+    // ** FIX: activate timers for ALL modes **
+    timerActive = true;
+    lastTick = performance.now();
     if (gameMode === 'ai' && playerColor === 'b') {
-        timerActive = true; lastTick = performance.now(); scheduleAI(500);
+        scheduleAI(500);
     }
 }
 
