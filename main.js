@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (diagnostic edition, corrected)
+// main.js — Orchestrator for Chess 3D (v2 – AI panel & thinking‑strip fixes)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -44,7 +44,6 @@ async function init() {
         currentUserId = await db.initAuth();
         updateDebugOverlay();
 
-        // Setup UI callbacks (note: fixed naming for exit without save)
         ui.initUI({
             onStart2P: () => startOfflineGame('2p'),
             onStartAI: showAiDiffPanel,
@@ -69,7 +68,7 @@ async function init() {
             onModeBtn: handleBottomRight,
 
             onExitSave: exitWithSave,
-            onExitWithoutSave: exitWithoutSave,   // <-- FIXED name
+            onExitWithoutSave: exitWithoutSave,
             onExitOnline: confirmExitOnline,
             onRestoreLocal: restoreLocalGame,
             onSyncOfflineCloud: () => syncOfflineToCloud(),
@@ -82,23 +81,27 @@ async function init() {
             onCloudRestore2P: () => restoreCloudMode('2p'),
         });
 
-        // Init engine with move callback
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
 
-        // Set up a frame callback so UI timers / indicators update every frame
+        // Frame callback – updates timer, thinking strip, check indicator EVERY frame
         engine.setFrameCallback((state) => {
             if (!started) return;
             const isOnline = gameMode === 'online';
             ui.updateTurnIndicator(state.turn, myColor, isOnline);
             ui.updateTimers(state.timerW, state.timerB, state.turn);
+
+            // Always set thinking indicator to current state (turns it OFF when aiThink false)
+            ui.updateThinkingIndicator(state.aiThink);
+
+            // Show check warning in status bar
             if (state.inCheck) {
-                ui.updateThinkingIndicator(false);
-                // Optional: show check toast? Engine does its own check sound.
+                document.getElementById('smsg').textContent = '⚠ Check!';
+            } else if (!state.aiThink) {
+                document.getElementById('smsg').textContent = '';
             }
-            if (state.aiThink) ui.updateThinkingIndicator(true);
+
+            // Game‑over info
             if (state.over) {
-                // Handle game over display (engine already calls endGame internally,
-                // but we can show popup via engine's gameOverInfo)
                 const info = engine.getGameOverInfo();
                 if (info) {
                     ui.showGameOver(info.title, info.subtitle,
@@ -108,12 +111,13 @@ async function init() {
                     over = true;
                 }
             }
+
+            // Promotion
             if (state.promotionPending) {
                 ui.showPromotion(engine.getTurn());
             }
         });
 
-        // Auth state listener
         if (db.sb) {
             db.sb.auth.onAuthStateChange(async (event, session) => {
                 if (session?.user) {
@@ -178,16 +182,30 @@ function undoMove() {
 }
 
 // ---------- AI flow ----------
-function showAiDiffPanel() { ui.showPanel('ai-diff-panel'); }
-function startAiGame() { startOfflineGame('ai'); }
+function showAiDiffPanel() {
+    // Hide main cards & original buttons so the panel is centered on screen
+    document.getElementById('main-cards').style.display = 'none';
+    document.getElementById('original-buttons').style.display = 'none';
+    ui.hideAllPanels();
+    ui.showPanel('ai-diff-panel');
+}
+
+function startAiGame() {
+    startOfflineGame('ai');
+}
 
 // ---------- Online game flow ----------
 async function showOnlineMenu() {
     if (!currentUserId) { ui.showLoginGate(); return; }
+    // Hide main cards & original buttons when going to online submenu
+    document.getElementById('main-cards').style.display = 'none';
+    document.getElementById('original-buttons').style.display = 'none';
     ui.showPanel('online-menu');
 }
+
 async function createPublicRoom() { await createRoom(null, 'public'); }
 async function createPrivateRoom() { await createRoom(null, 'private'); }
+
 async function createRoom(code, type) {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
@@ -198,6 +216,7 @@ async function createRoom(code, type) {
         onlineGameCreated(game, hostKey);
     } catch (e) { ui.toast('Failed to create room: ' + e.message); }
 }
+
 async function joinPublicRoom() {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
@@ -208,6 +227,7 @@ async function joinPublicRoom() {
         onlineGameJoined(game, joinerKey);
     } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
+
 async function joinPrivateRoom() {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
@@ -220,6 +240,7 @@ async function joinPrivateRoom() {
         onlineGameJoined(game, joinerKey);
     } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
+
 function onlineGameCreated(game, hostKey) {
     currentOnlineGame = game;
     sessionPlayerKey = hostKey;
@@ -227,6 +248,7 @@ function onlineGameCreated(game, hostKey) {
     ui.showWaitingRoom(game.host_nickname, game.room_code);
     startPolling(game.id);
 }
+
 function onlineGameJoined(game, joinerKey) {
     currentOnlineGame = game;
     sessionPlayerKey = joinerKey;
@@ -235,6 +257,7 @@ function onlineGameJoined(game, joinerKey) {
     ui.showCountdown(game.host_nickname, game.room_code);
     startPolling(game.id);
 }
+
 async function startOnlineGame() {
     if (!currentOnlineGame) return;
     if (currentOnlineGame.host_player_id === currentUserId) {
@@ -249,6 +272,7 @@ async function startOnlineGame() {
     startChatPolling(currentOnlineGame.id);
     engine.rotateForPlayer(myColor);
 }
+
 async function cancelWaiting() {
     if (currentOnlineGame) { await db.cancelGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); }
 }
@@ -267,7 +291,6 @@ async function pollGameState() {
         engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b);
     } catch (e) {}
 }
-function handleOnlineGameEnd(gameData) { /* simplified */ }
 
 // ---------- Chat ----------
 function startChatPolling(gameId) { stopChatPolling(); chatPollInterval = setInterval(async () => { try { const msgs = await db.getChatMessages(gameId); ui.displayChatMessages(msgs); } catch (e) {} }, 2000); }
@@ -291,8 +314,6 @@ async function onLocalMoveExecuted(move) {
 }
 
 // ---------- Rematch ----------
-function startRematchCountdown() { /* ... */ }
-async function requestRematch() { /* ... */ }
 async function acceptRematch() { ui.toast('Rematch accepted.'); }
 async function declineRematch() { await db.terminateGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); }
 
@@ -305,6 +326,7 @@ async function exitOnlineGame() {
     else await db.freezeGame(currentOnlineGame.id, currentUserId);
     resetOnlineState(); ui.showMenu();
 }
+
 function resetOnlineState() {
     stopOnlineGameLoop(); stopChatPolling();
     if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id);
@@ -312,12 +334,17 @@ function resetOnlineState() {
     moveSyncing = false; lastKnownServerState = null; over = false;
     ui.hideGameUI(); ui.hideGameOver(); engine.resetState(); started = false;
 }
-function handleBottomRight() { if (gameMode === 'online') confirmExitOnline(); else ui.showExitChoicePanel(); }
-function exitWithSave() { saveBackup(); ui.hideGameUI(); ui.showMenu(); engine.resetState(); }
+
+function handleBottomRight() {
+    if (gameMode === 'online') confirmExitOnline();
+    else ui.showExitChoicePanel();
+}
+
+function exitWithSave() { saveBackup(); ui.hideGameUI(); ui.showMenu(); engine.resetState(); started = false; }
 function exitWithoutSave() {
     if (confirm('Are you sure? Any progress will be lost.')) {
         localStorage.removeItem('chess3d_backup_' + gameMode);
-        ui.hideGameUI(); ui.showMenu(); engine.resetState();
+        ui.hideGameUI(); ui.showMenu(); engine.resetState(); started = false;
     }
 }
 
@@ -326,6 +353,7 @@ let autoSaveInterval = null;
 function saveBackup() { if (over || gameMode === 'online') return; const data = engine.getBackupData(); localStorage.setItem('chess3d_backup_' + gameMode, JSON.stringify(data)); }
 function startAutoSave() { stopAutoSave(); autoSaveInterval = setInterval(() => { if (!over && started && gameMode !== 'online') saveBackup(); }, 2000); }
 function stopAutoSave() { if (autoSaveInterval) { clearInterval(autoSaveInterval); autoSaveInterval = null; } }
+
 function restoreLocalGame() {
     const ai = localStorage.getItem('chess3d_backup_ai'), pvp = localStorage.getItem('chess3d_backup_2p');
     if (!ai && !pvp) { ui.toast('No backup found.'); return; }
@@ -333,6 +361,7 @@ function restoreLocalGame() {
     else if (!ai && pvp) restoreLocalMode('2p');
     else ui.showRestoreChoicePanel();
 }
+
 function restoreLocalMode(mode) {
     const dataStr = localStorage.getItem('chess3d_backup_' + mode);
     if (!dataStr) { ui.toast('No backup found.'); return; }
@@ -340,6 +369,7 @@ function restoreLocalMode(mode) {
     ui.hideAllPanels(); ui.showGameUI(); started = true; over = false; startAutoSave();
     if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300);
 }
+
 async function syncOfflineToCloud() { /* ... */ }
 async function restoreOfflineFromCloud() { /* ... */ }
 function restoreCloudMode(mode) { /* ... */ }
