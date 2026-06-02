@@ -594,7 +594,7 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer (FIXED: removed aiThink check so AI’s timer ticks while thinking) ----------
+// ---------- Timer ----------
 function tickTimer() {
     if (!timerActive || over || isAnim) return;
     if (gameMode === 'online' && turn !== myColor) return;
@@ -778,7 +778,6 @@ export function startGame(mode) {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    // Activate timers for ALL modes
     timerActive = true;
     lastTick = performance.now();
     if (mode === 'ai' && playerColor === 'b') {
@@ -792,7 +791,6 @@ export function newGame() {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    // Activate timers for ALL modes
     timerActive = true;
     lastTick = performance.now();
     if (gameMode === 'ai' && playerColor === 'b') {
@@ -846,6 +844,9 @@ export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
 
+// NEW: explicitly set the engine mode (for restores)
+export function setGameMode(mode) { gameMode = mode; }
+
 export function getTurn() { return turn; }
 export function getBoardArray() { return brd; }
 export function getCastling() { return cas; }
@@ -862,7 +863,6 @@ export function getGameOverInfo() { const info = gameOverInfo; gameOverInfo = nu
 
 export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
     if (!ensureEngineReady()) return;
-    // Ensure the board is built before syncing pieces onto it
     if (!boardBuilt) {
         buildBoard();
         boardBuilt = true;
@@ -883,7 +883,6 @@ export function getBackupData() {
 
 export function restoreBackup(data) {
     if (!ensureEngineReady()) return;
-    // Ensure the board is built before placing pieces
     if (!boardBuilt) {
         buildBoard();
         boardBuilt = true;
