@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v5 – cloud sync functions restored)
+// main.js — Orchestrator for Chess 3D (v6 – restore mode fix + cloud messages)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -83,24 +83,19 @@ async function init() {
 
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
 
-        // Frame callback – updates timer, thinking strip, check indicator EVERY frame
         engine.setFrameCallback((state) => {
             if (!started) return;
             const isOnline = gameMode === 'online';
             ui.updateTurnIndicator(state.turn, myColor, isOnline);
             ui.updateTimers(state.timerW, state.timerB, state.turn);
-
-            // Always set thinking indicator to current state (turns it OFF when aiThink false)
             ui.updateThinkingIndicator(state.aiThink);
 
-            // Show check warning in status bar
             if (state.inCheck) {
                 document.getElementById('smsg').textContent = '⚠ Check!';
             } else if (!state.aiThink) {
                 document.getElementById('smsg').textContent = '';
             }
 
-            // Game‑over info
             if (state.over) {
                 const info = engine.getGameOverInfo();
                 if (info) {
@@ -112,7 +107,6 @@ async function init() {
                 }
             }
 
-            // Promotion
             if (state.promotionPending) {
                 ui.showPromotion(engine.getTurn());
             }
@@ -381,41 +375,49 @@ function restoreLocalGame() {
 function restoreLocalMode(mode) {
     const dataStr = localStorage.getItem('chess3d_backup_' + mode);
     if (!dataStr) { ui.toast('No backup found.'); return; }
-    const data = JSON.parse(dataStr); engine.restoreBackup(data); gameMode = mode;
-    ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(false); started = true; over = false; startAutoSave();
-    if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300);
+    const data = JSON.parse(dataStr);
+    gameMode = mode;                       // set global mode
+    engine.setGameMode(mode);              // set engine mode (so AI scheduling works)
+    engine.restoreBackup(data);
+    ui.hideAllPanels();
+    ui.showGameUI();
+    ui.setChatVisibility(false);
+    started = true;
+    over = false;
+    startAutoSave();
+    if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) {
+        engine.scheduleAI(300);
+    }
 }
 
-// ---------- Cloud sync ----------
+// ---------- Cloud sync (with proper messages) ----------
 async function syncOfflineToCloud() {
     if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
     if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Syncing data to cloud…', 0); // 0 = stay until overwritten
     try {
         await db.syncOfflineToCloud(currentUserId);
-        ui.toast('Synced offline data to cloud.');
+        ui.toast('Synced data successfully');
     } catch (e) {
-        ui.toast('Sync failed: ' + e.message);
+        ui.toast('Failed to sync data: ' + e.message);
     }
 }
 
 async function restoreOfflineFromCloud() {
     if (!currentUserId) { ui.toast('Please log in to restore cloud data.'); return; }
     if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Restoring data from cloud…', 0);
     try {
         const result = await db.restoreOfflineFromCloud(currentUserId);
         if (Array.isArray(result)) {
-            // Multiple backups — show choice
             window._cloudBackups = result;
             ui.showCloudChoicePanel();
+            ui.toast(''); // clear the "restoring…" toast
         } else {
-            // Single backup already restored by database.js callback? Actually database.js expects a callback to restore mode.
-            // We passed onSelectMode in db.restoreOfflineFromCloud, but in our current db it just calls the callback if single backup.
-            // If we got here, it means a single backup was restored automatically, so ui.toast already shown by db.
-            // However, we need to refresh the game if restored? Let db handle it.
-            // Since db.restoreOfflineFromCloud calls onSelectMode if provided, but we didn't pass it. Need to adjust.
+            ui.toast('Restored data successfully');
         }
     } catch (e) {
-        ui.toast('Restore failed: ' + e.message);
+        ui.toast('Failed to restore data: ' + e.message);
     }
 }
 
@@ -433,6 +435,7 @@ function restoreCloudMode(mode) {
 async function deleteAllSyncedData() {
     if (!currentUserId) { ui.toast('Please log in to delete synced data.'); return; }
     if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Deleting synced data…', 0);
     try {
         await db.deleteAllSyncedData(currentUserId);
         ui.toast('Cloud data deleted.');
