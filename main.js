@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v3 – added missing requestRematch)
+// main.js — Orchestrator for Chess 3D (v4 – chat hidden offline, shown online)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -155,6 +155,7 @@ function startOfflineGame(mode) {
     gameMode = mode;
     ui.hideAllPanels();
     ui.showGameUI();
+    ui.setChatVisibility(false);       // ← hide chat in offline modes
     started = true;
     engine.startGame(mode);
     over = false;
@@ -183,7 +184,6 @@ function undoMove() {
 
 // ---------- AI flow ----------
 function showAiDiffPanel() {
-    // Hide main cards & original buttons so the panel is centered on screen
     document.getElementById('main-cards').style.display = 'none';
     document.getElementById('original-buttons').style.display = 'none';
     ui.hideAllPanels();
@@ -197,7 +197,6 @@ function startAiGame() {
 // ---------- Online game flow ----------
 async function showOnlineMenu() {
     if (!currentUserId) { ui.showLoginGate(); return; }
-    // Hide main cards & original buttons when going to online submenu
     document.getElementById('main-cards').style.display = 'none';
     document.getElementById('original-buttons').style.display = 'none';
     ui.showPanel('online-menu');
@@ -265,6 +264,7 @@ async function startOnlineGame() {
     }
     ui.hideAllPanels();
     ui.showGameUI();
+    ui.setChatVisibility(true);        // ← show chat only in online mode
     engine.setMyColor(myColor);
     engine.startGame('online');
     started = true;
@@ -324,11 +324,7 @@ async function requestRematch() {
     document.getElementById('gos').textContent = 'Rematch requested. Waiting for opponent…';
 }
 
-async function acceptRematch() {
-    // Rematch logic — in a full implementation would create a new game with swapped colors
-    ui.toast('Rematch accepted.');
-}
-
+async function acceptRematch() { ui.toast('Rematch accepted.'); }
 async function declineRematch() {
     if (currentOnlineGame) {
         await db.terminateGame(currentOnlineGame.id);
