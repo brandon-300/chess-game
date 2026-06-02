@@ -23,7 +23,7 @@ export function initUI(cb) {
 
     // Initial UI state
     updateHeaderUI(null);
-    els.debugOverlay.textContent = 'Loading...';
+    if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
 }
 
 function cacheElements() {
@@ -49,20 +49,27 @@ function cacheElements() {
         'waiting-title', 'waiting-text',
         'rematch-text', 'rematch-accept', 'rematch-decline',
     ];
-    ids.forEach(id => { els[id] = document.getElementById(id); });
-    // Also cache some querySelector results
-    els['tmrW_name'] = els.tmrW.querySelector('.tn');
-    els['tmrB_name'] = els.tmrB.querySelector('.tn');
+    ids.forEach(id => {
+        els[id] = document.getElementById(id);
+    });
+    // Additional querySelector results
+    if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
+    if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
 }
 
 function attachListeners() {
+    // Helper to safely attach a listener if element exists
+    const btn = (id, handler) => {
+        const el = els[id];
+        if (el) el.addEventListener('click', handler);
+    };
+
     // Mode selection cards
-    els['card-2p'].addEventListener('click', () => callbacks.onStart2P());
-    els['card-ai'].addEventListener('click', () => callbacks.onStartAI());
-    els['card-online'].addEventListener('click', () => callbacks.onOnlineMenu());
+    btn('card-2p', () => callbacks.onStart2P());
+    btn('card-ai', () => callbacks.onStartAI());
+    btn('card-online', () => callbacks.onOnlineMenu());
 
     // Online menus
-    const btn = (id, handler) => els[id]?.addEventListener('click', handler);
     btn('btn-public-menu', () => { hideAllPanels(); showPanel('public-menu'); });
     btn('btn-private-menu', () => { hideAllPanels(); showPanel('private-menu'); });
     btn('btn-online-back', () => { hideAllPanels(); showMenu(); });
@@ -79,7 +86,7 @@ function attachListeners() {
     btn('btn-rematch-decline', () => callbacks.onDeclineRematch());
 
     // Login gate
-    btn('btn-go-login', () => window.location.href = 'user_login.html');
+    btn('btn-go-login', () => { window.location.href = 'user_login.html'; });
     btn('btn-login-gate-back', () => { hideAllPanels(); showMenu(); });
 
     // AI panels
@@ -96,45 +103,66 @@ function attachListeners() {
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
-    btn('btn-delete-all-synced', () => els['delete-confirm-panel'].classList.add('show'));
-    btn('btn-delete-confirm', () => { els['delete-confirm-panel'].classList.remove('show'); callbacks.onDeleteSynced(); });
-    btn('btn-delete-cancel', () => els['delete-confirm-panel'].classList.remove('show'));
+    btn('btn-delete-all-synced', () => {
+        if (!callbacks.onDeleteSynced) return;
+        // check if logged in? main.js will handle, but we open confirm dialog directly
+        els['delete-confirm-panel']?.classList.add('show');
+    });
+    btn('btn-delete-confirm', () => {
+        els['delete-confirm-panel']?.classList.remove('show');
+        callbacks.onDeleteSynced();
+    });
+    btn('btn-delete-cancel', () => els['delete-confirm-panel']?.classList.remove('show'));
 
     // Exit choice (offline)
     btn('btn-exit-save', () => callbacks.onExitSave());
     btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
-    btn('btn-exit-cancel', () => els['exit-choice-panel'].classList.remove('show'));
+    btn('btn-exit-cancel', () => els['exit-choice-panel']?.classList.remove('show'));
 
     // Exit online confirmation
     btn('btn-exit-online-yes', () => callbacks.onExitOnline());
-    btn('btn-exit-online-stay', () => els['exit-online-panel'].classList.remove('show'));
+    btn('btn-exit-online-stay', () => els['exit-online-panel']?.classList.remove('show'));
 
     // In‑game buttons (bottom bar)
-    els['new-game-btn'].addEventListener('click', () => callbacks.onNewGame());
-    els['undo-btn'].addEventListener('click', () => callbacks.onUndo());
-    els['mode-btn'].addEventListener('click', () => callbacks.onModeBtn());
+    btn('new-game-btn', () => callbacks.onNewGame());
+    btn('undo-btn', () => callbacks.onUndo());
+    btn('mode-btn', () => callbacks.onModeBtn());
 
-    // Chat toggle
-    els['chat-toggle-btn'].addEventListener('click', () => callbacks.onToggleChat());
-    els['btn-send-chat'].addEventListener('click', () => {
-        const msg = els['chat-input'].value.trim();
+    // Chat toggle and send
+    btn('chat-toggle-btn', () => callbacks.onToggleChat());
+    btn('btn-send-chat', () => {
+        const input = els['chat-input'];
+        if (!input) return;
+        const msg = input.value.trim();
         if (msg) {
             callbacks.onSendChat(msg);
-            els['chat-input'].value = '';
+            input.value = '';
         }
     });
 
     // Restore choice panels
-    btn('btn-restore-ai', () => { els['restore-choice-panel'].classList.remove('show'); callbacks.onRestoreAI?.(); });
-    btn('btn-restore-2p', () => { els['restore-choice-panel'].classList.remove('show'); callbacks.onRestore2P?.(); });
-    btn('btn-restore-cancel', () => els['restore-choice-panel'].classList.remove('show'));
-    btn('btn-cloud-restore-ai', () => { els['cloud-choice-panel'].classList.remove('show'); callbacks.onCloudRestoreAI?.(); });
-    btn('btn-cloud-restore-2p', () => { els['cloud-choice-panel'].classList.remove('show'); callbacks.onCloudRestore2P?.(); });
-    btn('btn-cloud-restore-cancel', () => els['cloud-choice-panel'].classList.remove('show'));
+    btn('btn-restore-ai', () => {
+        els['restore-choice-panel']?.classList.remove('show');
+        if (callbacks.onRestoreAI) callbacks.onRestoreAI();
+    });
+    btn('btn-restore-2p', () => {
+        els['restore-choice-panel']?.classList.remove('show');
+        if (callbacks.onRestore2P) callbacks.onRestore2P();
+    });
+    btn('btn-restore-cancel', () => els['restore-choice-panel']?.classList.remove('show'));
+    btn('btn-cloud-restore-ai', () => {
+        els['cloud-choice-panel']?.classList.remove('show');
+        if (callbacks.onCloudRestoreAI) callbacks.onCloudRestoreAI();
+    });
+    btn('btn-cloud-restore-2p', () => {
+        els['cloud-choice-panel']?.classList.remove('show');
+        if (callbacks.onCloudRestore2P) callbacks.onCloudRestore2P();
+    });
+    btn('btn-cloud-restore-cancel', () => els['cloud-choice-panel']?.classList.remove('show'));
 
     // Header login/profile buttons
-    els['login-btn'].addEventListener('click', () => window.location.href = 'user_login.html');
-    els['profile-btn'].addEventListener('click', () => window.location.href = 'profile.html');
+    if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
+    if (els['profile-btn']) els['profile-btn'].addEventListener('click', () => { window.location.href = 'profile.html'; });
 }
 
 // ---------- Panel helpers ----------
@@ -159,29 +187,30 @@ export function hideAllPanels() {
 }
 
 export function showMenu() {
-    els['ms'].style.display = 'flex';
-    els['gu'].style.display = 'none';
-    els['main-cards'].style.display = 'flex';
-    els['original-buttons'].style.display = '';
+    if (els['ms']) els['ms'].style.display = 'flex';
+    if (els['gu']) els['gu'].style.display = 'none';
+    if (els['main-cards']) els['main-cards'].style.display = 'flex';
+    if (els['original-buttons']) els['original-buttons'].style.display = '';
     hideAllPanels();
 }
 
 export function showGameUI() {
-    els['ms'].style.display = 'none';
-    els['gu'].style.display = 'block';
+    if (els['ms']) els['ms'].style.display = 'none';
+    if (els['gu']) els['gu'].style.display = 'block';
 }
 
 export function hideGameUI() {
-    els['gu'].style.display = 'none';
-    els['chat-box'].classList.remove('show');
+    if (els['gu']) els['gu'].style.display = 'none';
+    if (els['chat-box']) els['chat-box'].classList.remove('show');
 }
 
 export function hideGameOver() {
-    els['go'].classList.remove('on');
+    if (els['go']) els['go'].classList.remove('on');
 }
 
 // ---------- Header UI ----------
 export function updateHeaderUI(userId) {
+    if (!els['login-btn'] || !els['profile-btn']) return;
     if (userId) {
         els['login-btn'].style.display = 'none';
         els['profile-btn'].style.display = 'inline-block';
@@ -193,6 +222,7 @@ export function updateHeaderUI(userId) {
 
 // ---------- Turn indicator ----------
 export function updateTurnIndicator(turn, myColor, isOnline) {
+    if (!els['tdot'] || !els['tlbl'] || !els['tmrW_name'] || !els['tmrB_name']) return;
     els['tdot'].className = 'tdot ' + (turn === 'w' ? 'w' : 'b');
     if (isOnline) {
         els['tlbl'].textContent = turn === 'w'
@@ -205,10 +235,11 @@ export function updateTurnIndicator(turn, myColor, isOnline) {
         els['tmrW_name'].textContent = 'Red';
         els['tmrB_name'].textContent = 'Black';
     }
-    els['smsg'].textContent = '';
+    if (els['smsg']) els['smsg'].textContent = '';
 }
 
 export function updateTimers(w, b, activeTurn) {
+    if (!els['tvW'] || !els['tvB'] || !els['tmrW'] || !els['tmrB']) return;
     els['tvW'].textContent = fmtTime(w);
     els['tvB'].textContent = fmtTime(b);
     els['tmrW'].className = 'tmr' + (activeTurn === 'w' ? ' active' : '') + (w <= 10 && activeTurn === 'w' ? ' low' : '');
@@ -216,6 +247,7 @@ export function updateTimers(w, b, activeTurn) {
 }
 
 export function updateThinkingIndicator(thinking) {
+    if (!els['smsg'] || !els['thkstrip']) return;
     els['smsg'].textContent = thinking ? 'Thinking…' : '';
     if (thinking) {
         els['thkstrip'].classList.add('on');
@@ -227,18 +259,18 @@ export function updateThinkingIndicator(thinking) {
 // ---------- Online waiting / countdown ----------
 export function showWaitingRoom(hostNickname, roomCode) {
     hideAllPanels();
-    els['waiting-title'].textContent = hostNickname + ' room';
-    els['waiting-text'].innerHTML = 'Room ID: <b>' + roomCode + '</b><br>Waiting for opponent to join…';
+    if (els['waiting-title']) els['waiting-title'].textContent = hostNickname + ' room';
+    if (els['waiting-text']) els['waiting-text'].innerHTML = 'Room ID: <b>' + roomCode + '</b><br>Waiting for opponent to join…';
     showPanel('waiting-panel');
 }
 
 let countdownInterval = null;
 export function showCountdown(hostNickname, roomCode) {
     hideAllPanels();
-    els['countdown-welcome'].textContent = 'Welcome to ' + hostNickname + ' room – Room ID: ' + roomCode;
+    if (els['countdown-welcome']) els['countdown-welcome'].textContent = 'Welcome to ' + hostNickname + ' room – Room ID: ' + roomCode;
     showPanel('countdown-panel');
     let sec = 5;
-    els['countdown-number'].textContent = sec;
+    if (els['countdown-number']) els['countdown-number'].textContent = sec;
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         sec--;
@@ -246,9 +278,9 @@ export function showCountdown(hostNickname, roomCode) {
             clearInterval(countdownInterval);
             countdownInterval = null;
             hideAllPanels();
-            callbacks.onCountdownFinished?.();
+            if (callbacks.onCountdownFinished) callbacks.onCountdownFinished();
         } else {
-            els['countdown-number'].textContent = sec;
+            if (els['countdown-number']) els['countdown-number'].textContent = sec;
         }
     }, 1000);
 }
@@ -257,7 +289,7 @@ function startAiCountdown() {
     hideAllPanels();
     showPanel('ai-countdown-panel');
     let sec = 5;
-    els['ai-countdown-number'].textContent = sec;
+    if (els['ai-countdown-number']) els['ai-countdown-number'] = sec;
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         sec--;
@@ -265,9 +297,10 @@ function startAiCountdown() {
             clearInterval(countdownInterval);
             countdownInterval = null;
             hideAllPanels();
-            callbacks.onStartAI?.(); // main.js will call engine.startGame('ai')
+            if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished();
         } else {
-            els['ai-countdown-number'].textContent = sec;
+            const numEl = document.getElementById('ai-countdown-number');
+            if (numEl) numEl.textContent = sec;
         }
     }, 1000);
 }
@@ -280,37 +313,42 @@ function cancelAiCountdown() {
 
 // ---------- Game over popup ----------
 export function showGameOver(title, subtitle, buttonsHTML) {
-    els['got'].textContent = title;
-    els['gos'].textContent = subtitle;
-    els['go-btns'].innerHTML = buttonsHTML;
-    els['go'].classList.add('on');
+    if (els['got']) els['got'].textContent = title;
+    if (els['gos']) els['gos'].textContent = subtitle;
+    if (els['go-btns']) els['go-btns'].innerHTML = buttonsHTML;
+    if (els['go']) els['go'].classList.add('on');
 }
 
 // ---------- Promotion popup ----------
 export function showPromotion(color) {
     const po = els['po'];
+    if (!po) return;
     po.innerHTML = '';
     const pieces = ['Q', 'R', 'B', 'N'];
     pieces.forEach(t => {
         const btn = document.createElement('div');
         btn.className = 'po-b';
-        btn.textContent = color + t; // simplistic display; could use glyphs
+        btn.textContent = color === 'w' ? '♕♖♗♘'[pieces.indexOf(t)] : '♛♜♝♞'[pieces.indexOf(t)]; // rough glyph
+        // Better to use GLS from engine, but we simplify by showing piece letter
+        // Actually we can use color + t for simplicity: e.g., "wQ"
+        btn.textContent = (color === 'w' ? '♕♖♗♘' : '♛♜♝♞')[pieces.indexOf(t)];
         btn.addEventListener('click', () => {
-            els['pm'].classList.remove('on');
+            if (els['pm']) els['pm'].classList.remove('on');
             engine.completePromotion(t);
         });
         po.appendChild(btn);
     });
-    els['pm'].classList.add('on');
+    if (els['pm']) els['pm'].classList.add('on');
 }
 
 // ---------- Chat ----------
 export function toggleChat() {
-    els['chat-box'].classList.toggle('show');
+    if (els['chat-box']) els['chat-box'].classList.toggle('show');
 }
 
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
+    if (!box) return;
     box.innerHTML = '';
     messages.forEach(msg => {
         const div = document.createElement('div');
@@ -322,6 +360,7 @@ export function displayChatMessages(messages) {
 
 export function appendChatMessage(nickname, msg) {
     const box = els['chat-messages'];
+    if (!box) return;
     const div = document.createElement('div');
     div.innerHTML = `<b>${nickname}:</b> ${msg}`;
     box.appendChild(div);
@@ -331,6 +370,7 @@ export function appendChatMessage(nickname, msg) {
 // ---------- Toast ----------
 export function toast(msg, duration = 2800) {
     const el = els['toast'];
+    if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimer);
@@ -338,25 +378,25 @@ export function toast(msg, duration = 2800) {
 }
 
 // ---------- Exit & restore panels ----------
-export function showExitChoicePanel() { els['exit-choice-panel'].classList.add('show'); }
-export function hideExitChoicePanel() { els['exit-choice-panel'].classList.remove('show'); }
-export function showRestoreChoicePanel() { els['restore-choice-panel'].classList.add('show'); }
-export function showCloudChoicePanel() { els['cloud-choice-panel'].classList.add('show'); }
-export function showExitOnlinePanel() { els['exit-online-panel'].classList.add('show'); }
-export function hideExitOnlinePanel() { els['exit-online-panel'].classList.remove('show'); }
+export function showExitChoicePanel() { els['exit-choice-panel']?.classList.add('show'); }
+export function hideExitChoicePanel() { els['exit-choice-panel']?.classList.remove('show'); }
+export function showRestoreChoicePanel() { els['restore-choice-panel']?.classList.add('show'); }
+export function showCloudChoicePanel() { els['cloud-choice-panel']?.classList.add('show'); }
+export function showExitOnlinePanel() { els['exit-online-panel']?.classList.add('show'); }
+export function hideExitOnlinePanel() { els['exit-online-panel']?.classList.remove('show'); }
 
 // ---------- Rematch ----------
 export function showRematchUI(text, onAccept, onDecline) {
-    els['rematch-text'].textContent = text;
-    els['rematch-panel'].classList.add('show');
+    if (els['rematch-text']) els['rematch-text'].textContent = text;
+    if (els['rematch-panel']) els['rematch-panel'].classList.add('show');
 }
 
 // ---------- Login gate ----------
 export function showLoginGate() {
     hideAllPanels();
-    els['main-cards'].style.display = 'none';
-    els['original-buttons'].style.display = 'none';
-    els['login-gate-panel'].classList.add('show');
+    if (els['main-cards']) els['main-cards'].style.display = 'none';
+    if (els['original-buttons']) els['original-buttons'].style.display = 'none';
+    if (els['login-gate-panel']) els['login-gate-panel'].classList.add('show');
 }
 
 // ---------- Utility ----------
@@ -367,9 +407,9 @@ function fmtTime(seconds) {
 }
 
 export function getPrivateRoomCode() {
-    return els['private-room-code'].value.trim();
+    return els['private-room-code'] ? els['private-room-code'].value.trim() : '';
 }
 
 export function updateDebug(text) {
-    els['debug-overlay'].textContent = text;
+    if (els['debug-overlay']) els['debug-overlay'].textContent = text;
 }

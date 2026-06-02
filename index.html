@@ -188,9 +188,11 @@
     <div id="chat-box"><div id="chat-messages"></div><div id="chat-input-row"><input type="text" id="chat-input" placeholder="Chat..."><button id="btn-send-chat" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button></div></div>
     <div id="reconnect-indicator">Reconnecting...</div>
 
-    <!-- Required for 3D rendering -->
+    <!-- Three.js (global) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Module entry point that wires everything together -->
+    <!-- Supabase (global) — creates window.supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Module entry point -->
     <script type="module" src="main.js"></script>
 </body>
 </html>

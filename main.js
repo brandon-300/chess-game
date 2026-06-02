@@ -1,23 +1,20 @@
 // main.js — Orchestrator for Chess 3D
-// Requires config.js, database.js, game_engine.js, ui_handler.js
-
 import * as db from './database.js';
 import * as engine from './game_engine.js';
 import * as ui from './ui_handler.js';
 
-// ---------- Global state (orchestrator only) ----------
+// ---------- Global state ----------
 let gameMode = null;          // '2p', 'ai', or 'online'
-let currentOnlineGame = null; // full game row from Supabase
-let myColor = 'w';           // my assigned colour in online game
+let currentOnlineGame = null;
+let myColor = 'w';
 let sessionPlayerKey = null;
 let started = false;
 let over = false;
 let currentUserId = null;
-let authReady = false;
 
 // Sync helpers
 let moveSyncing = false;
-let lastKnownServerState = null; // stringified board_state from last known server data
+let lastKnownServerState = null;
 let pollInterval = null;
 let chatPollInterval = null;
 let rematchCountdownInterval = null;
@@ -41,7 +38,6 @@ function updateDebugOverlay() {
 async function init() {
     // 1. Auth
     currentUserId = await db.initAuth();
-    authReady = true;
     updateDebugOverlay();
 
     // 2. UI setup with full callback list
@@ -56,11 +52,7 @@ async function init() {
         onCreatePrivateRoom: createPrivateRoom,
         onJoinPrivateRoom: joinPrivateRoom,
         onCancelWaiting: cancelWaiting,
-
-        // Countdown finished (online) — startOnlineGame defined separately
         onCountdownFinished: startOnlineGame,
-
-        // AI countdown finished — start AI game after color/depth selection
         onAiCountdownFinished: startAiGame,
 
         // Rematch
@@ -85,14 +77,14 @@ async function init() {
         onRestoreOfflineCloud: () => restoreOfflineFromCloud(),
         onDeleteSynced: deleteAllSyncedData,
 
-        // Restore mode choices (local and cloud)
+        // Restore mode choices
         onRestoreAI: () => restoreLocalMode('ai'),
         onRestore2P: () => restoreLocalMode('2p'),
         onCloudRestoreAI: () => restoreCloudMode('ai'),
         onCloudRestore2P: () => restoreCloudMode('2p'),
     });
 
-    // 3. Init engine (Three.js scene + chess logic)
+    // 3. Init engine
     engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
 
     // 4. Auth state listener
@@ -152,34 +144,6 @@ function undoMove() {
 // ---------- AI flow ----------
 function showAiDiffPanel() {
     ui.showPanel('ai-diff-panel');
-}
-
-// These functions are called by UI buttons via callbacks (wired in ui_handler)
-window.aiSelectDiff = function(diff) {
-    engine.setAiDepth(diff);
-    ui.hideAllPanels();
-    ui.showPanel('ai-color-panel');
-};
-window.aiSelectColor = function(col) {
-    engine.setPlayerColor(col);
-    ui.hideAllPanels();
-    startAiCountdown();
-};
-
-function startAiCountdown() {
-    ui.showPanel('ai-countdown-panel');
-    let sec = 5;
-    document.getElementById('ai-countdown-number').textContent = sec;
-    let iv = setInterval(() => {
-        sec--;
-        if (sec <= 0) {
-            clearInterval(iv);
-            ui.hideAllPanels();
-            startAiGame();
-        } else {
-            document.getElementById('ai-countdown-number').textContent = sec;
-        }
-    }, 1000);
 }
 
 function startAiGame() {
@@ -263,7 +227,7 @@ function onlineGameJoined(game, joinerKey) {
     currentOnlineGame = game;
     sessionPlayerKey = joinerKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
-    myColor = 'b'; // joiner is always Black
+    myColor = 'b';
     ui.showCountdown(game.host_nickname, game.room_code);
     startPolling(game.id);
 }
@@ -275,7 +239,6 @@ async function startOnlineGame() {
     }
     ui.hideAllPanels();
     ui.showGameUI();
-    engine.setPlayerColor(myColor); // used for online? Actually engine uses myColor via setMyColor later.
     engine.setMyColor(myColor);
     engine.startGame('online');
     started = true;
@@ -284,7 +247,6 @@ async function startOnlineGame() {
     engine.rotateForPlayer(myColor);
 }
 
-// ---------- Waiting cancellation ----------
 async function cancelWaiting() {
     if (currentOnlineGame) {
         await db.cancelGame(currentOnlineGame.id);
@@ -328,7 +290,6 @@ async function pollGameState() {
         ui.updateTurnIndicator(engine.getTurn(), myColor, true);
         ui.updateTimers(engine.getTimerW(), engine.getTimerB(), engine.getTurn());
 
-        // Handle game end / frozen states
         if (gameData.status === 'terminated' || gameData.status === 'finished' || gameData.status === 'frozen') {
             handleOnlineGameEnd(gameData);
         }
@@ -345,13 +306,12 @@ function handleOnlineGameEnd(gameData) {
     } else if (gameData.status === 'finished') {
         const winner = gameData.winner === 'red' ? 'Red' : 'Black';
         ui.showGameOver(winner + ' Wins!', 'Checkmate or time out', `
-            <button onclick="requestRematch()">Request Rematch</button>
-            <button class="sec" onclick="exitOnlineGame()">Exit</button>
+            <button onclick="window.requestRematch()">Request Rematch</button>
+            <button class="sec" onclick="window.exitOnlineGame()">Exit</button>
         `);
         startRematchCountdown();
     } else if (gameData.status === 'frozen') {
         ui.toast('Opponent left – waiting...');
-        engine.pauseTimer(); // Stop local timer ticking
     }
 }
 
@@ -382,7 +342,7 @@ function sendChat(msg) {
     ui.appendChatMessage(nickname, msg);
 }
 
-// ---------- Move execution callback (called by engine) ----------
+// ---------- Move execution callback ----------
 async function onLocalMoveExecuted(move) {
     if (gameMode !== 'online' || !currentOnlineGame || moveSyncing) return;
     moveSyncing = true;
@@ -432,8 +392,6 @@ async function requestRematch() {
 }
 
 async function acceptRematch() {
-    // implementation similar to original; simplified here
-    // Will need to create a new game with swapped colors
     ui.toast('Rematch accepted.');
 }
 
@@ -533,21 +491,14 @@ function restoreLocalGame() {
         ui.toast('No backup found.');
         return;
     }
-    if (ai && !pvp) {
-        restoreLocalMode('ai');
-    } else if (!ai && pvp) {
-        restoreLocalMode('2p');
-    } else {
-        ui.showRestoreChoicePanel();
-    }
+    if (ai && !pvp) restoreLocalMode('ai');
+    else if (!ai && pvp) restoreLocalMode('2p');
+    else ui.showRestoreChoicePanel();
 }
 
 function restoreLocalMode(mode) {
     const dataStr = localStorage.getItem('chess3d_backup_' + mode);
-    if (!dataStr) {
-        ui.toast('No backup found for ' + (mode === 'ai' ? 'AI' : 'PvP'));
-        return;
-    }
+    if (!dataStr) { ui.toast('No backup found.'); return; }
     const data = JSON.parse(dataStr);
     engine.restoreBackup(data);
     gameMode = mode;
@@ -563,7 +514,8 @@ function restoreLocalMode(mode) {
 
 // Cloud sync / restore wrappers
 async function syncOfflineToCloud() {
-    if (!currentUserId) { ui.toast('Log in to sync.'); return; }
+    if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
     try {
         await db.syncOfflineToCloud(currentUserId);
         ui.toast('Synced offline data to cloud.');
@@ -573,15 +525,13 @@ async function syncOfflineToCloud() {
 }
 
 async function restoreOfflineFromCloud() {
-    if (!currentUserId) { ui.toast('Log in to restore.'); return; }
+    if (!currentUserId) { ui.toast('Please log in to restore cloud data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
     try {
-        const result = await db.restoreOfflineFromCloud(currentUserId, null);
+        const result = await db.restoreOfflineFromCloud(currentUserId);
         if (Array.isArray(result)) {
             window._cloudBackups = result;
             ui.showCloudChoicePanel();
-        } else {
-            // single backup was restored automatically by db function
-            ui.toast('Restored from cloud.');
         }
     } catch (e) {
         ui.toast('Restore failed: ' + e.message);
@@ -600,7 +550,8 @@ function restoreCloudMode(mode) {
 }
 
 async function deleteAllSyncedData() {
-    if (!currentUserId) { ui.toast('Log in to delete.'); return; }
+    if (!currentUserId) { ui.toast('Please log in to delete synced data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
     try {
         await db.deleteAllSyncedData(currentUserId);
         ui.toast('Cloud data deleted.');
@@ -614,5 +565,9 @@ function generatePlayerKey() {
     return Math.random().toString(36).substring(2, 15);
 }
 
-// ---------- Start everything ----------
+// Expose globally for inline buttons that can't be modularized easily
+window.requestRematch = requestRematch;
+window.exitOnlineGame = exitOnlineGame;
+
+// ---------- Start ----------
 init();

@@ -1,16 +1,24 @@
 // database.js — All Supabase interactions for Chess 3D
+// Requires window.supabase to be available (loaded via <script> in index.html)
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-
-// ---------- Supabase client ----------
+// ---------- Supabase client (global window.supabase) ----------
 let sb = null;
 let sbStatus = 'Loading...';
+
 try {
-    sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-    sbStatus = 'Loaded';
+    if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+        sb = window.supabase.createClient(
+            'https://akrxbxzcvnspbmvgdrci.supabase.co',
+            'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS'
+        );
+        sbStatus = 'Loaded';
+    } else {
+        sbStatus = 'Supabase script not loaded';
+        console.error('Supabase global not found');
+    }
 } catch (e) {
     sbStatus = 'Error: ' + e.message;
+    console.error('Supabase init error:', e);
 }
 
 export function getSbStatus() {
@@ -20,8 +28,13 @@ export function getSbStatus() {
 // ---------- Auth ----------
 export async function initAuth() {
     if (!sb) return null;
-    const { data: { session } } = await sb.auth.getSession();
-    return session?.user?.id || null;
+    try {
+        const { data: { session } } = await sb.auth.getSession();
+        return session?.user?.id || null;
+    } catch (e) {
+        console.error('initAuth error:', e);
+        return null;
+    }
 }
 
 // ---------- Profiles ----------
@@ -41,7 +54,7 @@ export async function fetchUsername(userId) {
 
 // ---------- Online Games ----------
 
-// Generic fetch of a full game row
+// Fetch full game row
 export async function fetchGameState(gameId) {
     if (!sb) return null;
     const { data, error } = await sb
@@ -115,7 +128,6 @@ export async function createGame(roomCode, type, hostId, hostKey, hostNickname) 
 // Join the oldest available public room
 export async function joinPublicGame(joinerId, joinerKey, joinerNickname) {
     if (!sb) throw new Error('Supabase not available');
-    // Find oldest waiting public room
     const { data: rooms, error: selectError } = await sb
         .from('online_games')
         .select('*')
@@ -170,14 +182,14 @@ export async function joinPrivateGame(roomCode, joinerId, joinerKey, joinerNickn
     return { ...game, joiner_player_id: joinerId, joiner_nickname: joinerNickname, status: 'countdown' };
 }
 
-// Update game status (used for starting, terminating, freezing)
+// Update game status
 export async function updateGameStatus(gameId, status) {
     if (!sb) throw new Error('Supabase not available');
     const { error } = await sb.from('online_games').update({ status }).eq('id', gameId);
     if (error) throw error;
 }
 
-// Terminate game (host or explicit end)
+// Terminate game
 export async function terminateGame(gameId) {
     return updateGameStatus(gameId, 'terminated');
 }
@@ -226,7 +238,7 @@ export async function sendChatMessage(gameId, playerId, nickname, message) {
 
 // ---------- Offline backup sync ----------
 export async function syncOfflineToCloud(userId) {
-    if (!sb || !userId) return;
+    if (!sb || !userId) throw new Error('Not authenticated');
     const aiBackup = JSON.parse(localStorage.getItem('chess3d_backup_ai') || 'null');
     const pvpBackup = JSON.parse(localStorage.getItem('chess3d_backup_2p') || 'null');
     if (!aiBackup && !pvpBackup) throw new Error('No offline data to sync');
@@ -248,7 +260,7 @@ export async function syncOfflineToCloud(userId) {
 }
 
 export async function restoreOfflineFromCloud(userId, onSelectMode) {
-    if (!sb || !userId) return;
+    if (!sb || !userId) throw new Error('Not authenticated');
     const { data, error } = await sb
         .from('offline_backups')
         .select('*')
@@ -261,15 +273,16 @@ export async function restoreOfflineFromCloud(userId, onSelectMode) {
             backup.mode === 'ai' ? 'chess3d_backup_ai' : 'chess3d_backup_2p',
             JSON.stringify(backup.backup_data)
         );
-        onSelectMode(backup.mode);
+        // Callback to main.js to restore the mode
+        if (onSelectMode) onSelectMode(backup.mode);
     } else {
-        // More than one backup → show choice (handled in main.js)
-        return data; // returns array of backups
+        // More than one backup – return array so main.js can show choice
+        return data;
     }
 }
 
 export async function deleteAllSyncedData(userId) {
-    if (!sb || !userId) throw new Error('Supabase not available');
+    if (!sb || !userId) throw new Error('Not authenticated');
     const { error } = await sb.from('offline_backups').delete().eq('user_id', userId);
     if (error) throw error;
 }
@@ -284,7 +297,6 @@ function generateRoomCode(len = 8) {
     return code;
 }
 
-// Standard initial board array (used for game creation)
 function initBoardArray() {
     const b = Array(64).fill(null);
     ['R','N','B','Q','K','B','N','R'].forEach((p, c) => {
