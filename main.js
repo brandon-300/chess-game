@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v2 – AI panel & thinking‑strip fixes)
+// main.js — Orchestrator for Chess 3D (v3 – added missing requestRematch)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -314,8 +314,28 @@ async function onLocalMoveExecuted(move) {
 }
 
 // ---------- Rematch ----------
-async function acceptRematch() { ui.toast('Rematch accepted.'); }
-async function declineRematch() { await db.terminateGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); }
+async function requestRematch() {
+    if (!currentOnlineGame) return;
+    clearInterval(rematchCountdownInterval);
+    await db.sb.from('online_games').update({
+        rematch_requested_by: currentUserId,
+        rematch_requested_at: new Date()
+    }).eq('id', currentOnlineGame.id);
+    document.getElementById('gos').textContent = 'Rematch requested. Waiting for opponent…';
+}
+
+async function acceptRematch() {
+    // Rematch logic — in a full implementation would create a new game with swapped colors
+    ui.toast('Rematch accepted.');
+}
+
+async function declineRematch() {
+    if (currentOnlineGame) {
+        await db.terminateGame(currentOnlineGame.id);
+        resetOnlineState();
+        ui.showMenu();
+    }
+}
 
 // ---------- Exit ----------
 function confirmExitOnline() { ui.showExitOnlinePanel(); }
@@ -377,6 +397,8 @@ async function deleteAllSyncedData() { /* ... */ }
 
 // ---------- Utilities ----------
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
+
+// ---------- Expose globally for inline onclick handlers ----------
 window.requestRematch = requestRematch;
 window.exitOnlineGame = exitOnlineGame;
 window.newGameAction = newGame;
