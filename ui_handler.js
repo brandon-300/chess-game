@@ -21,8 +21,7 @@ export function initUI(cb) {
     // Attach all event listeners
     attachListeners();
 
-    // Initial UI state
-    updateHeaderUI(null);
+    // Initial UI state – header will be set by main.js after init
     if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
 
     // Hide chat by default (will be shown only for online games)
@@ -283,7 +282,7 @@ export function updateHeaderUI(userId, avatarUrl) {
             els['profile-avatar-img'].src = avatarUrl;
         } else {
             // No avatar – show a fallback gold circle (CSS background will handle)
-            els['profile-avatar-img'].src = ''; // let CSS background show
+            els['profile-avatar-img'].src = '';
         }
     } else {
         // Logged out
