@@ -862,6 +862,11 @@ export function getGameOverInfo() { const info = gameOverInfo; gameOverInfo = nu
 
 export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
     if (!ensureEngineReady()) return;
+    // Ensure the board is built before syncing pieces onto it
+    if (!boardBuilt) {
+        buildBoard();
+        boardBuilt = true;
+    }
     brd = newBoard; turn = newTurn; cas = newCas; ep = newEp;
     timerW = tW; timerB = tB;
     timerActive = true; lastTick = performance.now();
@@ -878,6 +883,11 @@ export function getBackupData() {
 
 export function restoreBackup(data) {
     if (!ensureEngineReady()) return;
+    // Ensure the board is built before placing pieces
+    if (!boardBuilt) {
+        buildBoard();
+        boardBuilt = true;
+    }
     brd = data.brd; turn = data.turn; cas = data.cas; ep = data.ep;
     hist = data.hist; capW = data.capW; capB = data.capB; mlog = data.mlog;
     timerW = data.timerW; timerB = data.timerB;
