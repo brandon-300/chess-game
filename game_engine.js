@@ -36,8 +36,8 @@ let aiDepth = 3;
 let selDiff = 3;
 
 // Callbacks
-let moveExecutedCallback = null;    // called after a move is fully executed (online)
-let frameCallback = null;           // called each animation frame (main.js uses it to update UI)
+let moveExecutedCallback = null;
+let frameCallback = null;
 
 // Promotion
 let promotionPending = false;
@@ -82,7 +82,7 @@ const PST = {
     K: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20]
 };
 
-// ---------- SFX (unchanged) ----------
+// ---------- SFX ----------
 const SFX = (() => {
     let ctx = null;
     function ac() { if (!ctx) try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} return ctx; }
@@ -334,6 +334,12 @@ function getBestMove(board, cas, ep, depth, color) {
 
 // ---------- Three.js rendering ----------
 function buildBoard() {
+    // Safety guard: scene must be initialized before building the board
+    if (!scene) {
+        console.error('buildBoard() called before scene was initialized. Did you call initEngine()?');
+        return;
+    }
+    
     const woodMat = new THREE.MeshPhongMaterial({ color: 0x4a2810, shininess: 20 });
     const frame = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.6, 10.6), woodMat);
     frame.position.set(4, -0.3, 4); frame.receiveShadow = true; scene.add(frame);
@@ -622,7 +628,6 @@ function requestPromotion(mv) {
     pendingPromotionMove = mv;
 }
 
-// Called from UI after piece selection
 export function completePromotion(piece) {
     if (!promotionPending) return;
     promotionPending = false;
@@ -660,9 +665,7 @@ export function initEngine(canvas, moveCallback) {
 
     window.addEventListener('resize', onResize);
 
-    // Touch/mouse event handling (same as original, but using canvas)
     setupInputHandlers(canvas);
-
     moveExecutedCallback = moveCallback;
     boardBuilt = false;
     resetState();
@@ -749,11 +752,16 @@ function setupInputHandlers(canvas) {
 export function startGame(mode) {
     gameMode = mode;
     resetState();
-    if (!boardBuilt) { buildBoard(); boardBuilt = true; }
+    if (!boardBuilt) {
+        buildBoard();
+        boardBuilt = true;
+    }
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    if (mode === 'ai' && playerColor === 'b') { timerActive = true; lastTick = performance.now(); scheduleAI(500); }
+    if (mode === 'ai' && playerColor === 'b') {
+        timerActive = true; lastTick = performance.now(); scheduleAI(500);
+    }
 }
 
 export function newGame() {
@@ -761,7 +769,9 @@ export function newGame() {
     syncAll(brd);
     clearDots(); clearTints();
     updHL();
-    if (gameMode === 'ai' && playerColor === 'b') { timerActive = true; lastTick = performance.now(); scheduleAI(500); }
+    if (gameMode === 'ai' && playerColor === 'b') {
+        timerActive = true; lastTick = performance.now(); scheduleAI(500);
+    }
 }
 
 export function undoMove() {
@@ -786,7 +796,7 @@ export function undoMove() {
 
 export function onSq(si) {
     if (over || isAnim || aiThink) return;
-    if (gameMode === 'online' && turn !== myColor) return; // not your turn handled by UI callback? Keep engine aware.
+    if (gameMode === 'online' && turn !== myColor) return;
     SFX.select();
     const p = brd[si];
     if (p && cl(p) === turn) { selSq = si; curLM = legalM(brd, si, cas, ep); updHL(); return; }
@@ -805,12 +815,10 @@ export function onSq(si) {
 export function setMoveCallback(cb) { moveExecutedCallback = cb; }
 export function setFrameCallback(cb) { frameCallback = cb; }
 
-// Setters for mode/player
 export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
 
-// State getters
 export function getTurn() { return turn; }
 export function getBoardArray() { return brd; }
 export function getCastling() { return cas; }
@@ -825,7 +833,6 @@ export function isAiThinking() { return aiThink; }
 export function isPromotionPending() { return promotionPending; }
 export function getGameOverInfo() { const info = gameOverInfo; gameOverInfo = null; return info; }
 
-// Sync from server (online)
 export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
     brd = newBoard; turn = newTurn; cas = newCas; ep = newEp;
     timerW = tW; timerB = tB;
@@ -833,7 +840,6 @@ export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
     syncAll(brd); updHL();
 }
 
-// Backup data (for localStorage)
 export function getBackupData() {
     return { brd: [...brd], turn, cas: { ...cas }, ep, hist: hist.map(h => ({
         brd: h.brd.slice(), turn: h.turn, cas: { ...h.cas }, ep: h.ep,
@@ -861,13 +867,11 @@ export function resetState() {
 
 export function resetTimers() { timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); }
 
-// Camera rotation for online
 export function rotateForPlayer(color) {
     camTheta = (color === 'b') ? Math.PI : 0;
     updateCamera();
 }
 
-// ---------- Animation loop ----------
 export function startAnimationLoop() {
     function animate() {
         requestAnimationFrame(animate);
