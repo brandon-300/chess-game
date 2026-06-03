@@ -29,7 +29,7 @@ let timerW = 60;
 let timerB = 60;
 let timerActive = false;
 let lastTick = null;
-let lastTickSecond = -1;
+let lastTickSecond = -1;   // for tick sound on last 5 seconds
 
 // Game mode & AI
 let gameMode = '2p';
@@ -590,10 +590,10 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer (FIXED: aiThink check REMOVED so timer counts during AI thinking) ----------
+// ---------- Timer (ticks even while AI is thinking) ----------
 function tickTimer() {
     if (!timerActive || over || isAnim || frozen) return;
-    // NOTE: aiThink check removed — timer ticks even while AI calculates
+    // NOTE: aiThink NOT checked, so timer counts down during AI's search
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
     const dt = (now - lastTick) / 1000; lastTick = now;
@@ -621,30 +621,19 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling (FIXED: minimum thinking delay added) ----------
+// ---------- AI scheduling (no artificial delay, but aiThink flag shows the thinking indicator) ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
-
-    // Minimum thinking time (ms) based on difficulty
-    const minThink = selDiff === 1 ? 1500 : selDiff === 3 ? 3000 : 5000; // Novice 1.5s, Knight 3s, Master 5s
-    const startTime = performance.now();
-
-    // Run search immediately
-    let mv;
-    if (selDiff === 1 && Math.random() < 0.4) {
-        const moves = allM(brd, turn, cas, ep);
-        mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
-    } else {
-        mv = getBestMove(brd, cas, ep, selDiff, turn);
-    }
-
-    const elapsed = performance.now() - startTime;
-    const remaining = Math.max(0, minThink - elapsed);
-
-    // Execute after minimum delay (timer ticks during this wait)
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
+        let mv;
+        if (selDiff === 1 && Math.random() < 0.4) {
+            const moves = allM(brd, turn, cas, ep);
+            mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
+        } else {
+            mv = getBestMove(brd, cas, ep, selDiff, turn);
+        }
         aiThink = false;
         if (mv) execMove(mv);
         else {
@@ -652,7 +641,7 @@ function scheduleAI(delay = 80) {
             endGame(ck ? winner + ' Wins' : 'Stalemate', ck ? 'Checkmate' : 'Draw — no legal moves',
                 ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale);
         }
-    }, Math.max(remaining, 10));
+    }, delay);
 }
 
 // ---------- Promotion ----------
