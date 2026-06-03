@@ -60,8 +60,6 @@
         .card p{font-size:clamp(10px,2.5vw,12px);color:var(--muted);line-height:1.4;font-style:italic}
 
         .drow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-
-        /* ---- Pill Buttons ---- */
         .db{
             font-family:'Cinzel',serif;font-size:clamp(8px,2.2vw,10px);letter-spacing:.14em;
             background:rgba(201,168,76,0.06);border:1px solid var(--gold-d);color:var(--gold);
@@ -73,16 +71,6 @@
             background:rgba(201,168,76,0.14);box-shadow:0 0 10px rgba(201,168,76,0.15)
         }
         .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
-
-        /* ---- Pill Bottom Bar Buttons ---- */
-        .ab{
-            flex:1;font-family:'Cinzel',serif;font-size:clamp(8px,2.5vw,10px);letter-spacing:.12em;
-            background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);
-            color:var(--gold);padding:10px 4px;cursor:pointer;text-transform:uppercase;
-            white-space:nowrap;transition:all .2s;border-radius:9999px
-        }
-        .ab:last-child{border-right:none}
-        .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
 
         /* Game UI */
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
@@ -103,6 +91,9 @@
         .thkstrip.on{display:block}.thkstrip::after{content:'';display:block;height:100%;width:35%;background:var(--gold);animation:tk 1s ease-in-out infinite alternate}
         @keyframes tk{from{transform:translateX(-100%)}to{transform:translateX(400%)}}
         #bot{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);box-shadow:0 -1px 0 var(--glass-shine);pointer-events:auto}
+        .ab{flex:1;font-family:'Cinzel',serif;font-size:clamp(8px,2.5vw,10px);letter-spacing:.12em;background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);color:var(--gold);padding:10px 4px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all .2s;border-radius:9999px}
+        .ab:last-child{border-right:none}
+        .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
 
         /* Chat toggle */
         .chat-toggle{position:relative;flex-shrink:0;margin-left:2px}
@@ -135,7 +126,15 @@
         .po-b:active{background:rgba(201,168,76,0.18);border-color:var(--gold);box-shadow:0 0 12px rgba(201,168,76,0.25)}
         #go{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:70;backdrop-filter:blur(8px);align-items:center;justify-content:center}
         #go.on{display:flex}
-        .gob{background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);box-shadow:inset 0 1px 0 var(--glass-shine),0 0 40px rgba(201,168,76,0.12),0 16px 60px rgba(0,0,0,0.7);border-radius:8px;padding:26px 40px;text-align:center;animation:goin .4s cubic-bezier(.175,.885,.32,1.275);max-width:88vw;display:flex;flex-direction:column;align-items:center;gap:14px}
+        .gob{
+            background:#1a0e04;
+            backdrop-filter:blur(12px);
+            border:1px solid var(--gold);
+            box-shadow:inset 0 1px 0 var(--glass-shine),0 0 40px rgba(201,168,76,0.12),0 16px 60px rgba(0,0,0,0.7);
+            border-radius:8px;padding:26px 40px;text-align:center;
+            animation:goin .4s cubic-bezier(.175,.885,.32,1.275);
+            max-width:88vw;display:flex;flex-direction:column;align-items:center;gap:14px
+        }
         @keyframes goin{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
         .gob h2{font-family:'Cinzel',serif;font-size:clamp(16px,5vw,22px);color:var(--gold);letter-spacing:.1em;margin-bottom:2px}
         .gob p{font-size:13px;color:var(--muted);font-style:italic;margin-bottom:4px}
@@ -168,11 +167,7 @@
         #rematch-panel.show,#exit-choice-panel.show,#restore-choice-panel.show,#cloud-choice-panel.show,#delete-confirm-panel.show,#exit-online-panel.show{display:flex}
         .rematch-box,.exit-choice-box,.restore-choice-box,.cloud-choice-box,.delete-confirm-box,.exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
         .delete-confirm-box,.exit-online-box{max-width:320px;width:90%}
-
-        /* All dialog headings */
-        .delete-confirm-box h2,.exit-online-box h2,.restore-choice-box h2,.cloud-choice-box h2,.exit-choice-box h2{
-            font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold);text-shadow:0 0 8px rgba(201,168,76,0.3)
-        }
+        .delete-confirm-box h2,.exit-online-box h2,.restore-choice-box h2,.cloud-choice-box h2,.exit-choice-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold);text-shadow:0 0 8px rgba(201,168,76,0.3)}
         .delete-confirm-box p,.exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
 
         /* Debug / Log */
