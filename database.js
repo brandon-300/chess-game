@@ -99,7 +99,6 @@ export async function joinPrivateGame(roomCode, joinerId, joinerKey, joinerNickn
     if (selectError) throw selectError;
     if (!game) throw new Error('Room not found');
 
-    // If frozen, check leaver and time
     if (game.status === 'frozen') {
         if (game.leaver_id !== joinerId) throw new Error('You cannot join this match because it has already started.');
         if (Date.now() - new Date(game.leave_time).getTime() > 10 * 60 * 1000) {

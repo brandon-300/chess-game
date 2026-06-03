@@ -66,21 +66,21 @@ const CLK = new THREE.Clock();
 let boardBuilt = false;
 
 // ---- Threefold repetition tracking ----
-let positionHistory = [];   // array of position signatures
+let positionHistory = [];   // signatures of positions that have occurred
 
 function posSignature(board, turn, cas, ep) {
-    // Create a unique string for the current position
+    // Unique string for the current position
     return JSON.stringify({ brd: board, turn, cas, ep });
 }
 
-function checkThreefold() {
+function checkThreefold(board, turn, cas, ep) {
     if (positionHistory.length < 3) return false;
-    const currentSig = posSignature(brd, turn, cas, ep);
+    const currentSig = posSignature(board, turn, cas, ep);
     let count = 0;
     for (const sig of positionHistory) {
         if (sig === currentSig) count++;
     }
-    return count >= 3;
+    return count >= 2; // current position is the third occurrence if count >= 2 in history
 }
 
 // ---------- Chess constants ----------
@@ -539,7 +539,9 @@ function execMove(mv) {
     if (!ensureEngineReady()) return;
     if (isAnim || over || frozen) return;
 
-    // Catch up timer before resetting
+    // Record the position BEFORE the move
+    positionHistory.push(posSignature(brd, turn, cas, ep));
+
     tickTimer();
 
     const wt = turn, capP = brd[mv.to], { r: tr, c: tc } = rc(mv.to);
@@ -557,9 +559,6 @@ function execMove(mv) {
     const { brd: nb, cas: nc, ep: ne } = applyM(brd, mv, cas, ep);
     brd = nb; cas = nc; ep = ne;
 
-    // Track position for threefold repetition
-    positionHistory.push(posSignature(brd, turn, cas, ep));
-
     if (wt === 'w') mlog.push({ w: an, b: '' });
     else {
         if (!mlog.length) mlog.push({ w: '', b: '' });
@@ -568,8 +567,8 @@ function execMove(mv) {
     turn = op(wt); lastMv = mv; selSq = null; curLM = [];
     timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
 
-    // Check threefold repetition
-    if (checkThreefold()) {
+    // Check threefold AFTER updating the position
+    if (checkThreefold(brd, turn, cas, ep)) {
         endGame("It's a draw!", 'Threefold repetition', SFX.stale, 'draw');
         return;
     }
@@ -874,7 +873,7 @@ export function undoMove() {
         const s = hist.pop();
         brd = s.brd; turn = s.turn; cas = s.cas; ep = s.ep;
         capW = s.capW; capB = s.capB; mlog = s.mlog;
-        // Also remove from positionHistory (last entry)
+        // Remove the last recorded position from history (the one we're undoing)
         if (positionHistory.length) positionHistory.pop();
     }
     timerW = 60; timerB = 60;
@@ -965,7 +964,7 @@ export function restoreBackup(data) {
 export function resetState() {
     brd = initBrd(); turn = 'w'; cas = { wK: true, wQ: true, bK: true, bQ: true }; ep = null;
     hist = []; capW = []; capB = []; mlog = [];
-    positionHistory = [posSignature(brd, turn, cas, ep)]; // reset and store initial position
+    positionHistory = [posSignature(brd, turn, cas, ep)]; // record initial position
     selSq = null; curLM = []; lastMv = null; over = false; pendP = null; isAnim = false; aiThink = false; frozen = false;
     timerW = 60; timerB = 60; timerActive = false; lastTick = null; lastTickSecond = -1;
     gameOverInfo = null; promotionPending = false; pendingPromotionMove = null;
