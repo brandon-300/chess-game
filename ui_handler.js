@@ -7,7 +7,7 @@ let callbacks = {};
 let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
-let lastMessageCount = 0;
+let lastSeenMessageId = 0;      // ← changed from count to ID
 
 export function initUI(cb) {
     callbacks = cb;
@@ -119,7 +119,6 @@ function attachListeners() {
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    // Chat
     if (els['chat-toggle-btn']) els['chat-toggle-btn'].addEventListener('click', () => toggleChat());
     if (els['btn-send-chat']) els['btn-send-chat'].addEventListener('click', () => sendChatFromInput());
     if (els['chat-input']) els['chat-input'].addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatFromInput(); });
@@ -158,17 +157,22 @@ export function showChatNotification(senderName) {
     el.textContent = senderName + ' sent you a message';
     el.classList.add('show');
     clearTimeout(chatNotificationTimer);
-    chatNotificationTimer = setTimeout(() => {
-        el.classList.remove('show');
-    }, 3000);
+    chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
 // Polling calls this every 2 seconds with the full message list
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
     if (!box) return;
-    const newMessages = messages.slice(lastMessageCount);
-    lastMessageCount = messages.length;
+    let newMessages = [];
+    let maxId = lastSeenMessageId;
+    for (const msg of messages) {
+        if (msg.id > lastSeenMessageId) {
+            newMessages.push(msg);
+            if (msg.id > maxId) maxId = msg.id;
+        }
+    }
+    lastSeenMessageId = maxId;
     if (newMessages.length === 0) return;
     newMessages.forEach(msg => {
         appendChatMessage(msg.nickname, msg.message, false);
@@ -188,13 +192,13 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     }
 }
 
-// Call this right after sending a message so polling doesn't re-add it
-export function incrementChatMessageCount() {
-    lastMessageCount++;
+// Call after a message is successfully inserted, to update the last seen ID
+export function setLastSeenMessageId(id) {
+    if (id > lastSeenMessageId) lastSeenMessageId = id;
 }
 
 export function resetChatMessageCount() {
-    lastMessageCount = 0;
+    lastSeenMessageId = 0;
     if (els['chat-messages']) els['chat-messages'].innerHTML = '';
 }
 
