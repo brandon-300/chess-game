@@ -42,17 +42,17 @@
         .db:active,.db:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10);box-shadow:0 0 10px rgba(201,168,76,0.15)}
         .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
-        #top{position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;padding:6px 10px;gap:8px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);pointer-events:auto}
-        .tpill{display:flex;align-items:center;gap:7px;flex-shrink:0}
-        .tdot{width:11px;height:11px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
-        .tdot.w{background:#cc0000;box-shadow:0 0 8px rgba(204,0,0,.65)}
+        #top{position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;padding:4px 8px;gap:6px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);pointer-events:auto;flex-wrap:wrap}
+        .tpill{display:flex;align-items:center;gap:5px;flex-shrink:0}
+        .tdot{width:9px;height:9px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
+        .tdot.w{background:#cc0000;box-shadow:0 0 6px rgba(204,0,0,.65)}
         .tdot.b{background:#1c0e06}
-        #tlbl{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.12em;color:var(--cream)}
-        #smsg{font-size:11px;color:var(--gold);font-style:italic;flex:1;text-align:center;overflow:hidden;white-space:nowrap}
-        .timers{display:flex;gap:5px;flex-shrink:0}
-        .tmr{display:flex;flex-direction:column;align-items:center;padding:2px 7px;border:1px solid rgba(201,168,76,0.18);border-radius:2px;min-width:50px;background:rgba(14,9,4,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-        .tmr .tn{font-family:'Cinzel',serif;font-size:7px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
-        .tmr .tv{font-family:'Cinzel',serif;font-size:15px;letter-spacing:.03em;color:var(--cream);line-height:1.25}
+        #tlbl{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.1em;color:var(--cream);white-space:nowrap}
+        #smsg{font-size:10px;color:var(--gold);font-style:italic;flex:1;text-align:center;overflow:hidden;white-space:nowrap;min-width:0}
+        .timers{display:flex;gap:4px;flex-shrink:0}
+        .tmr{display:flex;flex-direction:column;align-items:center;padding:1px 5px;border:1px solid rgba(201,168,76,0.18);border-radius:2px;min-width:42px;background:rgba(14,9,4,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+        .tmr .tn{font-family:'Cinzel',serif;font-size:6px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+        .tmr .tv{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.03em;color:var(--cream);line-height:1.2}
         .tmr.active .tv{color:var(--gold)}.tmr.low .tv{color:#e04040;animation:blk .65s ease-in-out infinite alternate}
         @keyframes blk{from{opacity:1}to{opacity:.25}}
         .thkstrip{display:none;position:absolute;bottom:0;left:0;right:0;height:2px;overflow:hidden}
@@ -64,10 +64,10 @@
         .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
 
         /* Chat toggle (speech bubble icon) */
-        .chat-toggle{position:relative;flex-shrink:0;margin-left:4px}
-        .chat-toggle-btn{width:28px;height:28px;border-radius:50%;background:rgba(14,9,4,0.75);border:1px solid var(--gold-d);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+        .chat-toggle{position:relative;flex-shrink:0;margin-left:2px}
+        .chat-toggle-btn{width:26px;height:26px;border-radius:50%;background:rgba(14,9,4,0.75);border:1px solid var(--gold-d);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
         .chat-toggle-btn:hover{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.3)}
-        .chat-toggle-btn svg{width:16px;height:16px;fill:var(--gold)}
+        .chat-toggle-btn svg{width:14px;height:14px;fill:var(--gold)}
 
         #pm{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:80;align-items:center;justify-content:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
         #pm.on{display:flex}
