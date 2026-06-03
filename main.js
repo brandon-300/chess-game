@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v25 – chat cross‑message fix)
+// main.js — Orchestrator for Chess 3D (v26 – robust chat sync)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -219,7 +219,17 @@ async function pollGameState() {
     } catch (e) {}
 }
 
-function startChatPolling(gameId) { stopChatPolling(); chatPollInterval = setInterval(async () => { try { ui.displayChatMessages(await db.getChatMessages(gameId)); } catch (e) {} }, 2000); }
+function startChatPolling(gameId) {
+    stopChatPolling();
+    chatPollInterval = setInterval(async () => {
+        try {
+            const msgs = await db.getChatMessages(gameId);
+            ui.displayChatMessages(msgs);
+        } catch (e) {
+            showError('chatPoll', e);   // show in error‑log if something breaks
+        }
+    }, 2000);
+}
 function stopChatPolling() { if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; } }
 
 async function sendChat(msg) {
@@ -228,7 +238,10 @@ async function sendChat(msg) {
     const row = await db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg);
     if (row) {
         ui.appendChatMessage(nickname, msg, true);
-        ui.setLastSeenMessageId(row.id);   // prevents polling from re‑adding it
+        ui.setLastSeenMessageId(row.id);
+    } else {
+        // fallback – append anyway, polling will eventually catch it
+        ui.appendChatMessage(nickname, msg, true);
     }
 }
 
