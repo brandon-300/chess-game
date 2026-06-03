@@ -5,6 +5,8 @@ import * as engine from './game_engine.js';
 let els = {};
 let callbacks = {};
 let toastTimer = null;
+let chatNotificationTimer = null;
+let isChatOpen = false;
 
 export function initUI(cb) {
     callbacks = cb;
@@ -28,7 +30,7 @@ function cacheElements() {
         'tmrW', 'tmrB', 'tvW', 'tvB',
         'thkstrip', 'chat-toggle-btn', 'chat-box', 'chat-messages', 'chat-input', 'btn-send-chat',
         'go', 'got', 'gos', 'go-btns',
-        'pm', 'po', 'toast',
+        'pm', 'po', 'toast', 'chat-notification',
         'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel',
         'delete-confirm-panel', 'exit-online-panel',
         'new-game-btn', 'undo-btn', 'mode-btn',
@@ -78,11 +80,7 @@ function attachListeners() {
     btn('btn-public-back', () => { hideAllPanels(); showPanel('online-menu'); });
     btn('btn-show-create-private', () => callbacks.onCreatePrivateRoom());
     btn('btn-show-join-private', () => { hideAllPanels(); showPanel('join-private'); });
-    btn('btn-rejoin-private', () => {
-        hideAllPanels();
-        showPanel('join-private');
-        // pre-fill the input? No, just let them enter code again for security
-    });
+    btn('btn-rejoin-private', () => { hideAllPanels(); showPanel('join-private'); });
     btn('btn-private-back', () => { hideAllPanels(); showPanel('online-menu'); });
     btn('btn-join-private', () => callbacks.onJoinPrivateRoom());
     btn('btn-join-private-back', () => { hideAllPanels(); showPanel('private-menu'); });
@@ -120,13 +118,10 @@ function attachListeners() {
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    btn('chat-toggle-btn', () => callbacks.onToggleChat());
-    btn('btn-send-chat', () => {
-        const input = els['chat-input'];
-        if (!input) return;
-        const msg = input.value.trim();
-        if (msg) { callbacks.onSendChat(msg); input.value = ''; }
-    });
+    // Chat toggle
+    if (els['chat-toggle-btn']) els['chat-toggle-btn'].addEventListener('click', () => toggleChat());
+    if (els['btn-send-chat']) els['btn-send-chat'].addEventListener('click', () => sendChatFromInput());
+    if (els['chat-input']) els['chat-input'].addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatFromInput(); });
 
     btn('btn-restore-ai', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestoreAI) callbacks.onRestoreAI(); });
     btn('btn-restore-2p', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestore2P) callbacks.onRestore2P(); });
@@ -136,6 +131,36 @@ function attachListeners() {
     btn('btn-cloud-restore-cancel', () => { els['cloud-choice-panel']?.classList.remove('show'); });
 
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
+}
+
+function sendChatFromInput() {
+    const input = els['chat-input'];
+    if (!input) return;
+    const msg = input.value.trim();
+    if (msg) {
+        callbacks.onSendChat(msg);
+        input.value = '';
+    }
+}
+
+// ---------- Chat toggle (open/close) ----------
+function toggleChat() {
+    isChatOpen = !isChatOpen;
+    if (els['chat-box']) {
+        els['chat-box'].classList.toggle('show', isChatOpen);
+    }
+}
+
+// Show a temporary notification when a message arrives while chat is closed
+export function showChatNotification(senderName) {
+    const el = els['chat-notification'];
+    if (!el) return;
+    el.textContent = senderName + ' sent you a message';
+    el.classList.add('show');
+    clearTimeout(chatNotificationTimer);
+    chatNotificationTimer = setTimeout(() => {
+        el.classList.remove('show');
+    }, 3000);
 }
 
 // ---------- Panel helpers ----------
@@ -153,9 +178,16 @@ export function showMenu() {
     if (els['original-buttons']) els['original-buttons'].style.display = '';
     setOnlineBottomButtons(false);
     hideAllPanels();
+    // Close chat when returning to menu
+    isChatOpen = false;
+    if (els['chat-box']) els['chat-box'].classList.remove('show');
 }
 export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; }
-export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; if (els['chat-box']) els['chat-box'].classList.remove('show'); }
+export function hideGameUI() {
+    if (els['gu']) els['gu'].style.display = 'none';
+    isChatOpen = false;
+    if (els['chat-box']) els['chat-box'].classList.remove('show');
+}
 export function hideGameOver() { if (els['go']) els['go'].classList.remove('on'); }
 
 export function updateHeaderUI(userId, avatarUrl) {
@@ -200,7 +232,10 @@ export function updateThinkingIndicator(thinking) {
 export function setChatVisibility(visible) {
     const toggle = els['chat-toggle-btn']?.parentElement;
     if (toggle) toggle.style.display = visible ? '' : 'none';
-    if (els['chat-box'] && !visible) els['chat-box'].classList.remove('show');
+    if (!visible) {
+        isChatOpen = false;
+        if (els['chat-box']) els['chat-box'].classList.remove('show');
+    }
 }
 
 export function setOnlineBottomButtons(isOnline) {
@@ -209,37 +244,25 @@ export function setOnlineBottomButtons(isOnline) {
     if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
 }
 
-// Rejoin button visibility
 export function setRejoinButtonsVisibility(showPublic, showPrivate) {
     const pubBtn = document.getElementById('btn-rejoin-public');
     const privBtn = document.getElementById('btn-rejoin-private');
     if (!pubBtn) {
-        // create if needed
         const pubMenu = document.getElementById('public-menu');
         if (pubMenu) {
-            const b = document.createElement('button');
-            b.className = 'db'; b.id = 'btn-rejoin-public'; b.textContent = 'Rejoin match';
-            b.addEventListener('click', () => callbacks.onRejoinPublic());
-            pubMenu.appendChild(b);
+            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-public'; b.textContent = 'Rejoin match';
+            b.addEventListener('click', () => callbacks.onRejoinPublic()); pubMenu.appendChild(b);
         }
     }
     if (!privBtn) {
         const privMenu = document.getElementById('private-menu');
         if (privMenu) {
-            const b = document.createElement('button');
-            b.className = 'db'; b.id = 'btn-rejoin-private'; b.textContent = 'Rejoin match';
-            b.addEventListener('click', () => {
-                // will prompt for code in join-private panel
-                hideAllPanels();
-                showPanel('join-private');
-            });
-            privMenu.appendChild(b);
+            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-private'; b.textContent = 'Rejoin match';
+            b.addEventListener('click', () => { hideAllPanels(); showPanel('join-private'); }); privMenu.appendChild(b);
         }
     }
-    const pub = document.getElementById('btn-rejoin-public');
-    const prv = document.getElementById('btn-rejoin-private');
-    if (pub) pub.style.display = showPublic ? '' : 'none';
-    if (prv) prv.style.display = showPrivate ? '' : 'none';
+    const pub = document.getElementById('btn-rejoin-public'); if (pub) pub.style.display = showPublic ? '' : 'none';
+    const prv = document.getElementById('btn-rejoin-private'); if (prv) prv.style.display = showPrivate ? '' : 'none';
 }
 
 export function showWaitingRoom(hostNickname, roomCode) {
@@ -294,18 +317,24 @@ export function showPromotion(color) {
     if (els['pm']) els['pm'].classList.add('on');
 }
 
-export function toggleChat() { if (els['chat-box']) els['chat-box'].classList.toggle('show'); }
-
+// Display messages and show notification if chat is closed
 export function displayChatMessages(messages) {
-    const box = els['chat-messages']; if (!box) return; box.innerHTML = '';
-    messages.forEach(msg => { const div = document.createElement('div'); div.innerHTML = `<b>${msg.nickname}:</b> ${msg.message}`; box.appendChild(div); });
+    const box = els['chat-messages']; if (!box) return;
+    box.innerHTML = '';
+    messages.forEach(msg => {
+        const div = document.createElement('div'); div.innerHTML = `<b>${msg.nickname}:</b> ${msg.message}`;
+        box.appendChild(div);
+    });
     box.scrollTop = box.scrollHeight;
 }
 
 export function appendChatMessage(nickname, msg) {
     const box = els['chat-messages']; if (!box) return;
-    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`; box.appendChild(div);
+    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
+    box.appendChild(div);
     box.scrollTop = box.scrollHeight;
+    // Show notification if chat is closed
+    if (!isChatOpen) showChatNotification(nickname);
 }
 
 export function toast(msg, duration = 2800) {
