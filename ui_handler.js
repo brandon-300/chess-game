@@ -174,7 +174,8 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    btn('btn-exit-online-yes', () => callbacks.onExitOnline());
+    // Exit online confirmation – "Leave" now calls the actual exit function
+    btn('btn-exit-online-yes', () => callbacks.onExitOnlineYes());
     btn('btn-exit-online-stay', () => {
         const panel = els['exit-online-panel'];
         if (panel) panel.classList.remove('show');
@@ -224,7 +225,7 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Header login button is already handled, avatar click already set in cacheElements
+    // Header login button
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
@@ -254,6 +255,8 @@ export function showMenu() {
     if (els['gu']) els['gu'].style.display = 'none';
     if (els['main-cards']) els['main-cards'].style.display = 'flex';
     if (els['original-buttons']) els['original-buttons'].style.display = '';
+    // Restore offline buttons when returning to menu
+    setOnlineBottomButtons(false);
     hideAllPanels();
 }
 
@@ -275,17 +278,14 @@ export function hideGameOver() {
 export function updateHeaderUI(userId, avatarUrl) {
     if (!els['login-btn'] || !els['profile-avatar'] || !els['profile-avatar-img']) return;
     if (userId) {
-        // Logged in – hide login button, show avatar
         els['login-btn'].style.display = 'none';
         els['profile-avatar'].style.display = 'block';
         if (avatarUrl) {
             els['profile-avatar-img'].src = avatarUrl;
         } else {
-            // No avatar – show a fallback gold circle (CSS background will handle)
             els['profile-avatar-img'].src = '';
         }
     } else {
-        // Logged out
         els['login-btn'].style.display = 'inline-block';
         els['profile-avatar'].style.display = 'none';
         els['profile-avatar-img'].src = '';
@@ -334,6 +334,14 @@ export function setChatVisibility(visible) {
     const box = els['chat-box'];
     if (toggle) toggle.style.display = visible ? '' : 'none';
     if (box && !visible) box.classList.remove('show');
+}
+
+// ---------- Bottom button visibility for online mode ----------
+export function setOnlineBottomButtons(isOnline) {
+    if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
+    if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
+    // Exit button always visible; text may change
+    if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
 }
 
 // ---------- Online waiting / countdown ----------
