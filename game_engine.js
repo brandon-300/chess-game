@@ -29,7 +29,7 @@ let timerW = 60;
 let timerB = 60;
 let timerActive = false;
 let lastTick = null;
-let lastTickSecond = -1;   // for tick sound on last 5 seconds
+let lastTickSecond = -1;
 
 // Game mode & AI
 let gameMode = '2p';
@@ -506,6 +506,10 @@ function tickAnim() {
 function execMove(mv) {
     if (!ensureEngineReady()) return;
     if (isAnim || over || frozen) return;
+
+    // ----- FIX: catch up timer before resetting -----
+    tickTimer();
+
     const wt = turn, capP = brd[mv.to], { r: tr, c: tc } = rc(mv.to);
     hist.push({
         brd: [...brd], turn, cas: { ...cas }, ep,
@@ -576,7 +580,8 @@ function execMove(mv) {
         if (!am2.length) {
             const ck = inCk(brd, turn), winner = turn === 'w' ? 'Black' : 'Red';
             endGame(ck ? winner + ' Wins' : 'Stalemate', ck ? 'Checkmate' : 'Draw — no legal moves',
-                ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale);
+                ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale,
+                ck ? winner : 'draw');
             return;
         }
         if (inCk(brd, turn)) SFX.check();
@@ -585,15 +590,14 @@ function execMove(mv) {
     });
 }
 
-function endGame(title, subtitle, sfx) {
+function endGame(title, subtitle, sfx, resultType) {
     over = true; timerActive = false; aiThink = false;
-    gameOverInfo = { title, subtitle, sfx };
+    gameOverInfo = { title, subtitle, sfx, resultType };
 }
 
-// ---------- Timer (ticks even while AI is thinking) ----------
+// ---------- Timer ----------
 function tickTimer() {
     if (!timerActive || over || isAnim || frozen) return;
-    // NOTE: aiThink NOT checked, so timer counts down during AI's search
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
     const dt = (now - lastTick) / 1000; lastTick = now;
@@ -621,7 +625,7 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling (no artificial delay, but aiThink flag shows the thinking indicator) ----------
+// ---------- AI scheduling ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
@@ -639,7 +643,8 @@ function scheduleAI(delay = 80) {
         else {
             const ck = inCk(brd, turn), winner = turn === 'w' ? 'Black' : 'Red';
             endGame(ck ? winner + ' Wins' : 'Stalemate', ck ? 'Checkmate' : 'Draw — no legal moves',
-                ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale);
+                ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale,
+                ck ? winner : 'draw');
         }
     }, delay);
 }
