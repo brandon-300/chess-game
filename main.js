@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v28 – stable chat sync, no internal access)
+// main.js — Orchestrator for Chess 3D (v29 – simplified chat sync)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -119,17 +119,15 @@ function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval);
 async function pollGameState() { if (!currentOnlineGame || moveSyncing || over) return; try { const gameData = await db.fetchGameState(currentOnlineGame.id); if (!gameData) return; if (gameData.status === 'terminated') { if (currentUserId !== gameData.host_player_id) ui.toast('Match terminated by the host.'); resetOnlineState(); ui.showMenu(); return; } if (gameData.status === 'frozen') { if (!frozen) { frozen = true; engine.setFrozen(true); if (currentUserId !== gameData.leaver_id) { ui.toast('Opponent left – waiting for rejoin…'); sessionStorage.setItem('chess3d_frozen_game', gameData.id); } else sessionStorage.setItem('chess3d_frozen_game', gameData.id); } return; } if (frozen && gameData.status === 'active') { frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!'); sessionStorage.removeItem('chess3d_frozen_game'); } const serverState = JSON.stringify(gameData.board_state); if (serverState !== lastKnownServerState) { lastKnownServerState = serverState; engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b); } } catch (e) {} }
 
 /* ============================================================
-   CHAT – polling + sending
+   CHAT
    ============================================================ */
 function startChatPolling(gameId) {
     stopChatPolling();
     chatPollInterval = setInterval(async () => {
         try {
             const msgs = await db.getChatMessages(gameId);
-            if (!msgs || msgs.length === 0) return;
-            const newMsgs = ui.displayChatMessages(msgs);
-            for (const msg of newMsgs) {
-                ui.maybeShowNotification(msg.id, msg.nickname);
+            if (msgs && msgs.length > 0) {
+                ui.displayChatMessages(msgs);
             }
         } catch (e) {
             showError('chatPoll', e);

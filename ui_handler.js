@@ -8,7 +8,7 @@ let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
 
-// ---- chat deduplication ----
+// ---- chat deduplication (IDs stored as strings) ----
 let knownMessageIds = new Set();
 let notifiedMessageIds = new Set();
 
@@ -164,26 +164,26 @@ export function showChatNotification(senderName) {
 }
 
 /**
- * Called by polling every 2 seconds with the full message list.
- * Returns an array of message objects that were newly added to the chat.
+ * Called by polling with the full message list.
+ * Adds new messages to the chat and triggers notifications.
  */
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
-    if (!box) return [];
-    const newMessages = [];
+    if (!box) return;
+    let added = false;
     for (const msg of messages) {
-        const id = Number(msg.id);
-        if (isNaN(id)) continue;
+        const id = String(msg.id);
+        if (!id || id === 'undefined') continue;
         if (!knownMessageIds.has(id)) {
             knownMessageIds.add(id);
             appendChatMessage(msg.nickname, msg.message, false);
-            newMessages.push(msg);
+            maybeShowNotification(id, msg.nickname);
+            added = true;
         }
     }
-    if (newMessages.length > 0) {
+    if (added) {
         box.scrollTop = box.scrollHeight;
     }
-    return newMessages;
 }
 
 export function appendChatMessage(nickname, msg, skipNotification = false) {
@@ -193,24 +193,22 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     div.innerHTML = `<b>${nickname}:</b> ${msg}`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    // Notification is handled externally via maybeShowNotification
 }
 
-/** Call after a message is inserted by us – adds id to both known and notified sets */
+/** Call after we send a message – mark it as known and notified */
 export function registerOwnMessage(id) {
-    const num = Number(id);
-    if (!isNaN(num)) {
-        knownMessageIds.add(num);
-        notifiedMessageIds.add(num);
-    }
+    const strId = String(id);
+    if (!strId || strId === 'undefined') return;
+    knownMessageIds.add(strId);
+    notifiedMessageIds.add(strId);
 }
 
-/** Show a notification popup for message id if not already notified and chat is closed */
+/** Show a notification popup for a message id if not already notified and chat is closed */
 export function maybeShowNotification(id, nickname) {
-    const num = Number(id);
-    if (isNaN(num)) return;
-    if (!notifiedMessageIds.has(num)) {
-        notifiedMessageIds.add(num);
+    const strId = String(id);
+    if (!strId || strId === 'undefined') return;
+    if (!notifiedMessageIds.has(strId)) {
+        notifiedMessageIds.add(strId);
         if (!isChatOpen) showChatNotification(nickname);
     }
 }
