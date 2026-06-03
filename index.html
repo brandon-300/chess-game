@@ -22,7 +22,12 @@
         }
         .header-title{font-family:'Cinzel',serif;font-size:clamp(18px,5vw,24px);letter-spacing:.22em;color:var(--gold);text-shadow:0 0 18px rgba(201,168,76,0.5)}
         .header-right{display:flex;align-items:center;gap:12px}
-        #login-btn{font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;background:transparent;border:1px solid var(--gold);color:var(--gold);padding:6px 16px;cursor:pointer;text-transform:uppercase;border-radius:2px;backdrop-filter:blur(4px);transition:all .2s}
+        #login-btn{
+            font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;
+            background:transparent;border:1px solid var(--gold);color:var(--gold);
+            padding:6px 18px;cursor:pointer;text-transform:uppercase;
+            border-radius:9999px;backdrop-filter:blur(4px);transition:all .2s
+        }
         #login-btn:hover{background:rgba(201,168,76,0.12);box-shadow:0 0 10px rgba(201,168,76,0.2)}
         #profile-avatar{display:none;width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);overflow:hidden;cursor:pointer;flex-shrink:0;transition:all .2s;background:rgba(201,168,76,0.08)}
         #profile-avatar:hover{box-shadow:0 0 12px rgba(201,168,76,0.4);border-color:#fff}
@@ -55,9 +60,29 @@
         .card p{font-size:clamp(10px,2.5vw,12px);color:var(--muted);line-height:1.4;font-style:italic}
 
         .drow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-        .db{font-family:'Cinzel',serif;font-size:clamp(8px,2.2vw,10px);letter-spacing:.14em;background:rgba(201,168,76,0.04);border:1px solid var(--gold-d);color:var(--cream);padding:7px clamp(10px,2.8vw,16px);cursor:pointer;text-transform:uppercase;border-radius:2px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .2s}
-        .db:active,.db:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10);box-shadow:0 0 10px rgba(201,168,76,0.15)}
+
+        /* ---- Pill Buttons ---- */
+        .db{
+            font-family:'Cinzel',serif;font-size:clamp(8px,2.2vw,10px);letter-spacing:.14em;
+            background:rgba(201,168,76,0.06);border:1px solid var(--gold-d);color:var(--gold);
+            padding:7px clamp(10px,2.8vw,16px);cursor:pointer;text-transform:uppercase;
+            border-radius:9999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .2s
+        }
+        .db:active,.db:hover{
+            border-color:var(--gold);color:var(--gold);
+            background:rgba(201,168,76,0.14);box-shadow:0 0 10px rgba(201,168,76,0.15)
+        }
         .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
+
+        /* ---- Pill Bottom Bar Buttons ---- */
+        .ab{
+            flex:1;font-family:'Cinzel',serif;font-size:clamp(8px,2.5vw,10px);letter-spacing:.12em;
+            background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);
+            color:var(--gold);padding:10px 4px;cursor:pointer;text-transform:uppercase;
+            white-space:nowrap;transition:all .2s;border-radius:9999px
+        }
+        .ab:last-child{border-right:none}
+        .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
 
         /* Game UI */
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
@@ -78,9 +103,6 @@
         .thkstrip.on{display:block}.thkstrip::after{content:'';display:block;height:100%;width:35%;background:var(--gold);animation:tk 1s ease-in-out infinite alternate}
         @keyframes tk{from{transform:translateX(-100%)}to{transform:translateX(400%)}}
         #bot{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);box-shadow:0 -1px 0 var(--glass-shine);pointer-events:auto}
-        .ab{flex:1;font-family:'Cinzel',serif;font-size:clamp(8px,2.5vw,10px);letter-spacing:.12em;background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);color:var(--muted);padding:10px 4px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all .2s}
-        .ab:last-child{border-right:none}
-        .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
 
         /* Chat toggle */
         .chat-toggle{position:relative;flex-shrink:0;margin-left:2px}
@@ -88,7 +110,7 @@
         .chat-toggle-btn:hover{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.3)}
         .chat-toggle-btn svg{width:14px;height:14px;fill:var(--gold)}
 
-        /* Chat box – narrow panel at top-right */
+        /* Chat box */
         #chat-box{
             position:fixed;top:80px;right:10px;width:240px;max-height:300px;z-index:200;
             background:#1a0e04;border:1px solid var(--gold);border-radius:6px;
@@ -118,7 +140,12 @@
         .gob h2{font-family:'Cinzel',serif;font-size:clamp(16px,5vw,22px);color:var(--gold);letter-spacing:.1em;margin-bottom:2px}
         .gob p{font-size:13px;color:var(--muted);font-style:italic;margin-bottom:4px}
         .gobtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-        .gobtns button{font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;background:rgba(201,168,76,0.06);border:1px solid var(--gold);color:var(--gold);padding:10px 20px;cursor:pointer;text-transform:uppercase;white-space:nowrap;border-radius:2px;backdrop-filter:blur(4px);transition:all .2s}
+        .gobtns button{
+            font-family:'Cinzel',serif;font-size:clamp(9px,2.5vw,11px);letter-spacing:.14em;
+            background:rgba(201,168,76,0.06);border:1px solid var(--gold);color:var(--gold);
+            padding:10px 20px;cursor:pointer;text-transform:uppercase;white-space:nowrap;
+            border-radius:9999px;backdrop-filter:blur(4px);transition:all .2s
+        }
         .gobtns button:active{background:rgba(201,168,76,0.18);box-shadow:0 0 12px rgba(201,168,76,0.2)}
         .gobtns button.sec{border-color:var(--gold-d);color:var(--muted)}
         .gobtns button.sec:active{border-color:var(--gold);color:var(--gold)}
@@ -129,7 +156,7 @@
         .online-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.12),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
         .online-panel.show{display:flex}
         .online-panel h2{font-family:'Cinzel',serif;font-size:clamp(14px,4vw,18px);color:var(--gold);letter-spacing:.2em;margin-bottom:8px}
-        .online-panel input{background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Cormorant Garamond',serif;font-size:16px;letter-spacing:.1em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s;border-radius:2px}
+        .online-panel input{background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Cormorant Garamond',serif;font-size:16px;letter-spacing:.1em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s;border-radius:9999px}
         .online-panel input:focus{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.15)}
         .online-panel .db{margin:4px 0;min-width:220px;font-size:clamp(10px,2.5vw,12px)}
         .online-panel .db.back-btn{border-color:var(--gold-d);color:var(--muted);opacity:0.7}
@@ -141,7 +168,11 @@
         #rematch-panel.show,#exit-choice-panel.show,#restore-choice-panel.show,#cloud-choice-panel.show,#delete-confirm-panel.show,#exit-online-panel.show{display:flex}
         .rematch-box,.exit-choice-box,.restore-choice-box,.cloud-choice-box,.delete-confirm-box,.exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
         .delete-confirm-box,.exit-online-box{max-width:320px;width:90%}
-        .delete-confirm-box h2,.exit-online-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold)}
+
+        /* All dialog headings */
+        .delete-confirm-box h2,.exit-online-box h2,.restore-choice-box h2,.cloud-choice-box h2,.exit-choice-box h2{
+            font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold);text-shadow:0 0 8px rgba(201,168,76,0.3)
+        }
         .delete-confirm-box p,.exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
 
         /* Debug / Log */
@@ -170,7 +201,7 @@
         <h1>Chess 3D</h1>
         <div class="cards" id="main-cards">
             <div class="card local-mode" id="card-2p"><div class="ic">♟♙</div><h2>Two Players</h2><p>Pass and play locally</p></div>
-            <div class="card local-mode" id="card-ai"><div class="ic">♜</div><h2>vs Computer</h2><p>Play against AI</p></div>
+            <div class="card local-mode" id="card-ai"><div class="ic">♜</div><h2>vs AI</h2><p>Play against AI</p></div>
             <div class="card" id="card-online"><div class="ic">🌐</div><h2>Online</h2><p>Play with others</p></div>
         </div>
 
