@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v18 – host waiting fix, tagline removed)
+// main.js — Orchestrator for Chess 3D (v19 – host sees countdown, tagline removed)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -26,7 +26,8 @@ async function init() {
             onStart2P: () => startOfflineGame('2p'), onStartAI: showAiDiffPanel, onOnlineMenu: showOnlineMenu,
             onCreatePublicRoom: createPublicRoom, onJoinPublicRoom: joinPublicRoom, onRejoinPublic: rejoinPublicGame,
             onCreatePrivateRoom: createPrivateRoom, onJoinPrivateRoom: joinPrivateRoom,
-            onCancelWaiting: cancelWaiting, onCountdownFinished: startOnlineGame, onAiCountdownFinished: startAiGame,
+            onCancelWaiting: cancelWaiting, onCountdownFinished: () => startOnlineGame(),  // <-- now used by both
+            onAiCountdownFinished: startAiGame,
             onAcceptRematch: acceptRematch, onDeclineRematch: declineRematch,
             onSendChat: (msg) => sendChat(msg), onToggleChat: () => ui.toggleChat(),
             onUndo: undoMove, onNewGame: newGame, onModeBtn: handleBottomRight,
@@ -206,12 +207,12 @@ function startWaitingPoll(gameId) {
             const data = await db.fetchGameState(gameId);
             if (!data) return;
             if (data.status === 'countdown') {
-                // Joiner joined, the countdown panel will be shown by the host's UI? Actually the host needs to see countdown too.
-                // But the host's waiting room doesn't have a countdown. The joiner's client shows countdown.
-                // For host, when status becomes 'countdown', we could either show a countdown or just wait for 'active'.
-                // In original design, host waits on waiting room until active. Let's keep it that way.
-                // Do nothing – the status will become 'active' after the joiner's countdown finishes.
+                // Host should also see the countdown!
+                stopWaitingPoll();
+                currentOnlineGame = data;
+                ui.showCountdown(data.host_nickname, data.room_code);  // this will start countdown and call onCountdownFinished -> startOnlineGame
             } else if (data.status === 'active') {
+                // Rare: if joiner somehow set active before host polled countdown (shouldn't happen)
                 stopWaitingPoll();
                 currentOnlineGame = data;
                 startOnlineGame();
@@ -228,7 +229,7 @@ function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPol
 
 async function startOnlineGame() {
     if (!currentOnlineGame) return;
-    // Host sets the game to active (joiner already finished countdown and expects active state)
+    // Only the host sets the game to active
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.updateGameStatus(currentOnlineGame.id, 'active');
     }
