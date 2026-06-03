@@ -1,8 +1,13 @@
-// main.js — Orchestrator for Chess 3D (v36 – host‑stuck debug)
+// main.js — Orchestrator for Chess 3D (v37 – debug game ID mismatch)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
     if (log) { log.style.display = 'block'; log.textContent += `[${source}] ${err.message || err}\n`; console.error(`[${source}]`, err); }
+}
+
+function screenLog(msg) {
+    const log = document.getElementById('error-log');
+    if (log) { log.style.display = 'block'; log.textContent += msg + '\n'; }
 }
 
 let gameMode = null, currentOnlineGame = null, myColor = 'w', sessionPlayerKey = null, started = false, over = false, frozen = false, currentUserId = null;
@@ -10,9 +15,9 @@ let moveSyncing = false, lastKnownServerState = null, pollInterval = null, chatP
 let db, engine, ui;
 
 async function loadModules() {
-    try { db = await import('./database.js'); } catch (e) { showError('import database.js', e); return false; }
-    try { engine = await import('./game_engine.js'); } catch (e) { showError('import game_engine.js', e); return false; }
-    try { ui = await import('./ui_handler.js'); } catch (e) { showError('import ui_handler.js', e); return false; }
+    try { db = await import('./database.js'); screenLog('database.js loaded'); } catch (e) { screenLog('FAIL database.js'); return false; }
+    try { engine = await import('./game_engine.js'); screenLog('game_engine.js loaded'); } catch (e) { screenLog('FAIL game_engine.js'); return false; }
+    try { ui = await import('./ui_handler.js'); screenLog('ui_handler.js loaded'); } catch (e) { screenLog('FAIL ui_handler.js'); return false; }
     return true;
 }
 
@@ -89,8 +94,7 @@ async function init() {
         await updateHeaderWithAvatar();
         updateRejoinButtonsFromSession();
         ui.showMenu();
-        updateDebugOverlay();
-    } catch (err) { showError('init()', err); }
+    } catch (err) { showError('init', err); }
 }
 
 async function updateHeaderWithAvatar() {
@@ -154,24 +158,30 @@ async function createPrivateRoom() { await createRoom(null, 'private'); }
 async function createRoom(code, type) { if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; } const hostKey = generatePlayerKey(); try { const game = await db.createGame(code, type, currentUserId, hostKey, username); onlineGameCreated(game, hostKey); } catch (e) { ui.toast('Failed to create room: ' + e.message); } }
 async function joinPublicRoom() { if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; } const joinerKey = generatePlayerKey(); try { const game = await db.joinPublicGame(currentUserId, joinerKey, username); onlineGameJoined(game, joinerKey); } catch (e) { ui.toast('Join failed: ' + e.message); } }
 async function joinPrivateRoom() { if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; } const code = ui.getPrivateRoomCode(); if (!code) { ui.toast('Enter a room code.'); return; } const joinerKey = generatePlayerKey(); try { const game = await db.joinPrivateGame(code, currentUserId, joinerKey, username); if (game.status === 'active') { enterOnlineGame(game); return; } onlineGameJoined(game, joinerKey); } catch (e) { ui.toast('Join failed: ' + e.message); } }
-function onlineGameCreated(game, hostKey) { currentOnlineGame = game; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey); ui.showWaitingRoom(game.host_nickname, game.room_code); startWaitingPoll(game.id); }
+function onlineGameCreated(game, hostKey) {
+    currentOnlineGame = game;
+    sessionPlayerKey = hostKey;
+    sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
+    screenLog('HOST: game created, id = ' + game.id + ', code = ' + game.room_code);
+    ui.showWaitingRoom(game.host_nickname, game.room_code);
+    startWaitingPoll(game.id);
+}
 function onlineGameJoined(game, joinerKey) {
     currentOnlineGame = game;
     sessionPlayerKey = joinerKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
     myColor = 'b';
+    screenLog('JOINER: joined game, id = ' + game.id + ', code = ' + game.room_code);
     startWaitingPoll(game.id);
 }
 function startWaitingPoll(gameId) {
     stopWaitingPoll();
+    screenLog('WAITPOLL started for game ' + gameId);
     waitingPollInterval = setInterval(async () => {
         try {
             const data = await db.fetchGameState(gameId);
-            if (!data) {
-                showError('waitPoll', 'fetch returned null – possible RLS block');
-                return;
-            }
-            showError('waitPoll', 'status: ' + data.status);
+            if (!data) { screenLog('WAITPOLL: fetch returned null for ' + gameId); return; }
+            screenLog('WAITPOLL: game ' + gameId + ' status = ' + data.status);
             if (data.status === 'countdown') {
                 stopWaitingPoll();
                 currentOnlineGame = data;
@@ -186,9 +196,7 @@ function startWaitingPoll(gameId) {
                 resetOnlineState();
                 ui.showMenu();
             }
-        } catch (e) {
-            showError('waitPoll', e);
-        }
+        } catch (e) { screenLog('WAITPOLL error: ' + e.message); }
     }, 1000);
 }
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
