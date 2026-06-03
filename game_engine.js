@@ -2,6 +2,8 @@
 // Assumes global THREE is already loaded (via <script> in index.html)
 
 // ---------- Internal state ----------
+
+// Engine initialization flag
 let engineInitialized = false;
 
 // Chess state
@@ -22,7 +24,7 @@ let over = false;
 let pendP = null;
 let isAnim = false;
 let aiThink = false;
-let frozen = false;            // when true, no moves accepted
+let frozen = false;
 
 // Timer
 let timerW = 60;
@@ -35,7 +37,7 @@ let gameMode = '2p';
 let playerColor = 'w';
 let myColor = 'w';
 let aiDepth = 3;
-let selDiff = 3;
+let selDiff = 3;       // 1 = novice, 3 = knight, 5 = master
 
 // Callbacks
 let moveExecutedCallback = null;
@@ -613,13 +615,25 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling ----------
+// ---------- AI scheduling (with difficulty-based randomness) ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
-        const mv = getBestMove(brd, cas, ep, aiDepth, turn);
+        let mv;
+        if (selDiff === 1 && Math.random() < 0.4) {
+            // Novice: 40% chance to play a random legal move
+            const moves = allM(brd, turn, cas, ep);
+            if (moves.length > 0) {
+                mv = moves[Math.floor(Math.random() * moves.length)];
+            } else {
+                mv = null;
+            }
+        } else {
+            // Knight or Master: always best move (depth 3 or 5)
+            mv = getBestMove(brd, cas, ep, selDiff, turn);
+        }
         aiThink = false;
         if (mv) execMove(mv);
         else {
@@ -836,17 +850,7 @@ export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
 export function setGameMode(mode) { gameMode = mode; }
-
-// Frozen state for online
-export function setFrozen(val) {
-    frozen = val;
-    if (val) {
-        timerActive = false;
-    } else {
-        timerActive = true;
-        lastTick = performance.now();
-    }
-}
+export function setFrozen(val) { frozen = val; if (val) timerActive = false; else { timerActive = true; lastTick = performance.now(); } }
 
 export function getTurn() { return turn; }
 export function getBoardArray() { return brd; }
