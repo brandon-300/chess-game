@@ -172,7 +172,12 @@
 
         /* Debug / Log */
         #debug-overlay{position:fixed;bottom:10px;left:10px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:11px;padding:8px 12px;border-radius:4px;max-width:300px;word-break:break-all;pointer-events:none}
-        #error-log{position:fixed;bottom:50px;left:10px;right:10px;z-index:9998;background:rgba(20,0,0,0.9);color:#f44;font-family:monospace;font-size:10px;padding:6px 10px;border-radius:4px;max-height:80px;overflow-y:auto;pointer-events:none;display:none}
+        #error-log {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    word-break: break-word !important;
+    white-space: pre-wrap !important;
+}
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:4px;color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
         #reconnect-indicator.show{display:block}
     </style>
