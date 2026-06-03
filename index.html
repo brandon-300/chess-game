@@ -170,15 +170,15 @@
         .delete-confirm-box h2,.exit-online-box h2,.restore-choice-box h2,.cloud-choice-box h2,.exit-choice-box h2{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.18em;color:var(--gold);text-shadow:0 0 8px rgba(201,168,76,0.3)}
         .delete-confirm-box p,.exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
 
-        /* Debug / Log */
+        /* Debug / Log (FIXED: scrollable) */
         #debug-overlay{position:fixed;bottom:10px;left:10px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:11px;padding:8px 12px;border-radius:4px;max-width:300px;word-break:break-all;pointer-events:none}
-
-#error-log {
-    max-height: 200px !important;
-    overflow-y: auto !important;
-    word-break: break-word !important;
-    white-space: pre-wrap !important;
-}
+        #error-log{
+            position:fixed;bottom:50px;left:10px;right:10px;z-index:9998;
+            background:rgba(20,0,0,0.9);color:#f44;font-family:monospace;
+            font-size:10px;padding:6px 10px;border-radius:4px;
+            max-height:200px;overflow-y:auto;word-break:break-word;
+            white-space:pre-wrap;pointer-events:none;display:none
+        }
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:4px;color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
         #reconnect-indicator.show{display:block}
     </style>
