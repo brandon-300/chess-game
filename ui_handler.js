@@ -1,4 +1,4 @@
-// ui_handler.js — DIAGNOSTIC VERSION (logs toast calls)
+// ui_handler.js — All DOM manipulation and event wiring for Chess 3D
 
 import * as engine from './game_engine.js';
 
@@ -10,11 +10,6 @@ let isChatOpen = false;
 
 let knownMessageIds = new Set();
 let notifiedMessageIds = new Set();
-
-function screenLog(msg) {
-    const log = document.getElementById('error-log');
-    if (log) { log.style.display = 'block'; log.textContent += msg + '\n'; }
-}
 
 export function initUI(cb) {
     callbacks = cb;
@@ -148,13 +143,47 @@ function sendChatFromInput() {
 }
 
 // ---------- Chat ----------
-export function toggleChat() { /* unchanged */ }
-export function showChatNotification(senderName) { /* unchanged */ }
-export function displayChatMessages(messages) { /* unchanged */ }
-export function appendChatMessage(nickname, msg, skipNotification = false) { /* unchanged */ }
-export function registerOwnMessage(id) { /* unchanged */ }
-export function maybeShowNotification(id, nickname) { /* unchanged */ }
-export function resetChatState() { /* unchanged */ }
+export function toggleChat() {
+    isChatOpen = !isChatOpen;
+    if (els['chat-box']) { els['chat-box'].classList.toggle('show', isChatOpen); }
+}
+export function showChatNotification(senderName) {
+    const el = els['chat-notification']; if (!el) return;
+    el.textContent = senderName + ' sent you a message'; el.classList.add('show');
+    clearTimeout(chatNotificationTimer);
+    chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+export function displayChatMessages(messages) {
+    const box = els['chat-messages']; if (!box) return;
+    let added = false;
+    for (const msg of messages) {
+        const id = String(msg.id); if (!id || id === 'undefined') continue;
+        if (!knownMessageIds.has(id)) {
+            knownMessageIds.add(id);
+            appendChatMessage(msg.nickname, msg.message, false);
+            maybeShowNotification(id, msg.nickname);
+            added = true;
+        }
+    }
+    if (added) box.scrollTop = box.scrollHeight;
+}
+export function appendChatMessage(nickname, msg, skipNotification = false) {
+    const box = els['chat-messages']; if (!box) return;
+    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
+    box.appendChild(div); box.scrollTop = box.scrollHeight;
+}
+export function registerOwnMessage(id) {
+    const strId = String(id); if (!strId || strId === 'undefined') return;
+    knownMessageIds.add(strId); notifiedMessageIds.add(strId);
+}
+export function maybeShowNotification(id, nickname) {
+    const strId = String(id); if (!strId || strId === 'undefined') return;
+    if (!notifiedMessageIds.has(strId)) {
+        notifiedMessageIds.add(strId);
+        if (!isChatOpen) showChatNotification(nickname);
+    }
+}
+export function resetChatState() { knownMessageIds.clear(); notifiedMessageIds.clear(); if (els['chat-messages']) els['chat-messages'].innerHTML = ''; }
 
 // ---------- Panel helpers ----------
 export function showPanel(panelId) { hideAllPanels(); const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
@@ -185,34 +214,119 @@ export function updateHeaderUI(userId, avatarUrl) {
         els['login-btn'].style.display = 'inline-block'; els['profile-avatar'].style.display = 'none';
     }
 }
-export function updateTurnIndicator(turn, myColor, isOnline) { /* unchanged */ }
-export function updateTimers(w, b, activeTurn) { /* unchanged */ }
-export function updateThinkingIndicator(thinking) { /* unchanged */ }
-export function setChatVisibility(visible) { /* unchanged */ }
-export function setOnlineBottomButtons(isOnline) { /* unchanged */ }
-export function setRejoinButtonsVisibility(showPublic, showPrivate) { /* unchanged */ }
-export function showWaitingRoom(hostNickname, roomCode) { /* unchanged */ }
-
-let countdownInterval = null;
-export function showCountdown(hostNickname, roomCode) { /* unchanged */ }
-function startAiCountdown() { /* unchanged */ }
-function cancelAiCountdown() { /* unchanged */ }
-
-export function showGameOver(title, subtitle, buttonsHTML) {
-    screenLog('showGameOver called: ' + title);
-    if (els['got']) els['got'].textContent = title; else screenLog('showGameOver: #got missing');
-    if (els['gos']) els['gos'].textContent = subtitle; else screenLog('showGameOver: #gos missing');
-    if (els['go-btns']) els['go-btns'].innerHTML = buttonsHTML; else screenLog('showGameOver: #go-btns missing');
-    if (els['go']) { els['go'].classList.add('on'); screenLog('showGameOver: #go set to on'); }
-    else screenLog('showGameOver: #go missing');
+export function updateTurnIndicator(turn, myColor, isOnline) {
+    if (!els['tdot'] || !els['tlbl'] || !els['tmrW_name'] || !els['tmrB_name']) return;
+    els['tdot'].className = 'tdot ' + (turn === 'w' ? 'w' : 'b');
+    if (isOnline) {
+        els['tlbl'].textContent = turn === 'w' ? (myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)') : (myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)');
+        els['tmrW_name'].textContent = myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)';
+        els['tmrB_name'].textContent = myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)';
+    } else {
+        els['tlbl'].textContent = turn === 'w' ? 'Red' : 'Black';
+        els['tmrW_name'].textContent = 'Red'; els['tmrB_name'].textContent = 'Black';
+    }
+    if (els['smsg']) els['smsg'].textContent = '';
+}
+export function updateTimers(w, b, activeTurn) {
+    if (!els['tvW'] || !els['tvB']) return;
+    els['tvW'].textContent = fmtTime(w); els['tvB'].textContent = fmtTime(b);
+    if (els['tmrW']) els['tmrW'].className = 'tmr' + (activeTurn === 'w' ? ' active' : '') + (w <= 10 && activeTurn === 'w' ? ' low' : '');
+    if (els['tmrB']) els['tmrB'].className = 'tmr' + (activeTurn === 'b' ? ' active' : '') + (b <= 10 && activeTurn === 'b' ? ' low' : '');
+}
+export function updateThinkingIndicator(thinking) {
+    if (!els['smsg'] || !els['thkstrip']) return;
+    els['smsg'].textContent = thinking ? 'Thinking…' : '';
+    if (thinking) els['thkstrip'].classList.add('on'); else els['thkstrip'].classList.remove('on');
+}
+export function setChatVisibility(visible) {
+    const toggle = els['chat-toggle-btn']?.parentElement;
+    if (toggle) toggle.style.display = visible ? '' : 'none';
+    if (!visible) { isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show'); resetChatState(); }
+}
+export function setOnlineBottomButtons(isOnline) {
+    if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
+    if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
+    if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
+}
+export function setRejoinButtonsVisibility(showPublic, showPrivate) {
+    const pubBtn = document.getElementById('btn-rejoin-public');
+    const privBtn = document.getElementById('btn-rejoin-private');
+    if (!pubBtn) {
+        const pubMenu = document.getElementById('public-menu');
+        if (pubMenu) {
+            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-public'; b.textContent = 'Rejoin match';
+            b.addEventListener('click', () => callbacks.onRejoinPublic()); pubMenu.appendChild(b);
+        }
+    }
+    if (!privBtn) {
+        const privMenu = document.getElementById('private-menu');
+        if (privMenu) {
+            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-private'; b.textContent = 'Rejoin match';
+            b.addEventListener('click', () => { hideAllPanels(); showPanel('join-private'); }); privMenu.appendChild(b);
+        }
+    }
+    const pub = document.getElementById('btn-rejoin-public'); if (pub) pub.style.display = showPublic ? '' : 'none';
+    const prv = document.getElementById('btn-rejoin-private'); if (prv) prv.style.display = showPrivate ? '' : 'none';
+}
+export function showWaitingRoom(hostNickname, roomCode) {
+    hideAllPanels();
+    if (els['waiting-title']) els['waiting-title'].textContent = hostNickname + ' room';
+    if (els['waiting-text']) els['waiting-text'].innerHTML = 'Room ID: <b>' + roomCode + '</b><br>Waiting for opponent to join…';
+    showPanel('waiting-panel');
 }
 
-export function showPromotion(color) { /* unchanged */ }
+let countdownInterval = null;
+export function showCountdown(hostNickname, roomCode) {
+    hideAllPanels();
+    if (els['countdown-welcome']) els['countdown-welcome'].textContent = 'Welcome to ' + hostNickname + ' room – Room ID: ' + roomCode;
+    showPanel('countdown-panel');
+    let sec = 5; if (els['countdown-number']) els['countdown-number'].textContent = sec;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        sec--;
+        if (sec <= 5 && sec > 0) engine.playTickSound();
+        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onCountdownFinished) callbacks.onCountdownFinished(); }
+        else { if (els['countdown-number']) els['countdown-number'].textContent = sec; }
+    }, 1000);
+}
+
+function startAiCountdown() {
+    hideAllPanels(); showPanel('ai-countdown-panel');
+    let sec = 5; if (els['ai-countdown-number']) els['ai-countdown-number'] = sec;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        sec--;
+        if (sec <= 5 && sec > 0) engine.playTickSound();
+        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished(); }
+        else { const numEl = document.getElementById('ai-countdown-number'); if (numEl) numEl.textContent = sec; }
+    }, 1000);
+}
+
+function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
+
+export function showGameOver(title, subtitle, buttonsHTML) {
+    if (els['got']) els['got'].textContent = title;
+    if (els['gos']) els['gos'].textContent = subtitle;
+    if (els['go-btns']) els['go-btns'].innerHTML = buttonsHTML;
+    if (els['go']) els['go'].classList.add('on');
+}
+
+export function showPromotion(color) {
+    const po = els['po']; if (!po) return; po.innerHTML = '';
+    const pieces = ['Q','R','B','N'];
+    pieces.forEach(t => {
+        const btn = document.createElement('div'); btn.className = 'po-b';
+        const glyphs = { wQ:'\u2655',wR:'\u2656',wB:'\u2657',wN:'\u2658', bQ:'\u265B',bR:'\u265C',bB:'\u265D',bN:'\u265E' };
+        btn.textContent = glyphs[color + t];
+        btn.addEventListener('click', () => { if (els['pm']) els['pm'].classList.remove('on'); engine.completePromotion(t); });
+        po.appendChild(btn);
+    });
+    if (els['pm']) els['pm'].classList.add('on');
+}
 
 export function toast(msg, duration = 2800) {
-    screenLog('TOAST: ' + msg);
     const el = els['toast'];
-    if (!el) { screenLog('TOAST FAIL: #toast element not found'); return; }
+    if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimer);
