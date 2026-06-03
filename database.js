@@ -172,12 +172,10 @@ export async function getFrozenGameForUser(userId) {
 // ---------- Chat ----------
 export async function getChatMessages(gameId) {
     if (!sb) return [];
-    const { data } = await sb.from('chat_messages')
-        .select('*').eq('game_id', gameId).order('id', { ascending: true });
+    const { data } = await sb.from('chat_messages').select('*').eq('game_id', gameId).order('id', { ascending: true });
     return data || [];
 }
 
-// NOW RETURNS THE INSERTED ROW (including id)
 export async function sendChatMessage(gameId, playerId, nickname, message) {
     if (!sb) return null;
     const { data, error } = await sb.from('chat_messages')
@@ -193,8 +191,21 @@ export async function syncOfflineToCloud(userId) {
     const aiBackup = JSON.parse(localStorage.getItem('chess3d_backup_ai') || 'null');
     const pvpBackup = JSON.parse(localStorage.getItem('chess3d_backup_2p') || 'null');
     if (!aiBackup && !pvpBackup) throw new Error('No offline data to sync');
-    if (aiBackup) await sb.from('offline_backups').upsert({ user_id: userId, mode: 'ai', backup_data: aiBackup }, { onConflict: 'user_id,mode' });
-    if (pvpBackup) await sb.from('offline_backups').upsert({ user_id: userId, mode: '2p', backup_data: pvpBackup }, { onConflict: 'user_id,mode' });
+
+    if (aiBackup) {
+        const { error } = await sb.from('offline_backups').upsert(
+            { user_id: userId, mode: 'ai', backup_data: aiBackup },
+            { onConflict: 'user_id,mode' }
+        );
+        if (error) throw error;
+    }
+    if (pvpBackup) {
+        const { error } = await sb.from('offline_backups').upsert(
+            { user_id: userId, mode: '2p', backup_data: pvpBackup },
+            { onConflict: 'user_id,mode' }
+        );
+        if (error) throw error;
+    }
 }
 
 export async function restoreOfflineFromCloud(userId, onSelectMode) {
@@ -203,14 +214,18 @@ export async function restoreOfflineFromCloud(userId, onSelectMode) {
     if (!data || data.length === 0) throw new Error('No cloud backup found');
     if (data.length === 1) {
         const backup = data[0];
-        localStorage.setItem(backup.mode === 'ai' ? 'chess3d_backup_ai' : 'chess3d_backup_2p', JSON.stringify(backup.backup_data));
+        localStorage.setItem(
+            backup.mode === 'ai' ? 'chess3d_backup_ai' : 'chess3d_backup_2p',
+            JSON.stringify(backup.backup_data)
+        );
         if (onSelectMode) onSelectMode(backup.mode);
     } else { return data; }
 }
 
 export async function deleteAllSyncedData(userId) {
     if (!sb || !userId) throw new Error('Not authenticated');
-    await sb.from('offline_backups').delete().eq('user_id', userId);
+    const { error } = await sb.from('offline_backups').delete().eq('user_id', userId);
+    if (error) throw error;
 }
 
 // ---------- Utilities ----------
