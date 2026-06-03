@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v21 – fix host flash after countdown)
+// main.js — Orchestrator for Chess 3D (v22 – chat fixes)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -227,7 +227,6 @@ function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPol
 
 async function startOnlineGame() {
     if (!currentOnlineGame) return;
-    // Immediately hide the main menu to prevent flash after countdown
     document.getElementById('ms').style.display = 'none';
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.updateGameStatus(currentOnlineGame.id, 'active');
@@ -292,7 +291,13 @@ async function pollGameState() {
 // Chat
 function startChatPolling(gameId) { stopChatPolling(); chatPollInterval = setInterval(async () => { try { ui.displayChatMessages(await db.getChatMessages(gameId)); } catch (e) {} }, 2000); }
 function stopChatPolling() { if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; } }
-function sendChat(msg) { if (!currentOnlineGame) return; const nickname = currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.host_nickname : currentOnlineGame.joiner_nickname; db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg); ui.appendChatMessage(nickname, msg); }
+function sendChat(msg) {
+    if (!currentOnlineGame) return;
+    const nickname = currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.host_nickname : currentOnlineGame.joiner_nickname;
+    db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg);
+    // skip notification because we sent it
+    ui.appendChatMessage(nickname, msg, true);
+}
 
 // Move callback
 async function onLocalMoveExecuted(move) { if (gameMode !== 'online' || !currentOnlineGame || moveSyncing || frozen) return; moveSyncing = true; try { const savedState = await db.pushBoardState(currentOnlineGame.id, engine.getBoardArray(), engine.getTurn(), engine.getCastling(), engine.getEnPassant(), engine.getTimerW(), engine.getTimerB()); lastKnownServerState = savedState; lastTimerSync = Date.now(); } catch (e) { ui.toast('Move sync failed.'); } finally { moveSyncing = false; } }
