@@ -2,8 +2,6 @@
 // Assumes global THREE is already loaded (via <script> in index.html)
 
 // ---------- Internal state ----------
-
-// Engine initialization flag
 let engineInitialized = false;
 
 // Chess state
@@ -24,6 +22,7 @@ let over = false;
 let pendP = null;
 let isAnim = false;
 let aiThink = false;
+let frozen = false;            // when true, no moves accepted
 
 // Timer
 let timerW = 60;
@@ -337,14 +336,8 @@ function getBestMove(board, cas, ep, depth, color) {
 
 // ---------- Three.js rendering (all guarded) ----------
 function ensureEngineReady() {
-    if (!engineInitialized) {
-        console.error('Game engine not initialized. Did you call initEngine()?');
-        return false;
-    }
-    if (!scene) {
-        console.error('Scene not created. initEngine() may have failed.');
-        return false;
-    }
+    if (!engineInitialized) { console.error('Game engine not initialized.'); return false; }
+    if (!scene) { console.error('Scene not created.'); return false; }
     return true;
 }
 
@@ -509,7 +502,7 @@ function tickAnim() {
 // ---------- Move execution ----------
 function execMove(mv) {
     if (!ensureEngineReady()) return;
-    if (isAnim || over) return;
+    if (isAnim || over || frozen) return;
     const wt = turn, capP = brd[mv.to], { r: tr, c: tc } = rc(mv.to);
     hist.push({
         brd: [...brd], turn, cas: { ...cas }, ep,
@@ -594,10 +587,9 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer (FIXED: removed aiThink check so AI’s timer ticks while thinking) ----------
+// ---------- Timer ----------
 function tickTimer() {
-    if (!timerActive || over || isAnim) return;
-    // REMOVED: if (gameMode === 'online' && turn !== myColor) return;
+    if (!timerActive || over || isAnim || frozen) return;
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
     const dt = (now - lastTick) / 1000; lastTick = now;
@@ -820,7 +812,7 @@ export function undoMove() {
 }
 
 export function onSq(si) {
-    if (over || isAnim || aiThink) return;
+    if (over || isAnim || aiThink || frozen) return;
     if (gameMode === 'online' && turn !== myColor) return;
     SFX.select();
     const p = brd[si];
@@ -844,6 +836,17 @@ export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
 export function setGameMode(mode) { gameMode = mode; }
+
+// Frozen state for online
+export function setFrozen(val) {
+    frozen = val;
+    if (val) {
+        timerActive = false;
+    } else {
+        timerActive = true;
+        lastTick = performance.now();
+    }
+}
 
 export function getTurn() { return turn; }
 export function getBoardArray() { return brd; }
@@ -896,7 +899,7 @@ export function restoreBackup(data) {
 export function resetState() {
     brd = initBrd(); turn = 'w'; cas = { wK: true, wQ: true, bK: true, bQ: true }; ep = null;
     hist = []; capW = []; capB = []; mlog = [];
-    selSq = null; curLM = []; lastMv = null; over = false; pendP = null; isAnim = false; aiThink = false;
+    selSq = null; curLM = []; lastMv = null; over = false; pendP = null; isAnim = false; aiThink = false; frozen = false;
     timerW = 60; timerB = 60; timerActive = false; lastTick = null;
     gameOverInfo = null; promotionPending = false; pendingPromotionMove = null;
 }
