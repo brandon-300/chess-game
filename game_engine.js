@@ -590,9 +590,10 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer (with tick sound on last 5 seconds) ----------
+// ---------- Timer (FIXED: ticks even while AI is thinking) ----------
 function tickTimer() {
     if (!timerActive || over || isAnim || frozen) return;
+    // NOTE: aiThink check REMOVED so timer counts down while AI calculates
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
     const dt = (now - lastTick) / 1000; lastTick = now;
@@ -620,10 +621,11 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling (no forced delay, instant after calculation) ----------
+// ---------- AI scheduling (FIXED: no artificial delay) ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
+    // Start search immediately – timer will tick while this runs
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
         let mv;
