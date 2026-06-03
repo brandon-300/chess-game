@@ -21,7 +21,6 @@ export function initUI(cb) {
     if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
 
     setChatVisibility(false);
-    updateFrozenUI(false);   // no frozen overlay initially
 }
 
 function cacheElements() {
@@ -64,10 +63,7 @@ function cacheElements() {
         'btn-exit-save', 'btn-exit-no-save', 'btn-exit-cancel',
         'btn-exit-online-yes', 'btn-exit-online-stay',
         'btn-restore-ai', 'btn-restore-2p', 'btn-restore-cancel',
-        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel',
-
-        // Rejoin button (added dynamically if needed, but we'll show/hide an existing one)
-        'btn-rejoin-frozen'
+        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
     ];
 
     ids.forEach(id => {
@@ -195,9 +191,6 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Rejoin frozen game button (if present)
-    btn('btn-rejoin-frozen', () => callbacks.onRejoinFrozen());
-
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
@@ -228,7 +221,6 @@ export function showMenu() {
     if (els['main-cards']) els['main-cards'].style.display = 'flex';
     if (els['original-buttons']) els['original-buttons'].style.display = '';
     setOnlineBottomButtons(false);
-    updateFrozenUI(false);
     hideAllPanels();
 }
 
@@ -313,26 +305,6 @@ export function setOnlineBottomButtons(isOnline) {
     if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
     if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
     if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
-}
-
-// ---------- Frozen game overlay ----------
-export function updateFrozenUI(frozen) {
-    if (frozen) {
-        // Disable board clicks and show message
-        if (els['gu']) els['gu'].style.pointerEvents = 'none';
-        if (els['smsg']) els['smsg'].textContent = 'Waiting for opponent to rejoin…';
-        if (els['thkstrip']) els['thkstrip'].classList.add('on');
-    } else {
-        if (els['gu']) els['gu'].style.pointerEvents = 'auto';
-        if (els['thkstrip']) els['thkstrip'].classList.remove('on');
-    }
-}
-
-// ---------- Rejoin button visibility ----------
-export function showRejoinButton(show) {
-    const btn = document.getElementById('btn-rejoin-frozen');
-    if (!btn) return; // we'll create it if needed
-    btn.style.display = show ? '' : 'none';
 }
 
 // ---------- Online waiting / countdown ----------
