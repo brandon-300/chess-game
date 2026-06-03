@@ -7,7 +7,7 @@ let callbacks = {};
 let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
-let lastSeenMessageId = 0;      // ← changed from count to ID
+let lastSeenMessageId = 0;
 
 export function initUI(cb) {
     callbacks = cb;
@@ -160,16 +160,18 @@ export function showChatNotification(senderName) {
     chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-// Polling calls this every 2 seconds with the full message list
+// Polling calls this every 2 seconds
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
     if (!box) return;
     let newMessages = [];
     let maxId = lastSeenMessageId;
     for (const msg of messages) {
-        if (msg.id > lastSeenMessageId) {
+        // msg.id may be a number or a string – convert to number for safe comparison
+        const id = Number(msg.id);
+        if (!isNaN(id) && id > lastSeenMessageId) {
             newMessages.push(msg);
-            if (msg.id > maxId) maxId = msg.id;
+            if (id > maxId) maxId = id;
         }
     }
     lastSeenMessageId = maxId;
@@ -179,7 +181,6 @@ export function displayChatMessages(messages) {
     });
 }
 
-// Called for outgoing messages (skipNotification=true) or incoming (false)
 export function appendChatMessage(nickname, msg, skipNotification = false) {
     const box = els['chat-messages'];
     if (!box) return;
@@ -192,9 +193,9 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     }
 }
 
-// Call after a message is successfully inserted, to update the last seen ID
 export function setLastSeenMessageId(id) {
-    if (id > lastSeenMessageId) lastSeenMessageId = id;
+    const num = Number(id);
+    if (!isNaN(num) && num > lastSeenMessageId) lastSeenMessageId = num;
 }
 
 export function resetChatMessageCount() {
