@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v31 – visible sync feedback)
+// main.js — Orchestrator for Chess 3D (v32 – visible sync & game-over popup)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -198,41 +198,41 @@ function stopAutoSave() { if (autoSaveInterval) { clearInterval(autoSaveInterval
 function restoreLocalGame() { const ai = localStorage.getItem('chess3d_backup_ai'), pvp = localStorage.getItem('chess3d_backup_2p'); if (!ai && !pvp) { ui.toast('No backup found.'); return; } if (ai && !pvp) restoreLocalMode('ai'); else if (!ai && pvp) restoreLocalMode('2p'); else ui.showRestoreChoicePanel(); }
 function restoreLocalMode(mode) { const dataStr = localStorage.getItem('chess3d_backup_' + mode); if (!dataStr) { ui.toast('No backup found.'); return; } const data = JSON.parse(dataStr); gameMode = mode; engine.setGameMode(mode); engine.restoreBackup(data); ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(false); ui.setOnlineBottomButtons(false); started = true; over = false; startAutoSave(); if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300); }
 
-// ---------- Cloud sync (with clear feedback) ----------
+// ---------- Cloud sync (clear feedback) ----------
 async function syncOfflineToCloud() {
-    if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    if (!currentUserId) { ui.toast('Please log in to sync data.', 3000); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
     const aiBackup = localStorage.getItem('chess3d_backup_ai');
     const pvpBackup = localStorage.getItem('chess3d_backup_2p');
     if (!aiBackup && !pvpBackup) {
-        ui.toast('No offline data to sync.');
+        ui.toast('No offline data to sync.', 4000);   // longer duration
         return;
     }
     ui.toast('Syncing data to cloud…', 2000);
     try {
         await db.syncOfflineToCloud(currentUserId);
-        ui.toast('Synced data successfully');
+        ui.toast('Synced data successfully', 3000);
     } catch (e) {
-        ui.toast('Sync failed: ' + e.message);
+        ui.toast('Sync failed: ' + e.message, 4000);
         showError('sync', e);
     }
 }
 
 async function restoreOfflineFromCloud() {
-    if (!currentUserId) { ui.toast('Please log in to restore cloud data.'); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    if (!currentUserId) { ui.toast('Please log in to restore cloud data.', 3000); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
     ui.toast('Restoring data from cloud…', 2000);
     try {
         const result = await db.restoreOfflineFromCloud(currentUserId);
         if (Array.isArray(result)) { window._cloudBackups = result; ui.showCloudChoicePanel(); }
-        else ui.toast('Restored data successfully');
-    } catch (e) { ui.toast('Restore failed: ' + e.message); showError('restore', e); }
+        else ui.toast('Restored data successfully', 3000);
+    } catch (e) { ui.toast('Restore failed: ' + e.message, 4000); showError('restore', e); }
 }
-function restoreCloudMode(mode) { const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem('chess3d_backup_' + mode, JSON.stringify(backup.backup_data)); ui.hideAllPanels(); restoreLocalMode(mode); ui.toast('Restored cloud backup.'); }
+function restoreCloudMode(mode) { const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem('chess3d_backup_' + mode, JSON.stringify(backup.backup_data)); ui.hideAllPanels(); restoreLocalMode(mode); ui.toast('Restored cloud backup.', 3000); }
 async function deleteAllSyncedData() {
-    if (!currentUserId) { ui.toast('Please log in to delete synced data.'); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
-    try { await db.deleteAllSyncedData(currentUserId); ui.toast('Cloud data deleted.'); } catch (e) { ui.toast('Delete failed: ' + e.message); showError('delete', e); }
+    if (!currentUserId) { ui.toast('Please log in to delete synced data.', 3000); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
+    try { await db.deleteAllSyncedData(currentUserId); ui.toast('Cloud data deleted.', 3000); } catch (e) { ui.toast('Delete failed: ' + e.message, 4000); showError('delete', e); }
 }
 
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
