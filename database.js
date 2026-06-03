@@ -76,11 +76,12 @@ export async function createGame(roomCode, type, hostId, hostKey, hostNickname) 
     return data;
 }
 
+// FIXED: now picks the MOST RECENT waiting room (descending order)
 export async function joinPublicGame(joinerId, joinerKey, joinerNickname) {
     if (!sb) throw new Error('Supabase not available');
     const { data: rooms, error: selectError } = await sb.from('online_games')
         .select('*').eq('type', 'public').eq('status', 'waiting_for_joiner')
-        .order('created_at', { ascending: true }).limit(1);
+        .order('created_at', { ascending: false }).limit(1);
     if (selectError) throw selectError;
     if (!rooms || rooms.length === 0) throw new Error('No rooms available');
     const game = rooms[0];
