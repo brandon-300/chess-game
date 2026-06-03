@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v10 – fixed missing startPolling)
+// main.js — Orchestrator for Chess 3D (v11 – fixes: exit, timers, buttons)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -24,7 +24,8 @@ let lastKnownServerState = null;
 let pollInterval = null;
 let chatPollInterval = null;
 let rematchCountdownInterval = null;
-let waitingPollInterval = null;   // for waiting-room polling
+let waitingPollInterval = null;
+let lastTimerSync = 0;       // for periodic timer sync
 
 // ---------- Dynamic imports ----------
 let db, engine, ui;
@@ -45,7 +46,6 @@ async function init() {
         currentUserId = await db.initAuth();
         updateDebugOverlay();
 
-        // 1. Init UI (does not touch header anymore)
         ui.initUI({
             onStart2P: () => startOfflineGame('2p'),
             onStartAI: showAiDiffPanel,
@@ -72,6 +72,7 @@ async function init() {
             onExitSave: exitWithSave,
             onExitWithoutSave: exitWithoutSave,
             onExitOnline: confirmExitOnline,
+            onExitOnlineYes: exitOnlineGame,   // <-- the actual leave
             onRestoreLocal: restoreLocalGame,
             onSyncOfflineCloud: () => syncOfflineToCloud(),
             onRestoreOfflineCloud: () => restoreOfflineFromCloud(),
@@ -112,6 +113,15 @@ async function init() {
             if (state.promotionPending) {
                 ui.showPromotion(engine.getTurn());
             }
+
+            // Periodic timer sync for online games
+            if (isOnline && currentOnlineGame && !moveSyncing && !over && state.turn === myColor) {
+                const now = Date.now();
+                if (now - lastTimerSync > 3000) {
+                    lastTimerSync = now;
+                    syncTimers();
+                }
+            }
         });
 
         if (db.sb) {
@@ -131,7 +141,6 @@ async function init() {
             });
         }
 
-        // 2. Now set the correct header state (after UI is ready)
         await updateHeaderWithAvatar();
         ui.showMenu();
         updateDebugOverlay();
@@ -150,11 +159,21 @@ async function updateHeaderWithAvatar() {
     }
 }
 
-// ---------- Debug overlay ----------
 function updateDebugOverlay() {
     const sbStatus = db ? db.getSbStatus() : 'db not loaded';
     const uid = currentUserId ? currentUserId.slice(0, 8) + '…' : 'not logged in';
     document.getElementById('debug-overlay').textContent = `Supabase: ${sbStatus}\nUser ID: ${uid}`;
+}
+
+// ---------- Periodic timer push ----------
+async function syncTimers() {
+    if (!currentOnlineGame) return;
+    try {
+        await db.sb.from('online_games').update({
+            timer_w: engine.getTimerW(),
+            timer_b: engine.getTimerB()
+        }).eq('id', currentOnlineGame.id);
+    } catch (e) {}
 }
 
 // ---------- Offline game flow ----------
@@ -163,6 +182,7 @@ function startOfflineGame(mode) {
     ui.hideAllPanels();
     ui.showGameUI();
     ui.setChatVisibility(false);
+    ui.setOnlineBottomButtons(false);
     started = true;
     engine.startGame(mode);
     over = false;
@@ -252,7 +272,7 @@ function onlineGameCreated(game, hostKey) {
     sessionPlayerKey = hostKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
     ui.showWaitingRoom(game.host_nickname, game.room_code);
-    startWaitingPoll(game.id);          // poll until joiner arrives
+    startWaitingPoll(game.id);
 }
 
 function onlineGameJoined(game, joinerKey) {
@@ -261,10 +281,8 @@ function onlineGameJoined(game, joinerKey) {
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
     myColor = 'b';
     ui.showCountdown(game.host_nickname, game.room_code);
-    // after countdown, onCountdownFinished -> startOnlineGame
 }
 
-// ---------- Waiting-room polling ----------
 function startWaitingPoll(gameId) {
     stopWaitingPoll();
     waitingPollInterval = setInterval(async () => {
@@ -273,7 +291,6 @@ function startWaitingPoll(gameId) {
             if (!data) return;
             if (data.status === 'countdown') {
                 stopWaitingPoll();
-                // Host already knows the game, we need to show countdown
                 currentOnlineGame = data;
                 ui.showCountdown(data.host_nickname, data.room_code);
             } else if (data.status === 'active') {
@@ -302,10 +319,13 @@ async function startOnlineGame() {
     ui.hideAllPanels();
     ui.showGameUI();
     ui.setChatVisibility(true);
+    ui.setOnlineBottomButtons(true);   // hide New Game / Undo, show only Exit
     engine.setMyColor(myColor);
     engine.startGame('online');
     started = true;
     gameMode = 'online';
+    over = false;
+    lastTimerSync = Date.now();
     startOnlineGameLoop();
     startChatPolling(currentOnlineGame.id);
     engine.rotateForPlayer(myColor);
@@ -351,6 +371,7 @@ async function onLocalMoveExecuted(move) {
     try {
         const savedState = await db.pushBoardState(currentOnlineGame.id, engine.getBoardArray(), engine.getTurn(), engine.getCastling(), engine.getEnPassant(), engine.getTimerW(), engine.getTimerB());
         lastKnownServerState = savedState;
+        lastTimerSync = Date.now();
     } catch (e) { ui.toast('Move sync failed. Try again.'); }
     finally { moveSyncing = false; }
 }
@@ -390,7 +411,8 @@ function resetOnlineState() {
     if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id);
     currentOnlineGame = null; sessionPlayerKey = null; myColor = 'w';
     moveSyncing = false; lastKnownServerState = null; over = false;
-    ui.hideGameUI(); ui.hideGameOver(); engine.resetState(); started = false; gameMode = null;
+    ui.hideGameUI(); ui.hideGameOver(); engine.resetState();
+    started = false; gameMode = null;
 }
 
 function handleBottomRight() {
@@ -430,6 +452,7 @@ function restoreLocalMode(mode) {
     ui.hideAllPanels();
     ui.showGameUI();
     ui.setChatVisibility(false);
+    ui.setOnlineBottomButtons(false);
     started = true;
     over = false;
     startAutoSave();
