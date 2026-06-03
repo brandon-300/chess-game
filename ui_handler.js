@@ -144,7 +144,7 @@ function sendChatFromInput() {
 }
 
 // ---------- Chat toggle (open/close) ----------
-function toggleChat() {
+export function toggleChat() {
     isChatOpen = !isChatOpen;
     if (els['chat-box']) {
         els['chat-box'].classList.toggle('show', isChatOpen);
@@ -317,7 +317,6 @@ export function showPromotion(color) {
     if (els['pm']) els['pm'].classList.add('on');
 }
 
-// Display messages and show notification if chat is closed
 export function displayChatMessages(messages) {
     const box = els['chat-messages']; if (!box) return;
     box.innerHTML = '';
@@ -328,13 +327,13 @@ export function displayChatMessages(messages) {
     box.scrollTop = box.scrollHeight;
 }
 
-export function appendChatMessage(nickname, msg) {
+export function appendChatMessage(nickname, msg, skipNotification = false) {
     const box = els['chat-messages']; if (!box) return;
     const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    // Show notification if chat is closed
-    if (!isChatOpen) showChatNotification(nickname);
+    // Show notification if chat is closed and not sent by us
+    if (!isChatOpen && !skipNotification) showChatNotification(nickname);
 }
 
 export function toast(msg, duration = 2800) {
