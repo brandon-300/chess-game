@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v23 – chat notification fix)
+// main.js — Orchestrator for Chess 3D (v24 – chat duplicate fix)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -234,7 +234,7 @@ async function startOnlineGame() {
     ui.hideAllPanels();
     ui.showGameUI();
     ui.setChatVisibility(true);
-    ui.resetChatMessageCount();               // ← ADDED: don't re‑notify old messages
+    ui.resetChatMessageCount();
     ui.setOnlineBottomButtons(true);
     engine.setMyColor(myColor);
     engine.startGame('online');
@@ -297,6 +297,7 @@ function sendChat(msg) {
     const nickname = currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.host_nickname : currentOnlineGame.joiner_nickname;
     db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg);
     ui.appendChatMessage(nickname, msg, true);
+    ui.incrementChatMessageCount();         // ← FIX: prevent polling from re-adding this message
 }
 
 // Move callback
