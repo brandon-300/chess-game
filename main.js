@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v22 – chat fixes)
+// main.js — Orchestrator for Chess 3D (v23 – chat notification fix)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -234,6 +234,7 @@ async function startOnlineGame() {
     ui.hideAllPanels();
     ui.showGameUI();
     ui.setChatVisibility(true);
+    ui.resetChatMessageCount();               // ← ADDED: don't re‑notify old messages
     ui.setOnlineBottomButtons(true);
     engine.setMyColor(myColor);
     engine.startGame('online');
@@ -295,7 +296,6 @@ function sendChat(msg) {
     if (!currentOnlineGame) return;
     const nickname = currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.host_nickname : currentOnlineGame.joiner_nickname;
     db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg);
-    // skip notification because we sent it
     ui.appendChatMessage(nickname, msg, true);
 }
 
