@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v15 – instant rejoin button + robust timer sync)
+// main.js — Orchestrator for Chess 3D (v16 – instant rejoin + tighter timer sync)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -54,8 +54,8 @@ async function init() {
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
 
-            // Push both timers every 2 seconds regardless of turn (fixes drift)
-            if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 2000) {
+            // Push both timers every 1 second for tight sync
+            if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 1000) {
                 lastTimerSync = Date.now();
                 syncTimers();
             }
@@ -70,7 +70,7 @@ async function init() {
             });
         }
         await updateHeaderWithAvatar();
-        // Show rejoin button immediately if we just left a game (via sessionStorage)
+        // Show rejoin button instantly if we have a frozen game in session
         updateRejoinButtonsFromSession();
         ui.showMenu();
         updateDebugOverlay();
@@ -88,16 +88,12 @@ function updateDebugOverlay() {
     document.getElementById('debug-overlay').textContent = `Supabase: ${sbStatus}\nUser ID: ${currentUserId ? currentUserId.slice(0,8)+'…' : 'not logged in'}`;
 }
 
-// Immediately show rejoin button if we have a frozen game ID in sessionStorage
+// Show rejoin button from sessionStorage (instant feedback after leaving)
 function updateRejoinButtonsFromSession() {
     const frozenId = sessionStorage.getItem('chess3d_frozen_game');
-    if (frozenId) {
-        ui.setRejoinButtonsVisibility(true, true); // show in both menus (user will navigate to the correct one)
-        // Also do a quick DB check to hide if expired
-        validateRejoinButtonAsync(frozenId);
-    } else {
-        ui.setRejoinButtonsVisibility(false, false);
-    }
+    ui.setRejoinButtonsVisibility(!!frozenId, !!frozenId);
+    // Also validate in background and hide if expired
+    if (frozenId) validateRejoinButtonAsync(frozenId);
 }
 
 async function validateRejoinButtonAsync(frozenId) {
@@ -108,10 +104,10 @@ async function validateRejoinButtonAsync(frozenId) {
             sessionStorage.removeItem('chess3d_frozen_game');
             ui.setRejoinButtonsVisibility(false, false);
         }
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* ignore – keep visible based on session */ }
 }
 
-// Called from showOnlineMenu to refresh based on DB (but session-based is faster)
+// Called from showOnlineMenu to double-check via DB
 async function updateRejoinButtonsFromDB() {
     if (!currentUserId || !db) { ui.setRejoinButtonsVisibility(false, false); return; }
     const frozenGame = await db.getFrozenGameForUser(currentUserId);
@@ -146,7 +142,6 @@ function enterOnlineGame(game) {
     startOnlineGameLoop(); startChatPolling(game.id); engine.rotateForPlayer(myColor);
 }
 
-// Push both timers to server
 async function syncTimers() {
     if (!currentOnlineGame) return;
     try {
@@ -177,7 +172,7 @@ async function showOnlineMenu() {
     document.getElementById('main-cards').style.display = 'none';
     document.getElementById('original-buttons').style.display = 'none';
     ui.showPanel('online-menu');
-    // Refresh rejoin button state from DB
+    // Refresh rejoin button state from DB (but keep visible if session says so)
     updateRejoinButtonsFromDB();
 }
 
@@ -231,7 +226,6 @@ async function pollGameState() {
                     ui.toast('Opponent left – waiting for rejoin…');
                     sessionStorage.setItem('chess3d_frozen_game', gameData.id);
                 } else {
-                    // I'm the leaver; we already handled in exit. But just in case store ID
                     sessionStorage.setItem('chess3d_frozen_game', gameData.id);
                 }
             }
@@ -241,7 +235,7 @@ async function pollGameState() {
             frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!');
             sessionStorage.removeItem('chess3d_frozen_game');
         }
-        // Always apply server state for board and timers (prevents drift)
+        // Apply server state every poll to keep timers in perfect sync
         const serverState = JSON.stringify(gameData.board_state);
         if (serverState !== lastKnownServerState) {
             lastKnownServerState = serverState;
@@ -268,17 +262,16 @@ function confirmExitOnline() { ui.showExitOnlinePanel(); }
 async function exitOnlineGame() {
     if (!currentOnlineGame) return;
     stopOnlineGameLoop(); stopChatPolling();
-    const gameId = currentOnlineGame.id; // store before reset
+    const gameId = currentOnlineGame.id;
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.terminateGame(gameId);
     } else {
         await db.freezeGame(gameId, currentUserId);
-        sessionStorage.setItem('chess3d_frozen_game', gameId); // set immediately
+        sessionStorage.setItem('chess3d_frozen_game', gameId);
     }
     resetOnlineState();
     ui.showMenu();
-    // Show rejoin button immediately (using sessionStorage)
-    updateRejoinButtonsFromSession();
+    updateRejoinButtonsFromSession(); // instantly show rejoin button
 }
 
 function resetOnlineState() {
