@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v17 – stable sync, 2s timers, rejoin button)
+// main.js — Orchestrator for Chess 3D (v18 – host waiting fix, tagline removed)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -54,7 +54,6 @@ async function init() {
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
 
-            // Push both timers every 2 seconds
             if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 2000) {
                 lastTimerSync = Date.now();
                 syncTimers();
@@ -200,10 +199,55 @@ async function joinPrivateRoom() {
 function onlineGameCreated(game, hostKey) { currentOnlineGame = game; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey); ui.showWaitingRoom(game.host_nickname, game.room_code); startWaitingPoll(game.id); }
 function onlineGameJoined(game, joinerKey) { currentOnlineGame = game; sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey); myColor = 'b'; ui.showCountdown(game.host_nickname, game.room_code); }
 
-function startWaitingPoll(gameId) { stopWaitingPoll(); waitingPollInterval = setInterval(async () => { try { const data = await db.fetchGameState(gameId); if (!data) return; if (data.status === 'countdown') { stopWaitingPoll(); currentOnlineGame = data; ui.showCountdown(data.host_nickname, data.room_code); } else if (data.status === 'active') { stopWaitingPoll(); currentOnlineGame = data; startOnlineGame(); } else if (data.status === 'cancelled' || data.status === 'terminated') { stopWaitingPoll(); ui.toast('Game was cancelled.'); resetOnlineState(); ui.showMenu(); } } catch (e) {} }, 1000); }
+function startWaitingPoll(gameId) {
+    stopWaitingPoll();
+    waitingPollInterval = setInterval(async () => {
+        try {
+            const data = await db.fetchGameState(gameId);
+            if (!data) return;
+            if (data.status === 'countdown') {
+                // Joiner joined, the countdown panel will be shown by the host's UI? Actually the host needs to see countdown too.
+                // But the host's waiting room doesn't have a countdown. The joiner's client shows countdown.
+                // For host, when status becomes 'countdown', we could either show a countdown or just wait for 'active'.
+                // In original design, host waits on waiting room until active. Let's keep it that way.
+                // Do nothing – the status will become 'active' after the joiner's countdown finishes.
+            } else if (data.status === 'active') {
+                stopWaitingPoll();
+                currentOnlineGame = data;
+                startOnlineGame();
+            } else if (data.status === 'cancelled' || data.status === 'terminated') {
+                stopWaitingPoll();
+                ui.toast('Game was cancelled.');
+                resetOnlineState();
+                ui.showMenu();
+            }
+        } catch (e) {}
+    }, 1000);
+}
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
 
-async function startOnlineGame() { if (!currentOnlineGame) return; if (currentOnlineGame.host_player_id === currentUserId) await db.updateGameStatus(currentOnlineGame.id, 'active'); ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(true); ui.setOnlineBottomButtons(true); engine.setMyColor(myColor); engine.startGame('online'); started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false); lastTimerSync = Date.now(); startOnlineGameLoop(); startChatPolling(currentOnlineGame.id); engine.rotateForPlayer(myColor); }
+async function startOnlineGame() {
+    if (!currentOnlineGame) return;
+    // Host sets the game to active (joiner already finished countdown and expects active state)
+    if (currentOnlineGame.host_player_id === currentUserId) {
+        await db.updateGameStatus(currentOnlineGame.id, 'active');
+    }
+    ui.hideAllPanels();
+    ui.showGameUI();
+    ui.setChatVisibility(true);
+    ui.setOnlineBottomButtons(true);
+    engine.setMyColor(myColor);
+    engine.startGame('online');
+    started = true;
+    gameMode = 'online';
+    over = false;
+    frozen = false;
+    engine.setFrozen(false);
+    lastTimerSync = Date.now();
+    startOnlineGameLoop();
+    startChatPolling(currentOnlineGame.id);
+    engine.rotateForPlayer(myColor);
+}
 async function cancelWaiting() { if (currentOnlineGame) { await db.cancelGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); } }
 
 // Online sync
@@ -230,7 +274,6 @@ async function pollGameState() {
             frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!');
             sessionStorage.removeItem('chess3d_frozen_game');
         }
-        // Apply server state every poll to keep board and timers in sync
         const serverState = JSON.stringify(gameData.board_state);
         if (serverState !== lastKnownServerState) {
             lastKnownServerState = serverState;
