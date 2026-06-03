@@ -2,8 +2,6 @@
 // Assumes global THREE is already loaded (via <script> in index.html)
 
 // ---------- Internal state ----------
-
-// Engine initialization flag
 let engineInitialized = false;
 
 // Chess state
@@ -31,6 +29,7 @@ let timerW = 60;
 let timerB = 60;
 let timerActive = false;
 let lastTick = null;
+let lastTickSecond = -1;   // for tick sound on last 5 seconds
 
 // Game mode & AI
 let gameMode = '2p';
@@ -126,6 +125,8 @@ const SFX = (() => {
         tick() { tone(1600, 'sine', 0.055, 0.07); }
     };
 })();
+
+export function playTickSound() { SFX.tick(); }
 
 // ---------- Chess engine ----------
 function initBrd() {
@@ -526,7 +527,7 @@ function execMove(mv) {
         mlog[mlog.length - 1].b = an;
     }
     turn = op(wt); lastMv = mv; selSq = null; curLM = [];
-    timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now();
+    timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
 
     let pg = P3D[mv.from];
     if (capP) removePiece(mv.to);
@@ -589,7 +590,7 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer ----------
+// ---------- Timer (with tick sound on last 5 seconds) ----------
 function tickTimer() {
     if (!timerActive || over || isAnim || frozen) return;
     const now = performance.now();
@@ -598,47 +599,40 @@ function tickTimer() {
     if (turn === 'w') {
         timerW = Math.max(0, timerW - dt);
         if (timerW <= 0) { timeOut('w'); return; }
+        const sec = Math.ceil(timerW);
+        if (sec <= 5 && sec !== lastTickSecond) { lastTickSecond = sec; SFX.tick(); }
     } else {
         timerB = Math.max(0, timerB - dt);
         if (timerB <= 0) { timeOut('b'); return; }
+        const sec = Math.ceil(timerB);
+        if (sec <= 5 && sec !== lastTickSecond) { lastTickSecond = sec; SFX.tick(); }
     }
 }
 
 function timeOut(loser) {
     if (gameMode === 'online') {
-        turn = op(loser); timerW = 60; timerB = 60;
+        turn = op(loser); timerW = 60; timerB = 60; lastTickSecond = -1;
         selSq = null; curLM = []; updHL();
     } else {
-        turn = op(loser); timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now();
+        turn = op(loser); timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
         selSq = null; curLM = []; updHL();
         if (gameMode === 'ai' && turn === (playerColor === 'w' ? 'b' : 'w')) scheduleAI(300);
     }
 }
 
-// ---------- AI scheduling (with difficulty-based randomness + minimum thinking delay) ----------
+// ---------- AI scheduling (no forced delay, instant after calculation) ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
-
-    // Minimum thinking time based on difficulty (makes timer visibly count down)
-    const minThinkTime = selDiff === 1 ? 800 : selDiff === 3 ? 1800 : 3000; // ms
-
-    const startTime = performance.now();
-
-    // Start the search immediately (it will run in the background)
-    let mv;
-    if (selDiff === 1 && Math.random() < 0.4) {
-        const moves = allM(brd, turn, cas, ep);
-        mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
-    } else {
-        mv = getBestMove(brd, cas, ep, selDiff, turn);
-    }
-
-    const elapsed = performance.now() - startTime;
-    const remainingDelay = Math.max(0, minThinkTime - elapsed);
-
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
+        let mv;
+        if (selDiff === 1 && Math.random() < 0.4) {
+            const moves = allM(brd, turn, cas, ep);
+            mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
+        } else {
+            mv = getBestMove(brd, cas, ep, selDiff, turn);
+        }
         aiThink = false;
         if (mv) execMove(mv);
         else {
@@ -646,7 +640,7 @@ function scheduleAI(delay = 80) {
             endGame(ck ? winner + ' Wins' : 'Stalemate', ck ? 'Checkmate' : 'Draw — no legal moves',
                 ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale);
         }
-    }, Math.max(remainingDelay, 10));
+    }, delay);
 }
 
 // ---------- Promotion ----------
@@ -790,7 +784,7 @@ export function startGame(mode) {
     clearDots(); clearTints();
     updHL();
     timerActive = true;
-    lastTick = performance.now();
+    lastTick = performance.now(); lastTickSecond = -1;
     if (mode === 'ai' && playerColor === 'b') {
         scheduleAI(500);
     }
@@ -803,7 +797,7 @@ export function newGame() {
     clearDots(); clearTints();
     updHL();
     timerActive = true;
-    lastTick = performance.now();
+    lastTick = performance.now(); lastTickSecond = -1;
     if (gameMode === 'ai' && playerColor === 'b') {
         scheduleAI(500);
     }
@@ -822,7 +816,7 @@ export function undoMove() {
     }
     timerW = 60; timerB = 60;
     timerActive = hist.length > 0;
-    lastTick = timerActive ? performance.now() : null;
+    lastTick = timerActive ? performance.now() : null; lastTickSecond = -1;
     lastMv = null; selSq = null; curLM = []; over = false;
     syncAll(brd); updHL();
     if (gameMode === 'ai' && turn === (playerColor === 'w' ? 'b' : 'w') && !over && hist.length > 0) {
@@ -855,7 +849,7 @@ export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
 export function setGameMode(mode) { gameMode = mode; }
-export function setFrozen(val) { frozen = val; if (val) timerActive = false; else { timerActive = true; lastTick = performance.now(); } }
+export function setFrozen(val) { frozen = val; if (val) timerActive = false; else { timerActive = true; lastTick = performance.now(); lastTickSecond = -1; } }
 
 export function getTurn() { return turn; }
 export function getBoardArray() { return brd; }
@@ -879,7 +873,7 @@ export function syncBoardFromServer(newBoard, newTurn, newCas, newEp, tW, tB) {
     }
     brd = newBoard; turn = newTurn; cas = newCas; ep = newEp;
     timerW = tW; timerB = tB;
-    timerActive = true; lastTick = performance.now();
+    timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
     syncAll(brd); updHL();
 }
 
@@ -902,18 +896,18 @@ export function restoreBackup(data) {
     timerW = data.timerW; timerB = data.timerB;
     playerColor = data.playerColor; aiDepth = data.aiDepth; selDiff = aiDepth;
     syncAll(brd); updHL();
-    timerActive = true; lastTick = performance.now();
+    timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
 }
 
 export function resetState() {
     brd = initBrd(); turn = 'w'; cas = { wK: true, wQ: true, bK: true, bQ: true }; ep = null;
     hist = []; capW = []; capB = []; mlog = [];
     selSq = null; curLM = []; lastMv = null; over = false; pendP = null; isAnim = false; aiThink = false; frozen = false;
-    timerW = 60; timerB = 60; timerActive = false; lastTick = null;
+    timerW = 60; timerB = 60; timerActive = false; lastTick = null; lastTickSecond = -1;
     gameOverInfo = null; promotionPending = false; pendingPromotionMove = null;
 }
 
-export function resetTimers() { timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); }
+export function resetTimers() { timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); lastTickSecond = -1; }
 
 export function rotateForPlayer(color) {
     camTheta = (color === 'b') ? Math.PI : 0;
