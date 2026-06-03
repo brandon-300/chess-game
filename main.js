@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v14 – rejoin buttons)
+// main.js — Orchestrator for Chess 3D (v15 – instant rejoin button + robust timer sync)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -46,12 +46,19 @@ async function init() {
             if (state.over) {
                 const info = engine.getGameOverInfo();
                 if (info) {
-                    ui.showGameOver(info.title, info.subtitle, gameMode === 'online' ? '<button onclick="window.requestRematch()">Request Rematch</button><button class="sec" onclick="window.exitOnlineGame()">Exit</button>' : '<button onclick="window.newGameAction()">New Game</button><button class="sec" onclick="window.exitGameAction()">Exit</button>');
+                    ui.showGameOver(info.title, info.subtitle,
+                        isOnline ? '<button onclick="window.requestRematch()">Request Rematch</button><button class="sec" onclick="window.exitOnlineGame()">Exit</button>'
+                        : '<button onclick="window.newGameAction()">New Game</button><button class="sec" onclick="window.exitGameAction()">Exit</button>');
                     over = true;
                 }
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
-            if (isOnline && currentOnlineGame && !moveSyncing && !over && state.turn === myColor && Date.now() - lastTimerSync > 3000) { lastTimerSync = Date.now(); syncTimers(); }
+
+            // Push both timers every 2 seconds regardless of turn (fixes drift)
+            if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 2000) {
+                lastTimerSync = Date.now();
+                syncTimers();
+            }
         });
 
         if (db.sb) {
@@ -63,7 +70,8 @@ async function init() {
             });
         }
         await updateHeaderWithAvatar();
-        await updateRejoinButtons();
+        // Show rejoin button immediately if we just left a game (via sessionStorage)
+        updateRejoinButtonsFromSession();
         ui.showMenu();
         updateDebugOverlay();
         showError('main', 'Initialization complete');
@@ -74,30 +82,55 @@ async function updateHeaderWithAvatar() {
     if (currentUserId && db) { const p = await db.fetchProfileData(currentUserId); ui.updateHeaderUI(currentUserId, p.avatar_url); }
     else ui.updateHeaderUI(null);
 }
+
 function updateDebugOverlay() {
     const sbStatus = db ? db.getSbStatus() : 'db not loaded';
     document.getElementById('debug-overlay').textContent = `Supabase: ${sbStatus}\nUser ID: ${currentUserId ? currentUserId.slice(0,8)+'…' : 'not logged in'}`;
 }
 
-async function updateRejoinButtons() {
+// Immediately show rejoin button if we have a frozen game ID in sessionStorage
+function updateRejoinButtonsFromSession() {
+    const frozenId = sessionStorage.getItem('chess3d_frozen_game');
+    if (frozenId) {
+        ui.setRejoinButtonsVisibility(true, true); // show in both menus (user will navigate to the correct one)
+        // Also do a quick DB check to hide if expired
+        validateRejoinButtonAsync(frozenId);
+    } else {
+        ui.setRejoinButtonsVisibility(false, false);
+    }
+}
+
+async function validateRejoinButtonAsync(frozenId) {
+    if (!db) return;
+    try {
+        const game = await db.fetchGameState(frozenId);
+        if (!game || game.status !== 'frozen' || Date.now() - new Date(game.leave_time).getTime() > 10 * 60 * 1000) {
+            sessionStorage.removeItem('chess3d_frozen_game');
+            ui.setRejoinButtonsVisibility(false, false);
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// Called from showOnlineMenu to refresh based on DB (but session-based is faster)
+async function updateRejoinButtonsFromDB() {
     if (!currentUserId || !db) { ui.setRejoinButtonsVisibility(false, false); return; }
     const frozenGame = await db.getFrozenGameForUser(currentUserId);
     const hasFrozen = !!frozenGame;
     ui.setRejoinButtonsVisibility(hasFrozen, hasFrozen);
     if (hasFrozen) sessionStorage.setItem('chess3d_frozen_game', frozenGame.id);
+    else sessionStorage.removeItem('chess3d_frozen_game');
 }
 
 async function rejoinPublicGame() {
     if (!currentUserId) return;
-    const storedId = sessionStorage.getItem('chess3d_frozen_game');
-    if (!storedId) { ui.toast('No frozen game found.'); return; }
+    const frozenId = sessionStorage.getItem('chess3d_frozen_game');
+    if (!frozenId) { ui.toast('No frozen game found.'); return; }
     try {
-        const game = await db.unfreezeGame(storedId, currentUserId);
+        const game = await db.unfreezeGame(frozenId, currentUserId);
         enterOnlineGame(game);
     } catch (e) { ui.toast('Rejoin failed: ' + e.message); }
 }
 
-// Called after successful rejoin (public) or after joining private frozen game
 function enterOnlineGame(game) {
     currentOnlineGame = game;
     myColor = (game.host_player_id === currentUserId) ? 'w' : 'b';
@@ -105,16 +138,23 @@ function enterOnlineGame(game) {
     sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey);
     sessionStorage.removeItem('chess3d_frozen_game');
     ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(true); ui.setOnlineBottomButtons(true);
+    ui.setRejoinButtonsVisibility(false, false);
     engine.setMyColor(myColor); engine.setGameMode('online');
     engine.syncBoardFromServer(game.board_state.brd, game.board_state.turn, game.board_state.cas, game.board_state.ep, game.timer_w, game.timer_b);
     started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false);
+    lastTimerSync = Date.now();
     startOnlineGameLoop(); startChatPolling(game.id); engine.rotateForPlayer(myColor);
-    updateRejoinButtons();
 }
 
+// Push both timers to server
 async function syncTimers() {
     if (!currentOnlineGame) return;
-    try { await db.sb.from('online_games').update({ timer_w: engine.getTimerW(), timer_b: engine.getTimerB() }).eq('id', currentOnlineGame.id); } catch (e) {}
+    try {
+        await db.sb.from('online_games').update({
+            timer_w: engine.getTimerW(),
+            timer_b: engine.getTimerB()
+        }).eq('id', currentOnlineGame.id);
+    } catch (e) {}
 }
 
 // Offline flow
@@ -132,19 +172,30 @@ function showAiDiffPanel() { document.getElementById('main-cards').style.display
 function startAiGame() { startOfflineGame('ai'); }
 
 // Online
-async function showOnlineMenu() { if (!currentUserId) { ui.showLoginGate(); return; } document.getElementById('main-cards').style.display = 'none'; document.getElementById('original-buttons').style.display = 'none'; ui.showPanel('online-menu'); updateRejoinButtons(); }
+async function showOnlineMenu() {
+    if (!currentUserId) { ui.showLoginGate(); return; }
+    document.getElementById('main-cards').style.display = 'none';
+    document.getElementById('original-buttons').style.display = 'none';
+    ui.showPanel('online-menu');
+    // Refresh rejoin button state from DB
+    updateRejoinButtonsFromDB();
+}
+
 async function createPublicRoom() { await createRoom(null, 'public'); }
 async function createPrivateRoom() { await createRoom(null, 'private'); }
+
 async function createRoom(code, type) {
     if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; }
     const hostKey = generatePlayerKey();
     try { const game = await db.createGame(code, type, currentUserId, hostKey, username); onlineGameCreated(game, hostKey); } catch (e) { ui.toast('Failed to create room: ' + e.message); }
 }
+
 async function joinPublicRoom() {
     if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; }
     const joinerKey = generatePlayerKey();
     try { const game = await db.joinPublicGame(currentUserId, joinerKey, username); onlineGameJoined(game, joinerKey); } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
+
 async function joinPrivateRoom() {
     if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; }
     const code = ui.getPrivateRoomCode(); if (!code) { ui.toast('Enter a room code.'); return; }
@@ -155,10 +206,13 @@ async function joinPrivateRoom() {
         onlineGameJoined(game, joinerKey);
     } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
+
 function onlineGameCreated(game, hostKey) { currentOnlineGame = game; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey); ui.showWaitingRoom(game.host_nickname, game.room_code); startWaitingPoll(game.id); }
 function onlineGameJoined(game, joinerKey) { currentOnlineGame = game; sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey); myColor = 'b'; ui.showCountdown(game.host_nickname, game.room_code); }
+
 function startWaitingPoll(gameId) { stopWaitingPoll(); waitingPollInterval = setInterval(async () => { try { const data = await db.fetchGameState(gameId); if (!data) return; if (data.status === 'countdown') { stopWaitingPoll(); currentOnlineGame = data; ui.showCountdown(data.host_nickname, data.room_code); } else if (data.status === 'active') { stopWaitingPoll(); currentOnlineGame = data; startOnlineGame(); } else if (data.status === 'cancelled' || data.status === 'terminated') { stopWaitingPoll(); ui.toast('Game was cancelled.'); resetOnlineState(); ui.showMenu(); } } catch (e) {} }, 1000); }
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
+
 async function startOnlineGame() { if (!currentOnlineGame) return; if (currentOnlineGame.host_player_id === currentUserId) await db.updateGameStatus(currentOnlineGame.id, 'active'); ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(true); ui.setOnlineBottomButtons(true); engine.setMyColor(myColor); engine.startGame('online'); started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false); lastTimerSync = Date.now(); startOnlineGameLoop(); startChatPolling(currentOnlineGame.id); engine.rotateForPlayer(myColor); }
 async function cancelWaiting() { if (currentOnlineGame) { await db.cancelGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); } }
 
@@ -171,13 +225,28 @@ async function pollGameState() {
         const gameData = await db.fetchGameState(currentOnlineGame.id); if (!gameData) return;
         if (gameData.status === 'terminated') { ui.toast('Game terminated by opponent.'); resetOnlineState(); ui.showMenu(); return; }
         if (gameData.status === 'frozen') {
-            if (!frozen) { frozen = true; engine.setFrozen(true); if (currentUserId !== gameData.leaver_id) { ui.toast('Opponent left – waiting for rejoin…'); sessionStorage.setItem('chess3d_frozen_game', gameData.id); } }
+            if (!frozen) {
+                frozen = true; engine.setFrozen(true);
+                if (currentUserId !== gameData.leaver_id) {
+                    ui.toast('Opponent left – waiting for rejoin…');
+                    sessionStorage.setItem('chess3d_frozen_game', gameData.id);
+                } else {
+                    // I'm the leaver; we already handled in exit. But just in case store ID
+                    sessionStorage.setItem('chess3d_frozen_game', gameData.id);
+                }
+            }
             return;
         }
-        if (frozen && gameData.status === 'active') { frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!'); sessionStorage.removeItem('chess3d_frozen_game'); }
-        const serverState = JSON.stringify(gameData.board_state); if (serverState === lastKnownServerState) return;
-        lastKnownServerState = serverState;
-        engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b);
+        if (frozen && gameData.status === 'active') {
+            frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!');
+            sessionStorage.removeItem('chess3d_frozen_game');
+        }
+        // Always apply server state for board and timers (prevents drift)
+        const serverState = JSON.stringify(gameData.board_state);
+        if (serverState !== lastKnownServerState) {
+            lastKnownServerState = serverState;
+            engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b);
+        }
     } catch (e) {}
 }
 
@@ -196,8 +265,32 @@ async function declineRematch() { if (currentOnlineGame) { await db.terminateGam
 
 // Exit
 function confirmExitOnline() { ui.showExitOnlinePanel(); }
-async function exitOnlineGame() { if (!currentOnlineGame) return; stopOnlineGameLoop(); stopChatPolling(); if (currentOnlineGame.host_player_id === currentUserId) await db.terminateGame(currentOnlineGame.id); else { await db.freezeGame(currentOnlineGame.id, currentUserId); sessionStorage.setItem('chess3d_frozen_game', currentOnlineGame.id); } resetOnlineState(); ui.showMenu(); updateRejoinButtons(); }
-function resetOnlineState() { stopOnlineGameLoop(); stopChatPolling(); stopWaitingPoll(); if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id); currentOnlineGame = null; sessionPlayerKey = null; myColor = 'w'; moveSyncing = false; lastKnownServerState = null; over = false; frozen = false; engine.setFrozen(false); ui.hideGameUI(); ui.hideGameOver(); engine.resetState(); started = false; gameMode = null; }
+async function exitOnlineGame() {
+    if (!currentOnlineGame) return;
+    stopOnlineGameLoop(); stopChatPolling();
+    const gameId = currentOnlineGame.id; // store before reset
+    if (currentOnlineGame.host_player_id === currentUserId) {
+        await db.terminateGame(gameId);
+    } else {
+        await db.freezeGame(gameId, currentUserId);
+        sessionStorage.setItem('chess3d_frozen_game', gameId); // set immediately
+    }
+    resetOnlineState();
+    ui.showMenu();
+    // Show rejoin button immediately (using sessionStorage)
+    updateRejoinButtonsFromSession();
+}
+
+function resetOnlineState() {
+    stopOnlineGameLoop(); stopChatPolling(); stopWaitingPoll();
+    if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id);
+    currentOnlineGame = null; sessionPlayerKey = null; myColor = 'w';
+    moveSyncing = false; lastKnownServerState = null; over = false; frozen = false;
+    engine.setFrozen(false);
+    ui.hideGameUI(); ui.hideGameOver(); engine.resetState();
+    started = false; gameMode = null;
+}
+
 function handleBottomRight() { if (gameMode === 'online') confirmExitOnline(); else ui.showExitChoicePanel(); }
 function exitWithSave() { saveBackup(); ui.hideGameUI(); ui.showMenu(); engine.resetState(); started = false; }
 function exitWithoutSave() { if (confirm('Are you sure?')) { localStorage.removeItem('chess3d_backup_' + gameMode); ui.hideGameUI(); ui.showMenu(); engine.resetState(); started = false; } }
