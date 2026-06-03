@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v38 – clean, final)
+// main.js — Orchestrator for Chess 3D (v39 – clean, no debug spam)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -182,7 +182,7 @@ function startWaitingPoll(gameId) {
                 resetOnlineState();
                 ui.showMenu();
             }
-        } catch (e) { showError('waitPoll', e); }
+        } catch (e) {}
     }, 1000);
 }
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
