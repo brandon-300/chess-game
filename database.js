@@ -157,16 +157,11 @@ export async function unfreezeGame(gameId, joinerId) {
 
 export async function cancelGame(gameId) { return updateGameStatus(gameId, 'cancelled'); }
 
-// NEW: get frozen game where this user is the leaver (for rejoin button)
 export async function getFrozenGameForUser(userId) {
     if (!sb || !userId) return null;
-    const { data, error } = await sb.from('online_games')
-        .select('*')
-        .eq('leaver_id', userId)
-        .eq('status', 'frozen')
-        .maybeSingle();
-    if (error || !data) return null;
-    // Check if still within 10 minutes
+    const { data } = await sb.from('online_games')
+        .select('*').eq('leaver_id', userId).eq('status', 'frozen').maybeSingle();
+    if (!data) return null;
     if (Date.now() - new Date(data.leave_time).getTime() > 10 * 60 * 1000) {
         await terminateGame(data.id);
         return null;
@@ -177,13 +172,19 @@ export async function getFrozenGameForUser(userId) {
 // ---------- Chat ----------
 export async function getChatMessages(gameId) {
     if (!sb) return [];
-    const { data } = await sb.from('chat_messages').select('*').eq('game_id', gameId).order('id', { ascending: true });
+    const { data } = await sb.from('chat_messages')
+        .select('*').eq('game_id', gameId).order('id', { ascending: true });
     return data || [];
 }
 
+// NOW RETURNS THE INSERTED ROW (including id)
 export async function sendChatMessage(gameId, playerId, nickname, message) {
-    if (!sb) return;
-    await sb.from('chat_messages').insert({ game_id: gameId, player_id: playerId, nickname, message });
+    if (!sb) return null;
+    const { data, error } = await sb.from('chat_messages')
+        .insert({ game_id: gameId, player_id: playerId, nickname, message })
+        .select().single();
+    if (error) { console.error('sendChatMessage error:', error); return null; }
+    return data;
 }
 
 // ---------- Offline backup sync ----------
