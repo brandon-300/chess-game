@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v33 – clean, fixed toast & popup)
+// main.js — Orchestrator for Chess 3D (v34 – fixed online sync)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -155,8 +155,36 @@ async function createRoom(code, type) { if (!currentUserId) return; const userna
 async function joinPublicRoom() { if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; } const joinerKey = generatePlayerKey(); try { const game = await db.joinPublicGame(currentUserId, joinerKey, username); onlineGameJoined(game, joinerKey); } catch (e) { ui.toast('Join failed: ' + e.message); } }
 async function joinPrivateRoom() { if (!currentUserId) return; const username = await db.fetchUsername(currentUserId); if (!username) { ui.toast('Please set a username.'); return; } const code = ui.getPrivateRoomCode(); if (!code) { ui.toast('Enter a room code.'); return; } const joinerKey = generatePlayerKey(); try { const game = await db.joinPrivateGame(code, currentUserId, joinerKey, username); if (game.status === 'active') { enterOnlineGame(game); return; } onlineGameJoined(game, joinerKey); } catch (e) { ui.toast('Join failed: ' + e.message); } }
 function onlineGameCreated(game, hostKey) { currentOnlineGame = game; sessionPlayerKey = hostKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey); ui.showWaitingRoom(game.host_nickname, game.room_code); startWaitingPoll(game.id); }
-function onlineGameJoined(game, joinerKey) { currentOnlineGame = game; sessionPlayerKey = joinerKey; sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey); myColor = 'b'; ui.showCountdown(game.host_nickname, game.room_code); }
-function startWaitingPoll(gameId) { stopWaitingPoll(); waitingPollInterval = setInterval(async () => { try { const data = await db.fetchGameState(gameId); if (!data) return; if (data.status === 'countdown') { stopWaitingPoll(); currentOnlineGame = data; ui.showCountdown(data.host_nickname, data.room_code); } else if (data.status === 'active') { stopWaitingPoll(); currentOnlineGame = data; startOnlineGame(); } else if (data.status === 'cancelled' || data.status === 'terminated') { stopWaitingPoll(); ui.toast('Game was cancelled.'); resetOnlineState(); ui.showMenu(); } } catch (e) {} }, 1000); }
+function onlineGameJoined(game, joinerKey) {
+    currentOnlineGame = game;
+    sessionPlayerKey = joinerKey;
+    sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
+    myColor = 'b';
+    startWaitingPoll(game.id);
+}
+function startWaitingPoll(gameId) {
+    stopWaitingPoll();
+    waitingPollInterval = setInterval(async () => {
+        try {
+            const data = await db.fetchGameState(gameId);
+            if (!data) return;
+            if (data.status === 'countdown') {
+                stopWaitingPoll();
+                currentOnlineGame = data;
+                ui.showCountdown(data.host_nickname, data.room_code);
+            } else if (data.status === 'active') {
+                stopWaitingPoll();
+                currentOnlineGame = data;
+                startOnlineGame();
+            } else if (data.status === 'cancelled' || data.status === 'terminated') {
+                stopWaitingPoll();
+                ui.toast('Game was cancelled.');
+                resetOnlineState();
+                ui.showMenu();
+            }
+        } catch (e) {}
+    }, 1000);
+}
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
 async function startOnlineGame() { if (!currentOnlineGame) return; document.getElementById('ms').style.display = 'none'; if (currentOnlineGame.host_player_id === currentUserId) await db.updateGameStatus(currentOnlineGame.id, 'active'); ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(true); ui.resetChatState(); ui.setOnlineBottomButtons(true); engine.setMyColor(myColor); engine.startGame('online'); started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false); lastTimerSync = Date.now(); startOnlineGameLoop(); startChatPolling(currentOnlineGame.id); engine.rotateForPlayer(myColor); }
 async function cancelWaiting() { if (currentOnlineGame) { await db.cancelGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); } }
@@ -195,39 +223,11 @@ function stopAutoSave() { if (autoSaveInterval) { clearInterval(autoSaveInterval
 function restoreLocalGame() { const ai = localStorage.getItem('chess3d_backup_ai'), pvp = localStorage.getItem('chess3d_backup_2p'); if (!ai && !pvp) { ui.toast('No backup found.'); return; } if (ai && !pvp) restoreLocalMode('ai'); else if (!ai && pvp) restoreLocalMode('2p'); else ui.showRestoreChoicePanel(); }
 function restoreLocalMode(mode) { const dataStr = localStorage.getItem('chess3d_backup_' + mode); if (!dataStr) { ui.toast('No backup found.'); return; } const data = JSON.parse(dataStr); gameMode = mode; engine.setGameMode(mode); engine.restoreBackup(data); ui.hideAllPanels(); ui.showGameUI(); ui.setChatVisibility(false); ui.setOnlineBottomButtons(false); started = true; over = false; startAutoSave(); if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300); }
 
-// ---------- Cloud sync ----------
-async function syncOfflineToCloud() {
-    if (!currentUserId) { ui.toast('Please log in to sync data.', 3000); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
-    const aiBackup = localStorage.getItem('chess3d_backup_ai');
-    const pvpBackup = localStorage.getItem('chess3d_backup_2p');
-    if (!aiBackup && !pvpBackup) { ui.toast('No offline data to sync.', 4000); return; }
-    ui.toast('Syncing data to cloud…', 2000);
-    try {
-        await db.syncOfflineToCloud(currentUserId);
-        ui.toast('Synced data successfully', 3000);
-    } catch (e) {
-        ui.toast('Sync failed: ' + e.message, 4000);
-        showError('sync', e);
-    }
-}
-
-async function restoreOfflineFromCloud() {
-    if (!currentUserId) { ui.toast('Please log in to restore cloud data.', 3000); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
-    ui.toast('Restoring data from cloud…', 2000);
-    try {
-        const result = await db.restoreOfflineFromCloud(currentUserId);
-        if (Array.isArray(result)) { window._cloudBackups = result; ui.showCloudChoicePanel(); }
-        else ui.toast('Restored data successfully', 3000);
-    } catch (e) { ui.toast('Restore failed: ' + e.message, 4000); showError('restore', e); }
-}
+// Cloud sync
+async function syncOfflineToCloud() { if (!currentUserId) { ui.toast('Please log in to sync data.', 3000); return; } if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; } const aiBackup = localStorage.getItem('chess3d_backup_ai'); const pvpBackup = localStorage.getItem('chess3d_backup_2p'); if (!aiBackup && !pvpBackup) { ui.toast('No offline data to sync.', 4000); return; } ui.toast('Syncing data to cloud…', 2000); try { await db.syncOfflineToCloud(currentUserId); ui.toast('Synced data successfully', 3000); } catch (e) { ui.toast('Sync failed: ' + e.message, 4000); showError('sync', e); } }
+async function restoreOfflineFromCloud() { if (!currentUserId) { ui.toast('Please log in to restore cloud data.', 3000); return; } if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; } ui.toast('Restoring data from cloud…', 2000); try { const result = await db.restoreOfflineFromCloud(currentUserId); if (Array.isArray(result)) { window._cloudBackups = result; ui.showCloudChoicePanel(); } else ui.toast('Restored data successfully', 3000); } catch (e) { ui.toast('Restore failed: ' + e.message, 4000); showError('restore', e); } }
 function restoreCloudMode(mode) { const backups = window._cloudBackups; if (!backups) return; const backup = backups.find(b => b.mode === mode); if (!backup) return; localStorage.setItem('chess3d_backup_' + mode, JSON.stringify(backup.backup_data)); ui.hideAllPanels(); restoreLocalMode(mode); ui.toast('Restored cloud backup.', 3000); }
-async function deleteAllSyncedData() {
-    if (!currentUserId) { ui.toast('Please log in to delete synced data.', 3000); return; }
-    if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; }
-    try { await db.deleteAllSyncedData(currentUserId); ui.toast('Cloud data deleted.', 3000); } catch (e) { ui.toast('Delete failed: ' + e.message, 4000); showError('delete', e); }
-}
+async function deleteAllSyncedData() { if (!currentUserId) { ui.toast('Please log in to delete synced data.', 3000); return; } if (!navigator.onLine) { ui.toast('No internet connection.', 3000); return; } try { await db.deleteAllSyncedData(currentUserId); ui.toast('Cloud data deleted.', 3000); } catch (e) { ui.toast('Delete failed: ' + e.message, 4000); showError('delete', e); } }
 
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
 
