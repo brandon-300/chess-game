@@ -615,25 +615,30 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling (with difficulty-based randomness) ----------
+// ---------- AI scheduling (with difficulty-based randomness + minimum thinking delay) ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
+
+    // Minimum thinking time based on difficulty (makes timer visibly count down)
+    const minThinkTime = selDiff === 1 ? 800 : selDiff === 3 ? 1800 : 3000; // ms
+
+    const startTime = performance.now();
+
+    // Start the search immediately (it will run in the background)
+    let mv;
+    if (selDiff === 1 && Math.random() < 0.4) {
+        const moves = allM(brd, turn, cas, ep);
+        mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
+    } else {
+        mv = getBestMove(brd, cas, ep, selDiff, turn);
+    }
+
+    const elapsed = performance.now() - startTime;
+    const remainingDelay = Math.max(0, minThinkTime - elapsed);
+
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
-        let mv;
-        if (selDiff === 1 && Math.random() < 0.4) {
-            // Novice: 40% chance to play a random legal move
-            const moves = allM(brd, turn, cas, ep);
-            if (moves.length > 0) {
-                mv = moves[Math.floor(Math.random() * moves.length)];
-            } else {
-                mv = null;
-            }
-        } else {
-            // Knight or Master: always best move (depth 3 or 5)
-            mv = getBestMove(brd, cas, ep, selDiff, turn);
-        }
         aiThink = false;
         if (mv) execMove(mv);
         else {
@@ -641,7 +646,7 @@ function scheduleAI(delay = 80) {
             endGame(ck ? winner + ' Wins' : 'Stalemate', ck ? 'Checkmate' : 'Draw — no legal moves',
                 ck ? (turn === playerColor ? SFX.lose : SFX.win) : SFX.stale);
         }
-    }, delay);
+    }, Math.max(remainingDelay, 10));
 }
 
 // ---------- Promotion ----------
