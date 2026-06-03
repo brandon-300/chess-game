@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v19 – host sees countdown, tagline removed)
+// main.js — Orchestrator for Chess 3D (v20 – host countdown fix, termination message)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -26,7 +26,7 @@ async function init() {
             onStart2P: () => startOfflineGame('2p'), onStartAI: showAiDiffPanel, onOnlineMenu: showOnlineMenu,
             onCreatePublicRoom: createPublicRoom, onJoinPublicRoom: joinPublicRoom, onRejoinPublic: rejoinPublicGame,
             onCreatePrivateRoom: createPrivateRoom, onJoinPrivateRoom: joinPrivateRoom,
-            onCancelWaiting: cancelWaiting, onCountdownFinished: () => startOnlineGame(),  // <-- now used by both
+            onCancelWaiting: cancelWaiting, onCountdownFinished: () => startOnlineGame(),
             onAiCountdownFinished: startAiGame,
             onAcceptRematch: acceptRematch, onDeclineRematch: declineRematch,
             onSendChat: (msg) => sendChat(msg), onToggleChat: () => ui.toggleChat(),
@@ -207,12 +207,10 @@ function startWaitingPoll(gameId) {
             const data = await db.fetchGameState(gameId);
             if (!data) return;
             if (data.status === 'countdown') {
-                // Host should also see the countdown!
                 stopWaitingPoll();
                 currentOnlineGame = data;
-                ui.showCountdown(data.host_nickname, data.room_code);  // this will start countdown and call onCountdownFinished -> startOnlineGame
+                ui.showCountdown(data.host_nickname, data.room_code);
             } else if (data.status === 'active') {
-                // Rare: if joiner somehow set active before host polled countdown (shouldn't happen)
                 stopWaitingPoll();
                 currentOnlineGame = data;
                 startOnlineGame();
@@ -229,7 +227,6 @@ function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPol
 
 async function startOnlineGame() {
     if (!currentOnlineGame) return;
-    // Only the host sets the game to active
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.updateGameStatus(currentOnlineGame.id, 'active');
     }
@@ -258,7 +255,14 @@ async function pollGameState() {
     if (!currentOnlineGame || moveSyncing || over) return;
     try {
         const gameData = await db.fetchGameState(currentOnlineGame.id); if (!gameData) return;
-        if (gameData.status === 'terminated') { ui.toast('Game terminated by opponent.'); resetOnlineState(); ui.showMenu(); return; }
+        if (gameData.status === 'terminated') {
+            if (currentUserId !== gameData.host_player_id) {
+                ui.toast('Match terminated by the host.');
+            }
+            resetOnlineState();
+            ui.showMenu();
+            return;
+        }
         if (gameData.status === 'frozen') {
             if (!frozen) {
                 frozen = true; engine.setFrozen(true);
@@ -304,13 +308,15 @@ async function exitOnlineGame() {
     const gameId = currentOnlineGame.id;
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.terminateGame(gameId);
+        resetOnlineState();
+        ui.showMenu();
     } else {
         await db.freezeGame(gameId, currentUserId);
         sessionStorage.setItem('chess3d_frozen_game', gameId);
+        resetOnlineState();
+        ui.showMenu();
+        updateRejoinButtonsFromSession();
     }
-    resetOnlineState();
-    ui.showMenu();
-    updateRejoinButtonsFromSession();
 }
 
 function resetOnlineState() {
