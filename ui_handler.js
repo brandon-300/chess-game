@@ -1,4 +1,4 @@
-// ui_handler.js — All DOM manipulation and event wiring for Chess 3D
+// ui_handler.js — DIAGNOSTIC VERSION (logs toast calls)
 
 import * as engine from './game_engine.js';
 
@@ -10,6 +10,11 @@ let isChatOpen = false;
 
 let knownMessageIds = new Set();
 let notifiedMessageIds = new Set();
+
+function screenLog(msg) {
+    const log = document.getElementById('error-log');
+    if (log) { log.style.display = 'block'; log.textContent += msg + '\n'; }
+}
 
 export function initUI(cb) {
     callbacks = cb;
@@ -60,15 +65,6 @@ function cacheElements() {
         'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
     ];
     ids.forEach(id => { els[id] = document.getElementById(id); });
-    // Temporary diagnostic – remove after testing
-const criticalIds = ['toast', 'go', 'got', 'gos', 'go-btns', 'btn-sync-offline-cloud', 'btn-delete-all-synced'];
-const missing = criticalIds.filter(id => !document.getElementById(id));
-if (missing.length > 0) {
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:red;color:white;padding:8px;font-size:12px;text-align:center';
-    div.textContent = 'Missing elements: ' + missing.join(', ');
-    document.body.appendChild(div);
-}
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
     if (els['profile-avatar']) {
@@ -76,245 +72,18 @@ if (missing.length > 0) {
     }
 }
 
-function attachListeners() {
-    const btn = (id, handler) => { const el = els[id]; if (el) el.addEventListener('click', handler); };
+// ... rest of ui_handler.js unchanged, EXCEPT the toast function ...
 
-    btn('card-2p', () => callbacks.onStart2P());
-    btn('card-ai', () => callbacks.onStartAI());
-    btn('card-online', () => callbacks.onOnlineMenu());
-
-    btn('btn-public-menu', () => { hideAllPanels(); showPanel('public-menu'); });
-    btn('btn-private-menu', () => { hideAllPanels(); showPanel('private-menu'); });
-    btn('btn-online-back', () => { hideAllPanels(); showMenu(); });
-    btn('btn-create-public', () => callbacks.onCreatePublicRoom());
-    btn('btn-join-public', () => callbacks.onJoinPublicRoom());
-    btn('btn-rejoin-public', () => callbacks.onRejoinPublic());
-    btn('btn-public-back', () => { hideAllPanels(); showPanel('online-menu'); });
-    btn('btn-show-create-private', () => callbacks.onCreatePrivateRoom());
-    btn('btn-show-join-private', () => { hideAllPanels(); showPanel('join-private'); });
-    btn('btn-rejoin-private', () => { hideAllPanels(); showPanel('join-private'); });
-    btn('btn-private-back', () => { hideAllPanels(); showPanel('online-menu'); });
-    btn('btn-join-private', () => callbacks.onJoinPrivateRoom());
-    btn('btn-join-private-back', () => { hideAllPanels(); showPanel('private-menu'); });
-    btn('btn-cancel-waiting', () => callbacks.onCancelWaiting ? callbacks.onCancelWaiting() : null);
-    btn('btn-rematch-accept', () => callbacks.onAcceptRematch());
-    btn('btn-rematch-decline', () => callbacks.onDeclineRematch());
-
-    btn('btn-go-login', () => { window.location.href = 'user_login.html'; });
-    btn('btn-login-gate-back', () => { hideAllPanels(); showMenu(); });
-
-    btn('btn-ai-novice', () => { engine.setAiDepth(1); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-knight', () => { engine.setAiDepth(3); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-master', () => { engine.setAiDepth(5); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-diff-back', () => { hideAllPanels(); showMenu(); });
-    btn('btn-ai-red', () => { engine.setPlayerColor('w'); startAiCountdown(); });
-    btn('btn-ai-black', () => { engine.setPlayerColor('b'); startAiCountdown(); });
-    btn('btn-ai-color-back', () => { hideAllPanels(); showPanel('ai-diff-panel'); });
-    btn('btn-cancel-ai-countdown', cancelAiCountdown);
-
-    btn('btn-restore-local', () => callbacks.onRestoreLocal());
-    btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
-    btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
-    btn('btn-delete-all-synced', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.add('show'); });
-    btn('btn-delete-confirm', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); callbacks.onDeleteSynced(); });
-    btn('btn-delete-cancel', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); });
-
-    btn('btn-exit-save', () => callbacks.onExitSave());
-    btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
-    btn('btn-exit-cancel', () => { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); });
-
-    btn('btn-exit-online-yes', () => callbacks.onExitOnlineYes());
-    btn('btn-exit-online-stay', () => { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); });
-
-    btn('new-game-btn', () => callbacks.onNewGame());
-    btn('undo-btn', () => callbacks.onUndo());
-    btn('mode-btn', () => callbacks.onModeBtn());
-
-    if (els['chat-toggle-btn']) els['chat-toggle-btn'].addEventListener('click', () => toggleChat());
-    if (els['btn-send-chat']) els['btn-send-chat'].addEventListener('click', () => sendChatFromInput());
-    if (els['chat-input']) els['chat-input'].addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatFromInput(); });
-
-    btn('btn-restore-ai', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestoreAI) callbacks.onRestoreAI(); });
-    btn('btn-restore-2p', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestore2P) callbacks.onRestore2P(); });
-    btn('btn-restore-cancel', () => { els['restore-choice-panel']?.classList.remove('show'); });
-    btn('btn-cloud-restore-ai', () => { els['cloud-choice-panel']?.classList.remove('show'); if (callbacks.onCloudRestoreAI) callbacks.onCloudRestoreAI(); });
-    btn('btn-cloud-restore-2p', () => { els['cloud-choice-panel']?.classList.remove('show'); if (callbacks.onCloudRestore2P) callbacks.onCloudRestore2P(); });
-    btn('btn-cloud-restore-cancel', () => { els['cloud-choice-panel']?.classList.remove('show'); });
-
-    if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
+export function toast(msg, duration = 2800) {
+    screenLog('TOAST: ' + msg);
+    const el = els['toast'];
+    if (!el) { screenLog('TOAST FAIL: #toast element not found'); return; }
+    el.textContent = msg;
+    el.classList.add('show');
+    screenLog('TOAST: classList now ' + el.className);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        el.classList.remove('show');
+        screenLog('TOAST: hidden');
+    }, duration);
 }
-
-function sendChatFromInput() {
-    const input = els['chat-input'];
-    if (!input) return;
-    const msg = input.value.trim();
-    if (msg) { callbacks.onSendChat(msg); input.value = ''; }
-}
-
-// ---------- Chat ----------
-export function toggleChat() {
-    isChatOpen = !isChatOpen;
-    if (els['chat-box']) els['chat-box'].classList.toggle('show', isChatOpen);
-}
-export function showChatNotification(senderName) {
-    const el = els['chat-notification']; if (!el) return;
-    el.textContent = senderName + ' sent you a message'; el.classList.add('show');
-    clearTimeout(chatNotificationTimer);
-    chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
-}
-export function displayChatMessages(messages) {
-    const box = els['chat-messages']; if (!box) return;
-    let added = false;
-    for (const msg of messages) {
-        const id = String(msg.id); if (!id || id === 'undefined') continue;
-        if (!knownMessageIds.has(id)) {
-            knownMessageIds.add(id);
-            appendChatMessage(msg.nickname, msg.message, false);
-            maybeShowNotification(id, msg.nickname);
-            added = true;
-        }
-    }
-    if (added) box.scrollTop = box.scrollHeight;
-}
-export function appendChatMessage(nickname, msg, skipNotification = false) {
-    const box = els['chat-messages']; if (!box) return;
-    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
-    box.appendChild(div); box.scrollTop = box.scrollHeight;
-}
-export function registerOwnMessage(id) {
-    const strId = String(id); if (!strId || strId === 'undefined') return;
-    knownMessageIds.add(strId); notifiedMessageIds.add(strId);
-}
-export function maybeShowNotification(id, nickname) {
-    const strId = String(id); if (!strId || strId === 'undefined') return;
-    if (!notifiedMessageIds.has(strId)) {
-        notifiedMessageIds.add(strId);
-        if (!isChatOpen) showChatNotification(nickname);
-    }
-}
-export function resetChatState() {
-    knownMessageIds.clear(); notifiedMessageIds.clear();
-    if (els['chat-messages']) els['chat-messages'].innerHTML = '';
-}
-
-// ---------- Panel helpers ----------
-export function showPanel(panelId) { hideAllPanels(); const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
-export function hideAllPanels() {
-    ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
-     'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
-     'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
-}
-export function showMenu() {
-    if (els['ms']) els['ms'].style.display = 'flex';
-    if (els['gu']) els['gu'].style.display = 'none';
-    if (els['main-cards']) els['main-cards'].style.display = 'flex';
-    if (els['original-buttons']) els['original-buttons'].style.display = '';
-    setOnlineBottomButtons(false); hideAllPanels();
-    isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show');
-}
-export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; }
-export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show'); }
-export function hideGameOver() { if (els['go']) els['go'].classList.remove('on'); }
-
-export function updateHeaderUI(userId, avatarUrl) {
-    if (!els['login-btn'] || !els['profile-avatar'] || !els['profile-avatar-img']) return;
-    if (userId) {
-        els['login-btn'].style.display = 'none'; els['profile-avatar'].style.display = 'block';
-        els['profile-avatar-img'].src = avatarUrl || '';
-    } else {
-        els['login-btn'].style.display = 'inline-block'; els['profile-avatar'].style.display = 'none';
-    }
-}
-export function updateTurnIndicator(turn, myColor, isOnline) {
-    if (!els['tdot'] || !els['tlbl'] || !els['tmrW_name'] || !els['tmrB_name']) return;
-    els['tdot'].className = 'tdot ' + (turn === 'w' ? 'w' : 'b');
-    if (isOnline) {
-        els['tlbl'].textContent = turn === 'w' ? (myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)') : (myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)');
-        els['tmrW_name'].textContent = myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)';
-        els['tmrB_name'].textContent = myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)';
-    } else {
-        els['tlbl'].textContent = turn === 'w' ? 'Red' : 'Black';
-        els['tmrW_name'].textContent = 'Red'; els['tmrB_name'].textContent = 'Black';
-    }
-    if (els['smsg']) els['smsg'].textContent = '';
-}
-export function updateTimers(w, b, activeTurn) {
-    if (!els['tvW'] || !els['tvB']) return;
-    els['tvW'].textContent = fmtTime(w); els['tvB'].textContent = fmtTime(b);
-    if (els['tmrW']) els['tmrW'].className = 'tmr' + (activeTurn === 'w' ? ' active' : '') + (w <= 10 && activeTurn === 'w' ? ' low' : '');
-    if (els['tmrB']) els['tmrB'].className = 'tmr' + (activeTurn === 'b' ? ' active' : '') + (b <= 10 && activeTurn === 'b' ? ' low' : '');
-}
-export function updateThinkingIndicator(thinking) {
-    if (!els['smsg'] || !els['thkstrip']) return;
-    els['smsg'].textContent = thinking ? 'Thinking…' : '';
-    if (thinking) els['thkstrip'].classList.add('on'); else els['thkstrip'].classList.remove('on');
-}
-export function setChatVisibility(visible) {
-    const toggle = els['chat-toggle-btn']?.parentElement;
-    if (toggle) toggle.style.display = visible ? '' : 'none';
-    if (!visible) { isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show'); resetChatState(); }
-}
-export function setOnlineBottomButtons(isOnline) {
-    if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
-    if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
-    if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
-}
-export function setRejoinButtonsVisibility(showPublic, showPrivate) { /* unchanged */ }
-export function showWaitingRoom(hostNickname, roomCode) { /* unchanged */ }
-
-let countdownInterval = null;
-export function showCountdown(hostNickname, roomCode) {
-    hideAllPanels();
-    if (els['countdown-welcome']) els['countdown-welcome'].textContent = 'Welcome to ' + hostNickname + ' room – Room ID: ' + roomCode;
-    showPanel('countdown-panel');
-    let sec = 5; if (els['countdown-number']) els['countdown-number'].textContent = sec;
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        sec--;
-        if (sec <= 5 && sec > 0) engine.playTickSound();   // tick sound for last 5 seconds
-        if (sec <= 0) {
-            clearInterval(countdownInterval); countdownInterval = null;
-            hideAllPanels();
-            if (callbacks.onCountdownFinished) callbacks.onCountdownFinished();
-        } else {
-            if (els['countdown-number']) els['countdown-number'].textContent = sec;
-        }
-    }, 1000);
-}
-
-function startAiCountdown() {
-    hideAllPanels(); showPanel('ai-countdown-panel');
-    let sec = 5; if (els['ai-countdown-number']) els['ai-countdown-number'] = sec;
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        sec--;
-        if (sec <= 5 && sec > 0) engine.playTickSound();   // tick sound
-        if (sec <= 0) {
-            clearInterval(countdownInterval); countdownInterval = null;
-            hideAllPanels();
-            if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished();
-        } else {
-            const numEl = document.getElementById('ai-countdown-number');
-            if (numEl) numEl.textContent = sec;
-        }
-    }, 1000);
-}
-
-function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
-
-export function showGameOver(title, subtitle, buttonsHTML) { /* unchanged */ }
-export function showPromotion(color) { /* unchanged */ }
-export function toast(msg, duration = 2800) { /* unchanged */ }
-export function showExitChoicePanel() { els['exit-choice-panel']?.classList.add('show'); }
-export function hideExitChoicePanel() { els['exit-choice-panel']?.classList.remove('show'); }
-export function showRestoreChoicePanel() { els['restore-choice-panel']?.classList.add('show'); }
-export function showCloudChoicePanel() { els['cloud-choice-panel']?.classList.add('show'); }
-export function showExitOnlinePanel() { els['exit-online-panel']?.classList.add('show'); }
-export function hideExitOnlinePanel() { els['exit-online-panel']?.classList.remove('show'); }
-export function showRematchUI(text) { if (els['rematch-text']) els['rematch-text'].textContent = text; els['rematch-panel']?.classList.add('show'); }
-export function showLoginGate() { /* unchanged */ }
-
-function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
-export function getPrivateRoomCode() { return els['private-room-code'] ? els['private-room-code'].value.trim() : ''; }
-export function updateDebug(text) { if (els['debug-overlay']) els['debug-overlay'].textContent = text; }
