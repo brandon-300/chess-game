@@ -7,6 +7,7 @@ let callbacks = {};
 let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
+let lastMessageCount = 0;   // track how many messages we've already shown
 
 export function initUI(cb) {
     callbacks = cb;
@@ -118,7 +119,7 @@ function attachListeners() {
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    // Chat toggle
+    // Chat
     if (els['chat-toggle-btn']) els['chat-toggle-btn'].addEventListener('click', () => toggleChat());
     if (els['btn-send-chat']) els['btn-send-chat'].addEventListener('click', () => sendChatFromInput());
     if (els['chat-input']) els['chat-input'].addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatFromInput(); });
@@ -143,7 +144,7 @@ function sendChatFromInput() {
     }
 }
 
-// ---------- Chat toggle (open/close) ----------
+// ---------- Chat ----------
 export function toggleChat() {
     isChatOpen = !isChatOpen;
     if (els['chat-box']) {
@@ -151,7 +152,6 @@ export function toggleChat() {
     }
 }
 
-// Show a temporary notification when a message arrives while chat is closed
 export function showChatNotification(senderName) {
     const el = els['chat-notification'];
     if (!el) return;
@@ -161,6 +161,37 @@ export function showChatNotification(senderName) {
     chatNotificationTimer = setTimeout(() => {
         el.classList.remove('show');
     }, 3000);
+}
+
+// Called by polling every 2 seconds
+export function displayChatMessages(messages) {
+    const box = els['chat-messages'];
+    if (!box) return;
+    // Only add new messages since last check
+    const newMessages = messages.slice(lastMessageCount);
+    lastMessageCount = messages.length;
+    if (newMessages.length === 0) return;
+    newMessages.forEach(msg => {
+        appendChatMessage(msg.nickname, msg.message, false); // false = trigger notification if chat closed
+    });
+}
+
+// Called for outgoing messages (skipNotification = true) or incoming (false)
+export function appendChatMessage(nickname, msg, skipNotification = false) {
+    const box = els['chat-messages'];
+    if (!box) return;
+    const div = document.createElement('div');
+    div.innerHTML = `<b>${nickname}:</b> ${msg}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    if (!isChatOpen && !skipNotification) {
+        showChatNotification(nickname);
+    }
+}
+
+export function resetChatMessageCount() {
+    lastMessageCount = 0;
+    if (els['chat-messages']) els['chat-messages'].innerHTML = '';
 }
 
 // ---------- Panel helpers ----------
@@ -178,7 +209,6 @@ export function showMenu() {
     if (els['original-buttons']) els['original-buttons'].style.display = '';
     setOnlineBottomButtons(false);
     hideAllPanels();
-    // Close chat when returning to menu
     isChatOpen = false;
     if (els['chat-box']) els['chat-box'].classList.remove('show');
 }
@@ -235,6 +265,7 @@ export function setChatVisibility(visible) {
     if (!visible) {
         isChatOpen = false;
         if (els['chat-box']) els['chat-box'].classList.remove('show');
+        resetChatMessageCount();
     }
 }
 
@@ -315,25 +346,6 @@ export function showPromotion(color) {
         po.appendChild(btn);
     });
     if (els['pm']) els['pm'].classList.add('on');
-}
-
-export function displayChatMessages(messages) {
-    const box = els['chat-messages']; if (!box) return;
-    box.innerHTML = '';
-    messages.forEach(msg => {
-        const div = document.createElement('div'); div.innerHTML = `<b>${msg.nickname}:</b> ${msg.message}`;
-        box.appendChild(div);
-    });
-    box.scrollTop = box.scrollHeight;
-}
-
-export function appendChatMessage(nickname, msg, skipNotification = false) {
-    const box = els['chat-messages']; if (!box) return;
-    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-    // Show notification if chat is closed and not sent by us
-    if (!isChatOpen && !skipNotification) showChatNotification(nickname);
 }
 
 export function toast(msg, duration = 2800) {
