@@ -60,6 +60,15 @@ function cacheElements() {
         'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
     ];
     ids.forEach(id => { els[id] = document.getElementById(id); });
+    // Temporary diagnostic – remove after testing
+const criticalIds = ['toast', 'go', 'got', 'gos', 'go-btns', 'btn-sync-offline-cloud', 'btn-delete-all-synced'];
+const missing = criticalIds.filter(id => !document.getElementById(id));
+if (missing.length > 0) {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:red;color:white;padding:8px;font-size:12px;text-align:center';
+    div.textContent = 'Missing elements: ' + missing.join(', ');
+    document.body.appendChild(div);
+}
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
     if (els['profile-avatar']) {
