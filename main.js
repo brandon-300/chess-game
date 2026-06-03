@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v8 – avatar fixed)
+// main.js — Orchestrator for Chess 3D (v9 – offline notification + auto-refresh)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -464,6 +464,35 @@ window.requestRematch = requestRematch;
 window.exitOnlineGame = exitOnlineGame;
 window.newGameAction = newGame;
 window.exitGameAction = handleBottomRight;
+
+// ---------- Offline detection & auto‑refresh ----------
+(function() {
+    const notify = document.getElementById('offline-notification');
+
+    function showOffline() {
+        if (notify) notify.classList.add('show');
+    }
+
+    function hideOffline() {
+        if (notify) notify.classList.remove('show');
+    }
+
+    // Listen to browser events
+    window.addEventListener('offline', showOffline);
+    window.addEventListener('online', () => {
+        // Save any in‑progress offline game before refreshing
+        if (gameMode && gameMode !== 'online' && started && !over && engine) {
+            saveBackup();
+        }
+        // Small delay so the save can complete, then refresh
+        setTimeout(() => {
+            location.reload();
+        }, 150);
+    });
+
+    // Initial state
+    if (!navigator.onLine) showOffline();
+})();
 
 // ---------- Start ----------
 init();
