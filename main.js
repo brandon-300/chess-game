@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v20 – host countdown fix, termination message)
+// main.js — Orchestrator for Chess 3D (v21 – fix host flash after countdown)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -227,6 +227,8 @@ function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPol
 
 async function startOnlineGame() {
     if (!currentOnlineGame) return;
+    // Immediately hide the main menu to prevent flash after countdown
+    document.getElementById('ms').style.display = 'none';
     if (currentOnlineGame.host_player_id === currentUserId) {
         await db.updateGameStatus(currentOnlineGame.id, 'active');
     }
