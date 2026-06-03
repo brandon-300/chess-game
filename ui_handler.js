@@ -9,8 +9,8 @@ let chatNotificationTimer = null;
 let isChatOpen = false;
 
 // ---- chat deduplication ----
-let knownMessageIds = new Set();        // all message IDs we've already rendered
-let notifiedMessageIds = new Set();     // IDs for which we already showed a popup
+let knownMessageIds = new Set();
+let notifiedMessageIds = new Set();
 
 export function initUI(cb) {
     callbacks = cb;
@@ -163,23 +163,27 @@ export function showChatNotification(senderName) {
     chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-// Called by polling every 2 seconds with the FULL message list
+/**
+ * Called by polling every 2 seconds with the full message list.
+ * Returns an array of message objects that were newly added to the chat.
+ */
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
-    if (!box) return;
-    let addedAny = false;
+    if (!box) return [];
+    const newMessages = [];
     for (const msg of messages) {
         const id = Number(msg.id);
         if (isNaN(id)) continue;
         if (!knownMessageIds.has(id)) {
             knownMessageIds.add(id);
             appendChatMessage(msg.nickname, msg.message, false);
-            addedAny = true;
+            newMessages.push(msg);
         }
     }
-    if (addedAny) {
+    if (newMessages.length > 0) {
         box.scrollTop = box.scrollHeight;
     }
+    return newMessages;
 }
 
 export function appendChatMessage(nickname, msg, skipNotification = false) {
@@ -189,13 +193,10 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     div.innerHTML = `<b>${nickname}:</b> ${msg}`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    if (!isChatOpen && !skipNotification) {
-        // notification is triggered only if we haven't already shown one for this nickname?
-        // we don't have the id here, the caller should handle notification via markMessageNotified
-    }
+    // Notification is handled externally via maybeShowNotification
 }
 
-// Call after a message is sent by us – add to known set and skip notification
+/** Call after a message is inserted by us – adds id to both known and notified sets */
 export function registerOwnMessage(id) {
     const num = Number(id);
     if (!isNaN(num)) {
@@ -204,7 +205,7 @@ export function registerOwnMessage(id) {
     }
 }
 
-// Call when displaying an incoming message that we should notify about
+/** Show a notification popup for message id if not already notified and chat is closed */
 export function maybeShowNotification(id, nickname) {
     const num = Number(id);
     if (isNaN(num)) return;

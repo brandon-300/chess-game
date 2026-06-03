@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v27 – reliable chat sync)
+// main.js — Orchestrator for Chess 3D (v28 – stable chat sync, no internal access)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -118,26 +118,18 @@ function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterva
 function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 async function pollGameState() { if (!currentOnlineGame || moveSyncing || over) return; try { const gameData = await db.fetchGameState(currentOnlineGame.id); if (!gameData) return; if (gameData.status === 'terminated') { if (currentUserId !== gameData.host_player_id) ui.toast('Match terminated by the host.'); resetOnlineState(); ui.showMenu(); return; } if (gameData.status === 'frozen') { if (!frozen) { frozen = true; engine.setFrozen(true); if (currentUserId !== gameData.leaver_id) { ui.toast('Opponent left – waiting for rejoin…'); sessionStorage.setItem('chess3d_frozen_game', gameData.id); } else sessionStorage.setItem('chess3d_frozen_game', gameData.id); } return; } if (frozen && gameData.status === 'active') { frozen = false; engine.setFrozen(false); ui.toast('Opponent rejoined!'); sessionStorage.removeItem('chess3d_frozen_game'); } const serverState = JSON.stringify(gameData.board_state); if (serverState !== lastKnownServerState) { lastKnownServerState = serverState; engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b); } } catch (e) {} }
 
+/* ============================================================
+   CHAT – polling + sending
+   ============================================================ */
 function startChatPolling(gameId) {
     stopChatPolling();
     chatPollInterval = setInterval(async () => {
         try {
             const msgs = await db.getChatMessages(gameId);
             if (!msgs || msgs.length === 0) return;
-            for (const msg of msgs) {
-                const id = Number(msg.id);
-                if (isNaN(id)) continue;
-                // If the message is not yet known, display it and maybe notify
-                if (!ui.knownMessageIds?.has?.(id)) {
-                    // register it via displayChatMessages – but displayChatMessages handles the loop.
-                }
-            }
-            ui.displayChatMessages(msgs);
-            // For each new message that we just added, trigger notification if not our own
-            for (const msg of msgs) {
-                const id = Number(msg.id);
-                if (isNaN(id)) continue;
-                ui.maybeShowNotification(id, msg.nickname);
+            const newMsgs = ui.displayChatMessages(msgs);
+            for (const msg of newMsgs) {
+                ui.maybeShowNotification(msg.id, msg.nickname);
             }
         } catch (e) {
             showError('chatPoll', e);
@@ -148,16 +140,18 @@ function stopChatPolling() { if (chatPollInterval) { clearInterval(chatPollInter
 
 async function sendChat(msg) {
     if (!currentOnlineGame) return;
-    const nickname = currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.host_nickname : currentOnlineGame.joiner_nickname;
+    const nickname = currentOnlineGame.host_player_id === currentUserId
+        ? currentOnlineGame.host_nickname
+        : currentOnlineGame.joiner_nickname;
     const row = await db.sendChatMessage(currentOnlineGame.id, currentUserId, nickname, msg);
     if (row) {
         ui.appendChatMessage(nickname, msg, true);
         ui.registerOwnMessage(row.id);
     } else {
-        // fallback – still show locally
         ui.appendChatMessage(nickname, msg, true);
     }
 }
+/* ============================================================ */
 
 async function onLocalMoveExecuted(move) { if (gameMode !== 'online' || !currentOnlineGame || moveSyncing || frozen) return; moveSyncing = true; try { const savedState = await db.pushBoardState(currentOnlineGame.id, engine.getBoardArray(), engine.getTurn(), engine.getCastling(), engine.getEnPassant(), engine.getTimerW(), engine.getTimerB()); lastKnownServerState = savedState; lastTimerSync = Date.now(); } catch (e) { ui.toast('Move sync failed.'); } finally { moveSyncing = false; } }
 
