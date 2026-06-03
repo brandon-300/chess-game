@@ -7,7 +7,7 @@ let callbacks = {};
 let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
-let lastMessageCount = 0;   // track how many messages we've already shown
+let lastMessageCount = 0;
 
 export function initUI(cb) {
     callbacks = cb;
@@ -163,20 +163,19 @@ export function showChatNotification(senderName) {
     }, 3000);
 }
 
-// Called by polling every 2 seconds
+// Polling calls this every 2 seconds with the full message list
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
     if (!box) return;
-    // Only add new messages since last check
     const newMessages = messages.slice(lastMessageCount);
     lastMessageCount = messages.length;
     if (newMessages.length === 0) return;
     newMessages.forEach(msg => {
-        appendChatMessage(msg.nickname, msg.message, false); // false = trigger notification if chat closed
+        appendChatMessage(msg.nickname, msg.message, false);
     });
 }
 
-// Called for outgoing messages (skipNotification = true) or incoming (false)
+// Called for outgoing messages (skipNotification=true) or incoming (false)
 export function appendChatMessage(nickname, msg, skipNotification = false) {
     const box = els['chat-messages'];
     if (!box) return;
@@ -187,6 +186,11 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     if (!isChatOpen && !skipNotification) {
         showChatNotification(nickname);
     }
+}
+
+// Call this right after sending a message so polling doesn't re-add it
+export function incrementChatMessageCount() {
+    lastMessageCount++;
 }
 
 export function resetChatMessageCount() {
