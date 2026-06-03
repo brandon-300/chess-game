@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v34 – fixed online sync)
+// main.js — Orchestrator for Chess 3D (v35 – host‑stuck fix with error logging)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -182,7 +182,9 @@ function startWaitingPoll(gameId) {
                 resetOnlineState();
                 ui.showMenu();
             }
-        } catch (e) {}
+        } catch (e) {
+            showError('waitPoll', e);
+        }
     }, 1000);
 }
 function stopWaitingPoll() { if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; } }
