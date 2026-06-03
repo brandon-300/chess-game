@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v35 – host‑stuck fix with error logging)
+// main.js — Orchestrator for Chess 3D (v36 – host‑stuck debug)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -167,7 +167,11 @@ function startWaitingPoll(gameId) {
     waitingPollInterval = setInterval(async () => {
         try {
             const data = await db.fetchGameState(gameId);
-            if (!data) return;
+            if (!data) {
+                showError('waitPoll', 'fetch returned null – possible RLS block');
+                return;
+            }
+            showError('waitPoll', 'status: ' + data.status);
             if (data.status === 'countdown') {
                 stopWaitingPoll();
                 currentOnlineGame = data;
