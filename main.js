@@ -1,4 +1,4 @@
-// main.js — DIAGNOSTIC VERSION (full file, logs to #error-log)
+// main.js — DIAGNOSTIC VERSION (full file)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
