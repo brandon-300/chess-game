@@ -67,7 +67,6 @@ export async function fetchProfileData(userId) {
 }
 
 // ---------- Online Games ----------
-
 export async function fetchGameState(gameId) {
     if (!sb) return null;
     const { data, error } = await sb
@@ -80,6 +79,7 @@ export async function fetchGameState(gameId) {
         return null;
     }
     if (!data) return null;
+
     if (typeof data.board_state === 'string') {
         try {
             data.board_state = JSON.parse(data.board_state);
@@ -106,20 +106,9 @@ export async function pushBoardState(gameId, board, turn, cas, ep, timerW, timer
     return stateString;
 }
 
-// Create a new game – checks that room code is unique and not used before
 export async function createGame(roomCode, type, hostId, hostKey, hostNickname) {
     if (!sb) throw new Error('Supabase not available');
     const code = roomCode || generateRoomCode(8);
-
-    // Check if this code already exists in any game that is not finished/terminated/cancelled
-    const { data: existing } = await sb
-        .from('online_games')
-        .select('id')
-        .eq('room_code', code)
-        .in('status', ['waiting_for_joiner', 'countdown', 'active', 'frozen'])
-        .maybeSingle();
-    if (existing) throw new Error('Room code already in use. Please try again.');
-
     const { data, error } = await sb
         .from('online_games')
         .insert({
@@ -145,7 +134,6 @@ export async function createGame(roomCode, type, hostId, hostKey, hostNickname) 
     return data;
 }
 
-// Join the oldest available public room
 export async function joinPublicGame(joinerId, joinerKey, joinerNickname) {
     if (!sb) throw new Error('Supabase not available');
     const { data: rooms, error: selectError } = await sb
@@ -174,7 +162,7 @@ export async function joinPublicGame(joinerId, joinerKey, joinerNickname) {
     return { ...game, joiner_player_id: joinerId, joiner_nickname: joinerNickname, status: 'countdown' };
 }
 
-// Join a private room by code (initial join before game starts)
+// Join private room OR rejoin if frozen
 export async function joinPrivateGame(roomCode, joinerId, joinerKey, joinerNickname) {
     if (!sb) throw new Error('Supabase not available');
     const { data: game, error: selectError } = await sb
@@ -184,11 +172,32 @@ export async function joinPrivateGame(roomCode, joinerId, joinerKey, joinerNickn
         .eq('type', 'private')
         .maybeSingle();
     if (selectError) throw selectError;
-    if (!game) throw new Error('Invalid room code.');
-    if (game.status === 'terminated' || game.status === 'finished' || game.status === 'cancelled')
-        throw new Error('This room code is no longer valid.');
-    if (game.status !== 'waiting_for_joiner')
-        throw new Error('Cannot join: match has already started.');
+    if (!game) throw new Error('Room not found');
+
+    // If the game is frozen and this user is the leaver, allow rejoin within 10 minutes
+    if (game.status === 'frozen') {
+        if (game.leaver_id !== joinerId) {
+            throw new Error('You cannot join this match because it has already started.');
+        }
+        const leaveTime = new Date(game.leave_time).getTime();
+        if (Date.now() - leaveTime > 10 * 60 * 1000) {
+            await terminateGame(game.id);
+            throw new Error('Rejoin window expired. The match has been terminated.');
+        }
+        // Unfreeze the game
+        const { error: updateError } = await sb
+            .from('online_games')
+            .update({ status: 'active', leaver_id: null, leave_time: null })
+            .eq('id', game.id)
+            .eq('status', 'frozen');
+        if (updateError) throw updateError;
+        return { ...game, status: 'active', leaver_id: null, leave_time: null };
+    }
+
+    // If the game is already active or finished, don't allow new join
+    if (game.status !== 'waiting_for_joiner') {
+        throw new Error('Room is no longer open.');
+    }
 
     const { error: updateError } = await sb
         .from('online_games')
@@ -205,64 +214,16 @@ export async function joinPrivateGame(roomCode, joinerId, joinerKey, joinerNickn
     return { ...game, joiner_player_id: joinerId, joiner_nickname: joinerNickname, status: 'countdown' };
 }
 
-// Rejoin a frozen game (public or private) by room code and player key
-export async function rejoinGame(roomCode, playerId, playerKey) {
-    if (!sb) throw new Error('Supabase not available');
-    const { data: game, error } = await sb
-        .from('online_games')
-        .select('*')
-        .eq('room_code', roomCode)
-        .maybeSingle();
-    if (error) throw error;
-    if (!game) throw new Error('Room not found.');
-    if (game.status !== 'frozen') throw new Error('The game is not in a frozen state.');
-    if (game.leaver_id !== playerId) throw new Error('You are not the player who left.');
-    // Check 10‑minute window
-    if (game.leave_time) {
-        const leaveMs = new Date(game.leave_time).getTime();
-        const nowMs = Date.now();
-        if (nowMs - leaveMs > 10 * 60 * 1000) {
-            // Expired – terminate the game
-            await sb.from('online_games').update({ status: 'terminated' }).eq('id', game.id);
-            throw new Error('The rejoin window has expired. Game terminated.');
-        }
-    }
-    // Update status back to active
-    const { error: updateError } = await sb
-        .from('online_games')
-        .update({ status: 'active', leaver_id: null, leave_time: null })
-        .eq('id', game.id);
-    if (updateError) throw updateError;
-
-    // Return fresh game data
-    return fetchGameState(game.id);
-}
-
-// Get a game by room code (for checking validity)
-export async function getGameByRoomCode(roomCode) {
-    if (!sb) return null;
-    const { data, error } = await sb
-        .from('online_games')
-        .select('*')
-        .eq('room_code', roomCode)
-        .maybeSingle();
-    if (error) return null;
-    return data;
-}
-
-// Update game status
 export async function updateGameStatus(gameId, status) {
     if (!sb) throw new Error('Supabase not available');
     const { error } = await sb.from('online_games').update({ status }).eq('id', gameId);
     if (error) throw error;
 }
 
-// Terminate game
 export async function terminateGame(gameId) {
     return updateGameStatus(gameId, 'terminated');
 }
 
-// Freeze game (joiner leaves)
 export async function freezeGame(gameId, leaverId) {
     if (!sb) throw new Error('Supabase not available');
     const { error } = await sb.from('online_games').update({
@@ -273,7 +234,31 @@ export async function freezeGame(gameId, leaverId) {
     if (error) throw error;
 }
 
-// Cancel a waiting room
+// Unfreeze by game ID (used for public room rejoin)
+export async function unfreezeGame(gameId, joinerId) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: game, error: selectError } = await sb
+        .from('online_games')
+        .select('*')
+        .eq('id', gameId)
+        .maybeSingle();
+    if (selectError) throw selectError;
+    if (!game || game.status !== 'frozen') throw new Error('Game is not frozen.');
+    if (game.leaver_id !== joinerId) throw new Error('Only the player who left can rejoin.');
+    const leaveTime = new Date(game.leave_time).getTime();
+    if (Date.now() - leaveTime > 10 * 60 * 1000) {
+        await terminateGame(game.id);
+        throw new Error('Rejoin window expired.');
+    }
+    const { error: updateError } = await sb
+        .from('online_games')
+        .update({ status: 'active', leaver_id: null, leave_time: null })
+        .eq('id', gameId)
+        .eq('status', 'frozen');
+    if (updateError) throw updateError;
+    return { ...game, status: 'active', leaver_id: null, leave_time: null };
+}
+
 export async function cancelGame(gameId) {
     return updateGameStatus(gameId, 'cancelled');
 }
