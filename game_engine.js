@@ -1,4 +1,4 @@
-// game_engine.js — Chess rules, AI (time‑controlled), and Three.js rendering
+// game_engine.js — Chess rules, AI (time‑controlled), Three.js rendering
 // Assumes global THREE is already loaded (via <script> in index.html)
 
 // ---------- Internal state ----------
@@ -64,6 +64,24 @@ let SQ_BASE_COL = [];
 let animQ = null;
 const CLK = new THREE.Clock();
 let boardBuilt = false;
+
+// ---- Threefold repetition tracking ----
+let positionHistory = [];   // array of position signatures
+
+function posSignature(board, turn, cas, ep) {
+    // Create a unique string for the current position
+    return JSON.stringify({ brd: board, turn, cas, ep });
+}
+
+function checkThreefold() {
+    if (positionHistory.length < 3) return false;
+    const currentSig = posSignature(brd, turn, cas, ep);
+    let count = 0;
+    for (const sig of positionHistory) {
+        if (sig === currentSig) count++;
+    }
+    return count >= 3;
+}
 
 // ---------- Chess constants ----------
 const GLS = { wK:'\u2654', wQ:'\u2655', wR:'\u2656', wB:'\u2657', wN:'\u2658', wP:'\u2659', bK:'\u265A', bQ:'\u265B', bR:'\u265C', bB:'\u265D', bN:'\u265E', bP:'\u265F' };
@@ -324,52 +342,30 @@ function minimax(board, depth, alpha, beta, maximizing, color, cas, ep) {
     }
 }
 
-// ---------- Time‑controlled best‑move search (replaces synchronous getBestMove) ----------
+// Time‑controlled iterative deepening
 function getBestMoveAsync(board, cas, ep, maxDepth, color, timeLimitMs, callback) {
     const startTime = performance.now();
     let bestMoveOverall = null;
 
     function searchDepth(depth) {
-        if (depth > maxDepth) {
-            // All depths done – return best move
-            callback(bestMoveOverall);
-            return;
-        }
-
-        // Run one depth of minimax
+        if (depth > maxDepth) { callback(bestMoveOverall); return; }
         const moves = allM(board, color, cas, ep);
-        if (!moves.length) {
-            callback(null);
-            return;
-        }
+        if (!moves.length) { callback(null); return; }
         moves.sort((a, b) => smv(board, b) - smv(board, a));
-
-        let bestMove = moves[0];
-        let bestVal = -Infinity;
-
+        let bestMove = moves[0], bestVal = -Infinity;
         for (let i = 0; i < moves.length; i++) {
             const m = moves[i];
             const { brd: nb, cas: nc, ep: ne } = applyM(board, m, cas, ep);
             const val = minimax(nb, depth - 1, -Infinity, Infinity, false, color, nc, ne);
-            if (val > bestVal) {
-                bestVal = val;
-                bestMove = m;
-            }
-            // Check time after each root move
+            if (val > bestVal) { bestVal = val; bestMove = m; }
             if (performance.now() - startTime > timeLimitMs) {
-                // Time's up – return best move found so far
                 callback(bestMoveOverall || bestMove);
                 return;
             }
         }
-
         bestMoveOverall = bestMove;
-
-        // Allow a frame to render, then continue to next depth
         setTimeout(() => searchDepth(depth + 1), 0);
     }
-
-    // Start with depth 1
     searchDepth(1);
 }
 
@@ -561,6 +557,9 @@ function execMove(mv) {
     const { brd: nb, cas: nc, ep: ne } = applyM(brd, mv, cas, ep);
     brd = nb; cas = nc; ep = ne;
 
+    // Track position for threefold repetition
+    positionHistory.push(posSignature(brd, turn, cas, ep));
+
     if (wt === 'w') mlog.push({ w: an, b: '' });
     else {
         if (!mlog.length) mlog.push({ w: '', b: '' });
@@ -568,6 +567,12 @@ function execMove(mv) {
     }
     turn = op(wt); lastMv = mv; selSq = null; curLM = [];
     timerW = 60; timerB = 60; timerActive = true; lastTick = performance.now(); lastTickSecond = -1;
+
+    // Check threefold repetition
+    if (checkThreefold()) {
+        endGame("It's a draw!", 'Threefold repetition', SFX.stale, 'draw');
+        return;
+    }
 
     let pg = P3D[mv.from];
     if (capP) removePiece(mv.to);
@@ -661,19 +666,18 @@ function timeOut(loser) {
     }
 }
 
-// ---------- AI scheduling (time‑controlled iterative deepening) ----------
+// ---------- AI scheduling ----------
 function scheduleAI(delay = 80) {
     if (over || aiThink || gameMode !== 'ai' || turn === playerColor) return;
     aiThink = true;
 
     const aiColor = turn;
     const maxDepth = selDiff;  // 1 (novice), 3 (knight), 4 (master)
-    const timeLimitMs = Math.max(2000, (timerB - 2) * 1000); // leave 2s buffer
+    const timeLimitMs = Math.max(2000, (timerB - 2) * 1000);
 
     setTimeout(() => {
         if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
 
-        // Novice: random move with 40% chance
         if (selDiff === 1 && Math.random() < 0.4) {
             const moves = allM(brd, aiColor, cas, ep);
             const mv = moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
@@ -687,7 +691,6 @@ function scheduleAI(delay = 80) {
             return;
         }
 
-        // Knight / Master: time‑controlled iterative deepening
         getBestMoveAsync(brd, cas, ep, maxDepth, aiColor, timeLimitMs, (mv) => {
             if (over || !aiThink || gameMode !== 'ai') { aiThink = false; return; }
             aiThink = false;
@@ -871,6 +874,8 @@ export function undoMove() {
         const s = hist.pop();
         brd = s.brd; turn = s.turn; cas = s.cas; ep = s.ep;
         capW = s.capW; capB = s.capB; mlog = s.mlog;
+        // Also remove from positionHistory (last entry)
+        if (positionHistory.length) positionHistory.pop();
     }
     timerW = 60; timerB = 60;
     timerActive = hist.length > 0;
@@ -960,6 +965,7 @@ export function restoreBackup(data) {
 export function resetState() {
     brd = initBrd(); turn = 'w'; cas = { wK: true, wQ: true, bK: true, bQ: true }; ep = null;
     hist = []; capW = []; capB = []; mlog = [];
+    positionHistory = [posSignature(brd, turn, cas, ep)]; // reset and store initial position
     selSq = null; curLM = []; lastMv = null; over = false; pendP = null; isAnim = false; aiThink = false; frozen = false;
     timerW = 60; timerB = 60; timerActive = false; lastTick = null; lastTickSecond = -1;
     gameOverInfo = null; promotionPending = false; pendingPromotionMove = null;
