@@ -15,87 +15,59 @@ let toastTimer = null;
 export function initUI(cb) {
     callbacks = cb;
 
-    // Cache all DOM elements
     cacheElements();
-
-    // Attach all event listeners
     attachListeners();
 
-    // Initial UI state – header will be set by main.js after init
     if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
 
-    // Hide chat by default (will be shown only for online games)
     setChatVisibility(false);
+    updateFrozenUI(false);   // no frozen overlay initially
 }
 
 function cacheElements() {
     const ids = [
-        // Header
         'login-btn', 'profile-avatar', 'profile-avatar-img', 'debug-overlay', 'error-log',
-
-        // Main menu
         'ms', 'main-cards', 'original-buttons',
         'card-2p', 'card-ai', 'card-online',
-
-        // Online panels
         'online-menu', 'public-menu', 'private-menu', 'join-private',
         'countdown-panel', 'waiting-panel', 'rematch-panel',
         'login-gate-panel',
-
-        // AI panels
         'ai-diff-panel', 'ai-color-panel', 'ai-countdown-panel',
-
-        // In-game UI
         'gu', 'top', 'bot',
         'tdot', 'tlbl', 'smsg',
         'tmrW', 'tmrB', 'tvW', 'tvB',
         'thkstrip', 'chat-toggle-btn', 'chat-box', 'chat-messages', 'chat-input', 'btn-send-chat',
-
-        // Game over / promotion
         'go', 'got', 'gos', 'go-btns',
         'pm', 'po',
-
-        // Toast
         'toast',
-
-        // Exit & restore & cloud panels
         'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel',
         'delete-confirm-panel', 'exit-online-panel',
-
-        // Bottom bar buttons
         'new-game-btn', 'undo-btn', 'mode-btn',
-
-        // Online join input
         'private-room-code',
-
-        // Countdown / waiting
         'countdown-welcome', 'countdown-number',
         'waiting-title', 'waiting-text',
         'rematch-text', 'rematch-accept', 'rematch-decline',
 
-        // ---- All button IDs ----
         'btn-public-menu', 'btn-private-menu', 'btn-online-back',
         'btn-create-public', 'btn-join-public', 'btn-public-back',
         'btn-show-create-private', 'btn-show-join-private', 'btn-private-back',
         'btn-join-private', 'btn-join-private-back',
         'btn-cancel-waiting',
         'btn-rematch-accept', 'btn-rematch-decline',
-
         'btn-go-login', 'btn-login-gate-back',
-
         'btn-ai-novice', 'btn-ai-knight', 'btn-ai-master', 'btn-ai-diff-back',
         'btn-ai-red', 'btn-ai-black', 'btn-ai-color-back',
         'btn-cancel-ai-countdown',
-
         'btn-restore-local', 'btn-sync-offline-cloud', 'btn-restore-offline-cloud',
         'btn-delete-all-synced',
         'btn-delete-confirm', 'btn-delete-cancel',
-
         'btn-exit-save', 'btn-exit-no-save', 'btn-exit-cancel',
         'btn-exit-online-yes', 'btn-exit-online-stay',
-
         'btn-restore-ai', 'btn-restore-2p', 'btn-restore-cancel',
-        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
+        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel',
+
+        // Rejoin button (added dynamically if needed, but we'll show/hide an existing one)
+        'btn-rejoin-frozen'
     ];
 
     ids.forEach(id => {
@@ -105,7 +77,6 @@ function cacheElements() {
     if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
     if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
 
-    // Add click listener to the avatar (it's already in the DOM)
     if (els['profile-avatar']) {
         els['profile-avatar'].addEventListener('click', () => {
             window.location.href = 'profile.html';
@@ -174,7 +145,6 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Exit online confirmation – "Leave" now calls the actual exit function
     btn('btn-exit-online-yes', () => callbacks.onExitOnlineYes());
     btn('btn-exit-online-stay', () => {
         const panel = els['exit-online-panel'];
@@ -225,7 +195,9 @@ function attachListeners() {
         if (panel) panel.classList.remove('show');
     });
 
-    // Header login button
+    // Rejoin frozen game button (if present)
+    btn('btn-rejoin-frozen', () => callbacks.onRejoinFrozen());
+
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
@@ -255,8 +227,8 @@ export function showMenu() {
     if (els['gu']) els['gu'].style.display = 'none';
     if (els['main-cards']) els['main-cards'].style.display = 'flex';
     if (els['original-buttons']) els['original-buttons'].style.display = '';
-    // Restore offline buttons when returning to menu
     setOnlineBottomButtons(false);
+    updateFrozenUI(false);
     hideAllPanels();
 }
 
@@ -340,8 +312,27 @@ export function setChatVisibility(visible) {
 export function setOnlineBottomButtons(isOnline) {
     if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
     if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
-    // Exit button always visible; text may change
     if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
+}
+
+// ---------- Frozen game overlay ----------
+export function updateFrozenUI(frozen) {
+    if (frozen) {
+        // Disable board clicks and show message
+        if (els['gu']) els['gu'].style.pointerEvents = 'none';
+        if (els['smsg']) els['smsg'].textContent = 'Waiting for opponent to rejoin…';
+        if (els['thkstrip']) els['thkstrip'].classList.add('on');
+    } else {
+        if (els['gu']) els['gu'].style.pointerEvents = 'auto';
+        if (els['thkstrip']) els['thkstrip'].classList.remove('on');
+    }
+}
+
+// ---------- Rejoin button visibility ----------
+export function showRejoinButton(show) {
+    const btn = document.getElementById('btn-rejoin-frozen');
+    if (!btn) return; // we'll create it if needed
+    btn.style.display = show ? '' : 'none';
 }
 
 // ---------- Online waiting / countdown ----------
