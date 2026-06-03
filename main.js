@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v39 – clean, no debug spam)
+// main.js — Orchestrator for Chess 3D (v40 – final clean)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
