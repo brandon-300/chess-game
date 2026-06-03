@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v12 – freeze/rejoin, better timer sync)
+// main.js — Orchestrator for Chess 3D (v13 – stable freeze, timer sync, pieces move)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -17,7 +17,7 @@ let myColor = 'w';
 let sessionPlayerKey = null;
 let started = false;
 let over = false;
-let frozen = false;            // true when opponent left
+let frozen = false;
 let currentUserId = null;
 
 let moveSyncing = false;
@@ -82,9 +82,7 @@ async function init() {
             onRestoreAI: () => restoreLocalMode('ai'),
             onRestore2P: () => restoreLocalMode('2p'),
             onCloudRestoreAI: () => restoreCloudMode('ai'),
-            onCloudRestore2P: () => restoreCloudMode('2p'),
-
-            onRejoinFrozen: rejoinFrozenGame
+            onCloudRestore2P: () => restoreCloudMode('2p')
         });
 
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
@@ -92,11 +90,7 @@ async function init() {
         engine.setFrameCallback((state) => {
             if (!started) return;
             const isOnline = gameMode === 'online';
-            if (frozen) {
-                // Update timers from engine but don't tick them (engine is frozen)
-                ui.updateTimers(state.timerW, state.timerB, state.turn);
-                return;
-            }
+            // Always update UI (turn indicator, timers) even when frozen
             ui.updateTurnIndicator(state.turn, myColor, isOnline);
             ui.updateTimers(state.timerW, state.timerB, state.turn);
             ui.updateThinkingIndicator(state.aiThink);
@@ -149,7 +143,7 @@ async function init() {
         }
 
         await updateHeaderWithAvatar();
-        checkForFrozenGame();        // check if we have a frozen game to resume
+        checkForFrozenGame();
         ui.showMenu();
         updateDebugOverlay();
         showError('main', 'Initialization complete');
@@ -173,17 +167,15 @@ function updateDebugOverlay() {
     document.getElementById('debug-overlay').textContent = `Supabase: ${sbStatus}\nUser ID: ${uid}`;
 }
 
-// ---------- Frozen game check on startup ----------
+// ---------- Frozen game check ----------
 async function checkForFrozenGame() {
     if (!currentUserId) return;
-    // Check if there's a frozen game where we are the host or joiner
     const storedGameId = sessionStorage.getItem('chess3d_frozen_game');
     if (storedGameId) {
         try {
             const game = await db.fetchGameState(storedGameId);
             if (game && game.status === 'frozen') {
-                // If we're the host, we just stay in menu with a rejoin button option
-                // We'll show a rejoin button in the online menu
+                // Show a rejoin button in the online menu
                 showRejoinOption(true);
             } else {
                 sessionStorage.removeItem('chess3d_frozen_game');
@@ -193,7 +185,6 @@ async function checkForFrozenGame() {
 }
 
 function showRejoinOption(show) {
-    // Add or toggle a rejoin button in the online menu
     let btn = document.getElementById('btn-rejoin-frozen');
     if (!btn && show) {
         btn = document.createElement('button');
@@ -227,7 +218,7 @@ async function rejoinFrozenGame() {
         gameMode = 'online';
         over = false;
         frozen = false;
-        ui.updateFrozenUI(false);
+        engine.setFrozen(false);
         startOnlineGameLoop();
         startChatPolling(game.id);
         engine.rotateForPlayer(myColor);
@@ -399,7 +390,7 @@ async function startOnlineGame() {
     gameMode = 'online';
     over = false;
     frozen = false;
-    ui.updateFrozenUI(false);
+    engine.setFrozen(false);
     lastTimerSync = Date.now();
     startOnlineGameLoop();
     startChatPolling(currentOnlineGame.id);
@@ -431,20 +422,19 @@ async function pollGameState() {
         if (gameData.status === 'frozen') {
             if (!frozen) {
                 frozen = true;
-                ui.updateFrozenUI(true);
+                engine.setFrozen(true);
                 if (currentUserId === gameData.leaver_id) {
-                    // I left, so I'm not the one staying; nothing more to do
+                    // I left, ignore
                 } else {
                     ui.toast('Opponent left – waiting for rejoin…');
                     sessionStorage.setItem('chess3d_frozen_game', gameData.id);
                 }
             }
-            // Still poll to check if status changes back to active
             return;
         }
         if (frozen && gameData.status === 'active') {
             frozen = false;
-            ui.updateFrozenUI(false);
+            engine.setFrozen(false);
             ui.toast('Opponent rejoined!');
             sessionStorage.removeItem('chess3d_frozen_game');
         }
@@ -517,9 +507,9 @@ function resetOnlineState() {
     if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id);
     currentOnlineGame = null; sessionPlayerKey = null; myColor = 'w';
     moveSyncing = false; lastKnownServerState = null; over = false; frozen = false;
+    engine.setFrozen(false);
     ui.hideGameUI(); ui.hideGameOver(); engine.resetState();
     started = false; gameMode = null;
-    ui.updateFrozenUI(false);
     showRejoinOption(false);
 }
 
@@ -570,10 +560,58 @@ function restoreLocalMode(mode) {
 }
 
 // ---------- Cloud sync ----------
-async function syncOfflineToCloud() { /* unchanged */ }
-async function restoreOfflineFromCloud() { /* unchanged */ }
-function restoreCloudMode(mode) { /* unchanged */ }
-async function deleteAllSyncedData() { /* unchanged */ }
+async function syncOfflineToCloud() {
+    if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Syncing data to cloud…', 0);
+    try {
+        await db.syncOfflineToCloud(currentUserId);
+        ui.toast('Synced data successfully');
+    } catch (e) {
+        ui.toast('Failed to sync data: ' + e.message);
+    }
+}
+
+async function restoreOfflineFromCloud() {
+    if (!currentUserId) { ui.toast('Please log in to restore cloud data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Restoring data from cloud…', 0);
+    try {
+        const result = await db.restoreOfflineFromCloud(currentUserId);
+        if (Array.isArray(result)) {
+            window._cloudBackups = result;
+            ui.showCloudChoicePanel();
+            ui.toast('');
+        } else {
+            ui.toast('Restored data successfully');
+        }
+    } catch (e) {
+        ui.toast('Failed to restore data: ' + e.message);
+    }
+}
+
+function restoreCloudMode(mode) {
+    const backups = window._cloudBackups;
+    if (!backups) return;
+    const backup = backups.find(b => b.mode === mode);
+    if (!backup) return;
+    localStorage.setItem('chess3d_backup_' + mode, JSON.stringify(backup.backup_data));
+    ui.hideAllPanels();
+    restoreLocalMode(mode);
+    ui.toast('Restored cloud backup.');
+}
+
+async function deleteAllSyncedData() {
+    if (!currentUserId) { ui.toast('Please log in to delete synced data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Deleting synced data…', 0);
+    try {
+        await db.deleteAllSyncedData(currentUserId);
+        ui.toast('Cloud data deleted.');
+    } catch (e) {
+        ui.toast('Delete failed: ' + e.message);
+    }
+}
 
 // ---------- Utilities ----------
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
