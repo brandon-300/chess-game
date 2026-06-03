@@ -7,7 +7,10 @@ let callbacks = {};
 let toastTimer = null;
 let chatNotificationTimer = null;
 let isChatOpen = false;
-let lastSeenMessageId = 0;
+
+// ---- chat deduplication ----
+let knownMessageIds = new Set();        // all message IDs we've already rendered
+let notifiedMessageIds = new Set();     // IDs for which we already showed a popup
 
 export function initUI(cb) {
     callbacks = cb;
@@ -160,25 +163,23 @@ export function showChatNotification(senderName) {
     chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-// Polling calls this every 2 seconds
+// Called by polling every 2 seconds with the FULL message list
 export function displayChatMessages(messages) {
     const box = els['chat-messages'];
     if (!box) return;
-    let newMessages = [];
-    let maxId = lastSeenMessageId;
+    let addedAny = false;
     for (const msg of messages) {
-        // msg.id may be a number or a string – convert to number for safe comparison
         const id = Number(msg.id);
-        if (!isNaN(id) && id > lastSeenMessageId) {
-            newMessages.push(msg);
-            if (id > maxId) maxId = id;
+        if (isNaN(id)) continue;
+        if (!knownMessageIds.has(id)) {
+            knownMessageIds.add(id);
+            appendChatMessage(msg.nickname, msg.message, false);
+            addedAny = true;
         }
     }
-    lastSeenMessageId = maxId;
-    if (newMessages.length === 0) return;
-    newMessages.forEach(msg => {
-        appendChatMessage(msg.nickname, msg.message, false);
-    });
+    if (addedAny) {
+        box.scrollTop = box.scrollHeight;
+    }
 }
 
 export function appendChatMessage(nickname, msg, skipNotification = false) {
@@ -189,17 +190,33 @@ export function appendChatMessage(nickname, msg, skipNotification = false) {
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
     if (!isChatOpen && !skipNotification) {
-        showChatNotification(nickname);
+        // notification is triggered only if we haven't already shown one for this nickname?
+        // we don't have the id here, the caller should handle notification via markMessageNotified
     }
 }
 
-export function setLastSeenMessageId(id) {
+// Call after a message is sent by us – add to known set and skip notification
+export function registerOwnMessage(id) {
     const num = Number(id);
-    if (!isNaN(num) && num > lastSeenMessageId) lastSeenMessageId = num;
+    if (!isNaN(num)) {
+        knownMessageIds.add(num);
+        notifiedMessageIds.add(num);
+    }
 }
 
-export function resetChatMessageCount() {
-    lastSeenMessageId = 0;
+// Call when displaying an incoming message that we should notify about
+export function maybeShowNotification(id, nickname) {
+    const num = Number(id);
+    if (isNaN(num)) return;
+    if (!notifiedMessageIds.has(num)) {
+        notifiedMessageIds.add(num);
+        if (!isChatOpen) showChatNotification(nickname);
+    }
+}
+
+export function resetChatState() {
+    knownMessageIds.clear();
+    notifiedMessageIds.clear();
     if (els['chat-messages']) els['chat-messages'].innerHTML = '';
 }
 
@@ -274,7 +291,7 @@ export function setChatVisibility(visible) {
     if (!visible) {
         isChatOpen = false;
         if (els['chat-box']) els['chat-box'].classList.remove('show');
-        resetChatMessageCount();
+        resetChatState();
     }
 }
 
