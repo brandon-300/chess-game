@@ -594,10 +594,10 @@ function endGame(title, subtitle, sfx) {
     gameOverInfo = { title, subtitle, sfx };
 }
 
-// ---------- Timer ----------
+// ---------- Timer (FIXED: removed aiThink check so AI’s timer ticks while thinking) ----------
 function tickTimer() {
     if (!timerActive || over || isAnim) return;
-    if (gameMode === 'online' && turn !== myColor) return;
+    // REMOVED: if (gameMode === 'online' && turn !== myColor) return;
     const now = performance.now();
     if (lastTick === null) { lastTick = now; return; }
     const dt = (now - lastTick) / 1000; lastTick = now;
@@ -843,8 +843,6 @@ export function setFrameCallback(cb) { frameCallback = cb; }
 export function setPlayerColor(color) { playerColor = color; }
 export function setMyColor(color) { myColor = color; }
 export function setAiDepth(depth) { aiDepth = depth; selDiff = depth; }
-
-// NEW: explicitly set the engine mode (for restores)
 export function setGameMode(mode) { gameMode = mode; }
 
 export function getTurn() { return turn; }
