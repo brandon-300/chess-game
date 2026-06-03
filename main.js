@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (v9 – offline notification + auto-refresh)
+// main.js — Orchestrator for Chess 3D (v10 – fixed missing startPolling)
 
 // ---------- Helper: show error on screen ----------
 function showError(source, err) {
@@ -24,6 +24,7 @@ let lastKnownServerState = null;
 let pollInterval = null;
 let chatPollInterval = null;
 let rematchCountdownInterval = null;
+let waitingPollInterval = null;   // for waiting-room polling
 
 // ---------- Dynamic imports ----------
 let db, engine, ui;
@@ -251,7 +252,7 @@ function onlineGameCreated(game, hostKey) {
     sessionPlayerKey = hostKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
     ui.showWaitingRoom(game.host_nickname, game.room_code);
-    startPolling(game.id);
+    startWaitingPoll(game.id);          // poll until joiner arrives
 }
 
 function onlineGameJoined(game, joinerKey) {
@@ -260,7 +261,37 @@ function onlineGameJoined(game, joinerKey) {
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
     myColor = 'b';
     ui.showCountdown(game.host_nickname, game.room_code);
-    startPolling(game.id);
+    // after countdown, onCountdownFinished -> startOnlineGame
+}
+
+// ---------- Waiting-room polling ----------
+function startWaitingPoll(gameId) {
+    stopWaitingPoll();
+    waitingPollInterval = setInterval(async () => {
+        try {
+            const data = await db.fetchGameState(gameId);
+            if (!data) return;
+            if (data.status === 'countdown') {
+                stopWaitingPoll();
+                // Host already knows the game, we need to show countdown
+                currentOnlineGame = data;
+                ui.showCountdown(data.host_nickname, data.room_code);
+            } else if (data.status === 'active') {
+                stopWaitingPoll();
+                currentOnlineGame = data;
+                startOnlineGame();
+            } else if (data.status === 'cancelled' || data.status === 'terminated') {
+                stopWaitingPoll();
+                ui.toast('Game was cancelled.');
+                resetOnlineState();
+                ui.showMenu();
+            }
+        } catch (e) {}
+    }, 1000);
+}
+
+function stopWaitingPoll() {
+    if (waitingPollInterval) { clearInterval(waitingPollInterval); waitingPollInterval = null; }
 }
 
 async function startOnlineGame() {
@@ -274,13 +305,18 @@ async function startOnlineGame() {
     engine.setMyColor(myColor);
     engine.startGame('online');
     started = true;
+    gameMode = 'online';
     startOnlineGameLoop();
     startChatPolling(currentOnlineGame.id);
     engine.rotateForPlayer(myColor);
 }
 
 async function cancelWaiting() {
-    if (currentOnlineGame) { await db.cancelGame(currentOnlineGame.id); resetOnlineState(); ui.showMenu(); }
+    if (currentOnlineGame) {
+        await db.cancelGame(currentOnlineGame.id);
+        resetOnlineState();
+        ui.showMenu();
+    }
 }
 
 // ---------- Online sync loop ----------
@@ -350,11 +386,11 @@ async function exitOnlineGame() {
 }
 
 function resetOnlineState() {
-    stopOnlineGameLoop(); stopChatPolling();
+    stopOnlineGameLoop(); stopChatPolling(); stopWaitingPoll();
     if (currentOnlineGame) sessionStorage.removeItem('chess3d_playerkey_' + currentOnlineGame.id);
     currentOnlineGame = null; sessionPlayerKey = null; myColor = 'w';
     moveSyncing = false; lastKnownServerState = null; over = false;
-    ui.hideGameUI(); ui.hideGameOver(); engine.resetState(); started = false;
+    ui.hideGameUI(); ui.hideGameOver(); engine.resetState(); started = false; gameMode = null;
 }
 
 function handleBottomRight() {
@@ -477,20 +513,16 @@ window.exitGameAction = handleBottomRight;
         if (notify) notify.classList.remove('show');
     }
 
-    // Listen to browser events
     window.addEventListener('offline', showOffline);
     window.addEventListener('online', () => {
-        // Save any in‑progress offline game before refreshing
         if (gameMode && gameMode !== 'online' && started && !over && engine) {
             saveBackup();
         }
-        // Small delay so the save can complete, then refresh
         setTimeout(() => {
             location.reload();
         }, 150);
     });
 
-    // Initial state
     if (!navigator.onLine) showOffline();
 })();
 
