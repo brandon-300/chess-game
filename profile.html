@@ -289,12 +289,35 @@
             transition: filter 0.15s;
             letter-spacing: 0.05em;
             text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         .btn-red:hover {
             filter: brightness(1.1);
         }
+        .btn-red:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            filter: none;
+        }
         .avatar-upload-input {
             display: none;
+        }
+
+        /* loading spinner for buttons */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
         }
 
         footer {
@@ -403,11 +426,12 @@
                 await supabase.from('profiles').update({ is_online: online, last_seen: new Date().toISOString() }).eq('id', currentUserId);
             }
 
-            async function handleLogout() {
+            // We'll replace the original handleLogout with a button-specific version later.
+            async function performLogout() {
                 if (currentUserId) await setOnlineStatus(false);
                 stopHeartbeat(); clearTimeout(inactivityTimer);
                 await supabase.auth.signOut();
-                window.location.href = "index.html";
+                // Redirection handled by the button click handler
             }
 
             function renderProfile(profile) {
@@ -526,15 +550,12 @@
                 if (!session) { window.location.href = "user_login.html"; return; }
                 currentUserId = session.user.id;
 
-                // Always show own profile (no ?user= support)
                 await setOnlineStatus(true);
                 setupInactivity();
                 startHeartbeat();
 
-                // Set offline on tab close
                 window.addEventListener('beforeunload', () => {
                     if (currentUserId) {
-                        // Use sendBeacon for reliability; fallback to fetch
                         const payload = JSON.stringify({ is_online: false, last_seen: new Date().toISOString() });
                         if (navigator.sendBeacon) {
                             const blob = new Blob([payload], { type: 'application/json' });
@@ -561,27 +582,74 @@
                 });
 
                 const bottom = $('bottomActions');
-                const logoutBtn = document.createElement('button'); logoutBtn.className = 'btn-red'; logoutBtn.textContent = 'Logout'; logoutBtn.addEventListener('click', handleLogout);
-                const deleteBtn = document.createElement('button'); deleteBtn.className = 'btn-red'; deleteBtn.style.background = 'transparent'; deleteBtn.style.border = '1px solid rgba(204,0,0,.25)'; deleteBtn.style.color = 'var(--danger)'; deleteBtn.textContent = 'Delete Account';
+
+                // Logout button with loading spinner & success message
+                const logoutBtn = document.createElement('button');
+                logoutBtn.className = 'btn-red';
+                logoutBtn.textContent = 'Logout';
+                logoutBtn.addEventListener('click', async function() {
+                    if (logoutBtn.disabled) return;
+                    logoutBtn.disabled = true;
+                    const originalHTML = logoutBtn.innerHTML;
+                    logoutBtn.innerHTML = '<span class="loading-spinner"></span> Logging out...';
+
+                    try {
+                        if (currentUserId) await setOnlineStatus(false);
+                        stopHeartbeat(); clearTimeout(inactivityTimer);
+                        await supabase.auth.signOut();
+                        logoutBtn.innerHTML = 'Logged out successfully';
+                        setTimeout(() => {
+                            window.location.href = "index.html";
+                        }, 2000);
+                    } catch (e) {
+                        logoutBtn.disabled = false;
+                        logoutBtn.innerHTML = originalHTML;
+                        $('updateErr').textContent = 'Logout failed: ' + (e.message || 'Unknown error');
+                        $('updateErr').classList.add('show');
+                    }
+                });
+
+                // Delete account button with loading spinner & success message
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-red';
+                deleteBtn.style.background = 'transparent';
+                deleteBtn.style.border = '1px solid rgba(204,0,0,.25)';
+                deleteBtn.style.color = 'var(--danger)';
+                deleteBtn.textContent = 'Delete Account';
                 deleteBtn.addEventListener('click', async () => {
                     if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
                     if (!confirm('Final confirmation: delete your account?')) return;
 
-                    // Delete profile row
-                    await supabase.from('profiles').delete().eq('id', currentUserId);
-                    stopHeartbeat(); clearTimeout(inactivityTimer);
+                    deleteBtn.disabled = true;
+                    const originalHTML = deleteBtn.innerHTML;
+                    deleteBtn.innerHTML = '<span class="loading-spinner"></span> Deleting account...';
 
-                    // Delete auth user via Edge Function
                     try {
-                        await supabase.functions.invoke('delete-user', { body: { user_id: currentUserId } });
-                    } catch (e) {
-                        console.warn('Edge Function delete-user not available:', e);
-                    }
+                        await supabase.from('profiles').delete().eq('id', currentUserId);
+                        stopHeartbeat(); clearTimeout(inactivityTimer);
 
-                    await supabase.auth.signOut();
-                    location.href = "index.html";
+                        try {
+                            await supabase.functions.invoke('delete-user', { body: { user_id: currentUserId } });
+                        } catch (e) {
+                            console.warn('Edge Function delete-user not available:', e);
+                        }
+
+                        await supabase.auth.signOut();
+
+                        deleteBtn.innerHTML = 'Account deleted successfully';
+                        setTimeout(() => {
+                            location.href = "index.html";
+                        }, 2000);
+                    } catch (e) {
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerHTML = originalHTML;
+                        $('updateErr').textContent = 'Delete failed: ' + (e.message || 'Unknown error');
+                        $('updateErr').classList.add('show');
+                    }
                 });
-                bottom.appendChild(logoutBtn); bottom.appendChild(deleteBtn);
+
+                bottom.appendChild(logoutBtn);
+                bottom.appendChild(deleteBtn);
 
                 document.addEventListener('visibilitychange', () => {
                     if (!document.hidden) { setOnlineStatus(true); resetInactivity(); }
