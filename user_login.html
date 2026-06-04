@@ -71,7 +71,8 @@
     cursor:pointer;transition:filter .15s;margin-top:8px;
     font-family:'Cinzel',serif;letter-spacing:.1em;text-transform:uppercase;
   }
-  .submit-btn:hover{filter:brightness(1.08)}
+  .submit-btn:disabled{opacity:0.6;cursor:not-allowed}
+  .submit-btn:hover:not(:disabled){filter:brightness(1.08)}
   .err-msg{font-family:'Cinzel',serif;font-size:12px;color:var(--danger);margin-top:8px;display:none}
   .err-msg.show{display:block}
   .success-msg{font-family:'Cinzel',serif;font-size:12px;color:var(--accent);margin-top:8px;display:none}
@@ -247,36 +248,40 @@
   }
   function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
 
-  // Login
-  $("loginSubmit").addEventListener("click", async () => {
+  // Login (with loading state, without admin checks)
+  $("loginSubmit").addEventListener("click", async function() {
+    const btn = this;
     const username = $("loginUsername").value.trim(), password = $("loginPassword").value, err = $("loginErr");
     err.classList.remove("show");
-    if (!username || !password) { err.textContent = "Please enter both username and password."; err.classList.add("show"); return; }
+
+    if (!username || !password) {
+      err.textContent = "Please enter both username and password."; err.classList.add("show"); return;
+    }
+
+    // Disable button and show loading state
+    btn.disabled = true;
+    btn.textContent = "Logging in…";
+
     try {
       const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
       if (!profile) { err.textContent = "Username does not exist."; err.classList.add("show"); return; }
+
       const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
       if (authErr) throw authErr;
-      const { data: full } = await supabase.from("profiles").select("is_suspended, suspended_until, is_pending_delete, deleted_at, admin_note").eq("id", profile.id).single();
-      if (full?.is_pending_delete) {
-        const delAt = new Date(full.deleted_at), now = new Date(), diff = now - delAt;
-        if (diff >= 2*60*60*1000) { await supabase.from("profiles").delete().eq("id", profile.id); err.textContent = "Account doesn't exist. Sign up."; err.classList.add("show"); return; }
-        const remain = 2*60*60*1000 - diff, h = Math.floor(remain/3600000), m = Math.floor((remain%3600000)/60000);
-        err.textContent = `Account deleted by admin. Note: "${full.admin_note}". Removed in ${h}h ${m}m.`; err.classList.add("show"); return;
-      }
-      if (full?.is_suspended) {
-        const until = new Date(full.suspended_until); if (until > new Date()) {
-          const rem = until - new Date(), d = Math.floor(rem/(1000*60*60*24)), h = Math.floor((rem%(1000*60*60*24))/(1000*60*60));
-          err.textContent = `Account suspended. Note: "${full.admin_note}". Remaining: ${d}d ${h}h.`; err.classList.add("show"); return;
-        } else { await supabase.from("profiles").update({ is_suspended: false, suspended_until: null, admin_note: null }).eq("id", profile.id); }
-      }
+
       // Mark user as online immediately on successful login
       await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
       window.location.href = "index.html";
-    } catch(e) { err.textContent = e.message || "Login failed."; err.classList.add("show"); }
+    } catch(e) {
+      err.textContent = e.message || "Login failed."; err.classList.add("show");
+    } finally {
+      // Re-enable button and restore text only if redirect didn't happen (error case)
+      btn.disabled = false;
+      btn.textContent = "Log in";
+    }
   });
 
-  // Signup
+  // Signup (unchanged)
   $("signupSubmit").addEventListener("click", async () => {
     const fn = $("signupFirstName").value.trim(), ln = $("signupLastName").value.trim();
     const country = $("signupCountry").value.trim(), username = $("signupUsername").value.trim();
@@ -303,7 +308,6 @@
   });
 
   document.addEventListener("keydown", (e) => { if (e.key==="Enter") { tabLogin.classList.contains("active") ? $("loginSubmit").click() : $("signupSubmit").click(); } });
-  window.addEventListener("online", () => setTimeout(() => location.reload(), 1000));
 })();
 </script>
 </body>
