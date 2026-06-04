@@ -534,6 +534,15 @@
     loginContainer.style.opacity = "1";
   }
 
+  // Display an error in the onboarding modal and force it open
+  function showOnboardingError(message) {
+    showOnboardingModal();                          // make sure modal is visible
+    onboardingErr.textContent = message;            // set error text
+    onboardingErr.classList.add("show");
+    onboardingSubmit.disabled = false;              // re-enable submit
+    onboardingBtnText.textContent = "Save profile";
+  }
+
   onboardingSubmit.addEventListener("click", async () => {
     if (onboardingInProgress) return;
     const username = onboardingUsername.value.trim();
@@ -599,7 +608,10 @@
       if (urlParams.get("onboarding") === "1") {
 
         // 1. Try to fetch existing profile
-        let { data: profile } = await supabase.from("profiles").select("username, dob, country, email, full_name, avatar_url").eq("id", session.user.id).maybeSingle();
+        let { data: profile } = await supabase.from("profiles")
+          .select("username, dob, country, email, full_name, avatar_url")
+          .eq("id", session.user.id)
+          .maybeSingle();
 
         // 2. If NO profile exists, create one from Google's metadata
         if (!profile) {
@@ -615,19 +627,22 @@
           });
 
           if (insertError) {
-            console.error("Failed to create profile:", insertError);
-            alert("An error occurred while setting up your account. Please try again.");
+            // Show the real error inside the onboarding modal instead of a generic alert
+            showOnboardingError("Profile creation failed: " + (insertError.message || "Unknown error"));
             return;
           }
 
           // Re‑fetch the newly created profile
-          const { data: newProfile } = await supabase.from("profiles").select("username, dob, country, email, full_name, avatar_url").eq("id", user.id).maybeSingle();
+          const { data: newProfile } = await supabase.from("profiles")
+            .select("username, dob, country, email, full_name, avatar_url")
+            .eq("id", user.id)
+            .maybeSingle();
           profile = newProfile;
         }
 
         // 3. If profile still missing (shouldn't happen), abort
         if (!profile) {
-          console.error("Profile still missing after creation attempt.");
+          showOnboardingError("Profile still missing after creation. Please try again.");
           return;
         }
 
@@ -641,7 +656,7 @@
         showOnboardingModal();
       }
     } catch (e) {
-      console.error("Onboarding check error:", e);
+      showOnboardingError(e.message || "Onboarding check failed.");
     }
   })();
 
