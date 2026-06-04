@@ -142,7 +142,7 @@
     display: block;
   }
 
-  /* Onboarding modal overlay (forced username) */
+  /* Onboarding modal overlay (forced profile completion) */
   .onboarding-overlay {
     position: fixed; inset: 0; z-index: 200;
     background: rgba(4,2,1,0.8); backdrop-filter: blur(10px);
@@ -153,30 +153,35 @@
   .onboarding-overlay.hidden { display: none; }
 
   .onboarding-card {
-    width: 100%; max-width: 400px;
+    width: 100%; max-width: 420px;
     background: rgba(20,14,8,0.9); backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--border); border-radius: 6px;
-    padding: 32px 24px;
+    padding: 28px 20px;
     box-shadow: 0 20px 50px rgba(0,0,0,0.7);
     text-align: center;
     animation: goin .3s cubic-bezier(.175,.885,.32,1.275);
+    max-height: 90vh; overflow-y: auto;
   }
   @keyframes goin{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
   .onboarding-card h2 {
     font-family: 'Cinzel', serif; font-size: 20px;
-    color: var(--accent); letter-spacing: .1em; margin-bottom: 16px;
+    color: var(--accent); letter-spacing: .1em; margin-bottom: 12px;
   }
   .onboarding-card p {
     font-size: 13px; color: var(--muted); font-style: italic; margin-bottom: 20px;
   }
-  .onboarding-card .field { margin-bottom: 20px; }
-  .onboarding-card .field input {
-    text-align: center; font-size: 16px;
+  .onboarding-card .field { margin-bottom: 14px; }
+  .onboarding-card .field input,
+  .onboarding-card .field select {
+    text-align: left; font-size: 16px;
+  }
+  .onboarding-card .field input[readonly] {
+    opacity: 0.8; cursor: default;
   }
   .onboarding-card .submit-btn {
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    margin-top: 0;
+    margin-top: 4px;
   }
   .onboarding-card .err-msg,
   .onboarding-card .success-msg {
@@ -293,16 +298,39 @@
     </a>
   </div>
 
-  <!-- Onboarding modal (forced username for Google OAuth users without one) -->
+  <!-- Onboarding modal (forced profile completion for Google OAuth users) -->
   <div class="onboarding-overlay hidden" id="onboardingOverlay">
     <div class="onboarding-card">
-      <h2>Choose a username</h2>
-      <p>You signed in with Google. Before you can play, please pick a permanent username.</p>
+      <h2>Complete your profile</h2>
+      <p>You signed in with Google. Before you can play, please fill in the fields below.</p>
+      
       <div class="field">
-        <input type="text" id="onboardingUsername" placeholder="Your username" maxlength="30" autocomplete="off" />
+        <label for="onboardingUsername">Username</label>
+        <input type="text" id="onboardingUsername" placeholder="Choose a permanent username" maxlength="30" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="chess3d_onboarding_username" />
       </div>
+      
+      <div class="field">
+        <label>Date of birth</label>
+        <div class="dob-row">
+          <select id="onboardingDobDay"><option value="">Day</option></select>
+          <select id="onboardingDobMonth"><option value="">Month</option></select>
+          <select id="onboardingDobYear"><option value="">Year</option></select>
+        </div>
+      </div>
+      
+      <div class="field">
+        <label for="onboardingAge">Age</label>
+        <input id="onboardingAge" type="text" readonly placeholder="Calculated from DOB" />
+        <div class="age-error-text" id="onboardingAgeError"></div>
+      </div>
+      
+      <div class="field">
+        <label for="onboardingCountry">Country</label>
+        <input type="text" id="onboardingCountry" placeholder="Your country" autocomplete="country-name" />
+      </div>
+
       <button class="submit-btn" id="onboardingSubmit">
-        <span id="onboardingBtnText">Set username</span>
+        <span id="onboardingBtnText">Save profile</span>
       </button>
       <div class="err-msg" id="onboardingErr"></div>
       <div class="success-msg" id="onboardingSuccess"></div>
@@ -320,7 +348,7 @@
   const tabLogin = $("tabLogin");
   const tabSignup = $("tabSignup");
 
-  // DOB dropdowns
+  // DOB dropdowns (for signup)
   const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
   const signupAge = $("signupAge"), ageError = $("ageError");
   const currentYear = new Date().getFullYear();
@@ -371,7 +399,7 @@
   }
   function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
 
-  // Login (with loading state, without admin checks)
+  // Login (unchanged)
   $("loginSubmit").addEventListener("click", async function() {
     const btn = this;
     const username = $("loginUsername").value.trim(), password = $("loginPassword").value, err = $("loginErr");
@@ -380,27 +408,18 @@
     if (!username || !password) {
       err.textContent = "Please enter both username and password."; err.classList.add("show"); return;
     }
-
-    // Disable button and show loading state
-    btn.disabled = true;
-    btn.textContent = "Logging in…";
-
+    btn.disabled = true; btn.textContent = "Logging in…";
     try {
       const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
       if (!profile) { err.textContent = "Username does not exist."; err.classList.add("show"); return; }
-
       const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
       if (authErr) throw authErr;
-
-      // Mark user as online immediately on successful login
       await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
       window.location.href = "index.html";
     } catch(e) {
       err.textContent = e.message || "Login failed."; err.classList.add("show");
     } finally {
-      // Re-enable button and restore text only if redirect didn't happen (error case)
-      btn.disabled = false;
-      btn.textContent = "Log in";
+      btn.disabled = false; btn.textContent = "Log in";
     }
   });
 
@@ -408,7 +427,6 @@
   $("googleSubmit").addEventListener("click", async () => {
     const err = $("loginErr");
     err.classList.remove("show");
-
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -418,8 +436,7 @@
       });
       if (error) throw error;
     } catch(e) {
-      err.textContent = e.message || "Google authentication failed.";
-      err.classList.add("show");
+      err.textContent = e.message || "Google authentication failed."; err.classList.add("show");
     }
   });
 
@@ -451,9 +468,15 @@
 
   document.addEventListener("keydown", (e) => { if (e.key==="Enter") { tabLogin.classList.contains("active") ? $("loginSubmit").click() : $("signupSubmit").click(); } });
 
-  // ---------- Onboarding modal logic (forced username for Google OAuth) ----------
+  // ---------- Onboarding modal logic (forced profile for Google OAuth) ----------
   const onboardingOverlay = $("onboardingOverlay");
   const onboardingUsername = $("onboardingUsername");
+  const onboardingCountry = $("onboardingCountry");
+  const onboardingDobDay = $("onboardingDobDay");
+  const onboardingDobMonth = $("onboardingDobMonth");
+  const onboardingDobYear = $("onboardingDobYear");
+  const onboardingAge = $("onboardingAge");
+  const onboardingAgeError = $("onboardingAgeError");
   const onboardingSubmit = $("onboardingSubmit");
   const onboardingBtnText = $("onboardingBtnText");
   const onboardingErr = $("onboardingErr");
@@ -462,9 +485,56 @@
 
   let onboardingInProgress = false;
 
+  // Populate DOB dropdowns in onboarding (independent of signup)
+  const onboardCurrentYear = new Date().getFullYear();
+  for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; onboardingDobMonth.appendChild(o); }
+  for (let y = onboardCurrentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; onboardingDobYear.appendChild(o); }
+  function populateOnboardingDays() {
+    const m = parseInt(onboardingDobMonth.value), y = parseInt(onboardingDobYear.value);
+    const days = getDaysInMonth(m||1, y||2000), cur = onboardingDobDay.value ? parseInt(onboardingDobDay.value) : 0;
+    onboardingDobDay.innerHTML = '<option value="">Day</option>';
+    for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; onboardingDobDay.appendChild(o); }
+    if (cur > 0 && cur <= days) onboardingDobDay.value = cur; else onboardingDobDay.value = "";
+  }
+  onboardingDobMonth.addEventListener("change", populateOnboardingDays);
+  onboardingDobYear.addEventListener("change", populateOnboardingDays);
+  populateOnboardingDays();
+
+  function updateOnboardingAge() {
+    const d = parseInt(onboardingDobDay.value), m = parseInt(onboardingDobMonth.value), y = parseInt(onboardingDobYear.value);
+    if (!d || !m || !y) { onboardingAge.value = ""; onboardingAge.classList.remove("invalid-age"); onboardingAgeError.classList.remove("show"); return; }
+    const dob = new Date(y, m-1, d), now = new Date();
+    let age = now.getFullYear() - dob.getFullYear();
+    const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
+    onboardingAge.value = age;
+    if (age < 14) {
+      onboardingAge.classList.add("invalid-age");
+      onboardingAgeError.textContent = "You must be at least 14 years old.";
+      onboardingAgeError.classList.add("show");
+    } else {
+      onboardingAge.classList.remove("invalid-age");
+      onboardingAgeError.classList.remove("show");
+    }
+  }
+  onboardingDobDay.addEventListener("change", updateOnboardingAge);
+  onboardingDobMonth.addEventListener("change", updateOnboardingAge);
+  onboardingDobYear.addEventListener("change", updateOnboardingAge);
+
   function showOnboardingModal() {
     onboardingOverlay.classList.remove("hidden");
-    loginContainer.style.opacity = "0.3";   // dim the background forms
+    loginContainer.style.opacity = "0.3";
+    // Clear any pre-filled values
+    onboardingUsername.value = "";
+    onboardingCountry.value = "";
+    onboardingDobDay.value = "";
+    onboardingDobMonth.value = "";
+    onboardingDobYear.value = "";
+    onboardingAge.value = "";
+    onboardingAge.classList.remove("invalid-age");
+    onboardingAgeError.classList.remove("show");
+    onboardingErr.classList.remove("show");
+    onboardingSuccess.classList.remove("show");
+    populateOnboardingDays();
   }
 
   function hideOnboardingModal() {
@@ -475,11 +545,13 @@
   onboardingSubmit.addEventListener("click", async () => {
     if (onboardingInProgress) return;
     const username = onboardingUsername.value.trim();
+    const country = onboardingCountry.value.trim();
+    const day = parseInt(onboardingDobDay.value), month = parseInt(onboardingDobMonth.value), year = parseInt(onboardingDobYear.value);
     onboardingErr.classList.remove("show");
     onboardingSuccess.classList.remove("show");
 
-    if (!username) {
-      onboardingErr.textContent = "Username cannot be empty.";
+    if (!username || !country || !day || !month || !year) {
+      onboardingErr.textContent = "All fields are required.";
       onboardingErr.classList.add("show");
       return;
     }
@@ -488,13 +560,19 @@
       onboardingErr.classList.add("show");
       return;
     }
+    const age = parseInt(onboardingAge.value, 10);
+    if (isNaN(age) || age < 14) {
+      onboardingErr.textContent = "You must be at least 14 years old.";
+      onboardingErr.classList.add("show");
+      return;
+    }
 
     onboardingInProgress = true;
     onboardingSubmit.disabled = true;
-    onboardingBtnText.innerHTML = '<span class="loading-spinner"></span> Checking…';
+    onboardingBtnText.innerHTML = '<span class="loading-spinner"></span> Saving…';
 
     try {
-      // Check uniqueness
+      // Check username uniqueness
       const { data: existing } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
       if (existing) {
         onboardingErr.textContent = "This username is already taken. Please choose another.";
@@ -502,12 +580,12 @@
         return;
       }
 
-      // Update the current user's profile
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Session expired. Please refresh the page.");
 
+      const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
       const { error: updateError } = await supabase.from("profiles")
-        .update({ username })
+        .update({ username, age, dob, country })
         .eq("id", session.user.id);
 
       if (updateError) throw updateError;
@@ -517,7 +595,6 @@
       onboardingSuccess.classList.add("show");
       onboardingBtnText.innerHTML = "Done!";
 
-      // After 3 seconds, hide modal and redirect to home
       setTimeout(() => {
         hideOnboardingModal();
         window.location.href = "index.html";
@@ -529,35 +606,33 @@
     } finally {
       onboardingInProgress = false;
       onboardingSubmit.disabled = false;
-      onboardingBtnText.textContent = "Set username";
+      onboardingBtnText.textContent = "Save profile";
     }
   });
 
-  // Check on page load if user just came from Google OAuth and needs a username
+  // Page load: check for onboarding flag and missing fields
   (async function checkOnboarding() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return; // not logged in, nothing to do
+      if (!session) return;
 
       const urlParams = new URLSearchParams(window.location.search);
-      const onboardingFlag = urlParams.get("onboarding");
-
-      if (onboardingFlag === "1") {
-        // Fetch profile to see if username is missing
+      if (urlParams.get("onboarding") === "1") {
         const { data: profile } = await supabase.from("profiles")
-          .select("username")
+          .select("username, dob, country")
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (profile && !profile.username) {
-          // Show forced onboarding modal
-          showOnboardingModal();
-        } else {
-          // Already has a username, just redirect to home
-          window.location.href = "index.html";
+        if (profile) {
+          // If all required fields are present, redirect to home
+          if (profile.username && profile.dob && profile.country) {
+            window.location.href = "index.html";
+            return;
+          }
         }
+        // Show onboarding modal – fields are missing
+        showOnboardingModal();
       }
-      // If no onboarding param, do nothing (normal login page)
     } catch (e) {
       console.error("Onboarding check error:", e);
     }
