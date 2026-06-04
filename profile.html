@@ -104,7 +104,6 @@
             flex: 1;
         }
 
-        /* Glass panel (chess style) */
         .glass-panel {
             background: rgba(16, 10, 6, 0.92);
             backdrop-filter: blur(12px);
@@ -167,6 +166,28 @@
         }
         .pencil-btn:active {
             transform: scale(0.95);
+        }
+        .pencil-btn.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .pencil-btn .spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid transparent;
+            border-top-color: #0a0806;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        .pencil-btn.loading .spinner {
+            display: block;
+        }
+        .pencil-btn.loading .edit-icon {
+            display: none;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         .user-info {
             flex: 1;
@@ -305,13 +326,15 @@
     </header>
 
     <main class="container">
-        <!-- Profile header card -->
         <div class="glass-panel">
             <div class="profile-header">
                 <div class="avatar-section" id="avatarSection">
                     <img class="avatar-img" id="avatarImg" src="" alt="Profile picture" />
                     <div class="online-dot" id="onlineDot"></div>
-                    <button class="pencil-btn" id="pencilBtn" title="Change photo"><span class="material-symbols-outlined" style="font-size:16px">edit</span></button>
+                    <button class="pencil-btn" id="pencilBtn" title="Change photo">
+                        <span class="edit-icon material-symbols-outlined" style="font-size:16px">edit</span>
+                        <span class="spinner"></span>
+                    </button>
                     <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
                 </div>
                 <div class="user-info">
@@ -322,7 +345,6 @@
             </div>
         </div>
 
-        <!-- Editable info card -->
         <div class="glass-panel">
             <div class="field-group">
                 <div class="field"><label for="fullNameInput">Full name</label><input id="fullNameInput" type="text" readonly /></div>
@@ -357,11 +379,9 @@
             );
 
             let currentUserId = null;
-            let isOwner = false;
             let originalProfile = null;
             let isEditing = false;
 
-            // Heartbeat
             let heartbeatInterval;
             const INACTIVITY_LIMIT = 15 * 60 * 1000;
             let inactivityTimer;
@@ -435,10 +455,6 @@
                 });
                 container.appendChild(backBtn);
 
-                if (!isOwner) {
-                    return;
-                }
-
                 if (isEditing) {
                     const saveBtn = document.createElement('button');
                     saveBtn.className = 'btn primary'; saveBtn.textContent = 'Save'; saveBtn.addEventListener('click', saveProfile);
@@ -469,6 +485,13 @@
                 try {
                     const { data: exist } = await supabase.from('profiles').select('id').eq('username', username).neq('id', currentUserId).maybeSingle();
                     if (exist) { errEl.textContent = 'Username already taken.'; errEl.classList.add('show'); return; }
+
+                    // If email changed, update auth email as well
+                    if (email !== originalProfile.email) {
+                        const { error: authUpdateErr } = await supabase.auth.updateUser({ email });
+                        if (authUpdateErr) throw new Error('Failed to update login email: ' + authUpdateErr.message);
+                    }
+
                     const updates = { full_name: fullName, username, email, age: age || null, dob: dob || null, country: country || null };
                     const { error } = await supabase.from('profiles').update(updates).eq('id', currentUserId);
                     if (error) throw error;
@@ -480,39 +503,47 @@
             }
 
             async function uploadAvatar(file) {
-                const ext = file.name.split('.').pop();
-                const path = `${currentUserId}-${Date.now()}.${ext}`;
-                const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-                if (upErr) throw new Error('Upload failed: '+upErr.message);
-                const { data: url } = supabase.storage.from('avatars').getPublicUrl(path);
-                if (!url?.publicUrl) throw new Error('Could not get URL');
-                const { error: updateErr } = await supabase.from('profiles').update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
-                if (updateErr) throw new Error('Update failed: '+updateErr.message);
-                $('avatarImg').src = url.publicUrl;
-                return url.publicUrl;
+                const pencil = $('pencilBtn');
+                pencil.classList.add('loading');
+                try {
+                    const ext = file.name.split('.').pop();
+                    const path = `${currentUserId}-${Date.now()}.${ext}`;
+                    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+                    if (upErr) throw new Error('Upload failed: '+upErr.message);
+                    const { data: url } = supabase.storage.from('avatars').getPublicUrl(path);
+                    if (!url?.publicUrl) throw new Error('Could not get URL');
+                    const { error: updateErr } = await supabase.from('profiles').update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
+                    if (updateErr) throw new Error('Update failed: '+updateErr.message);
+                    $('avatarImg').src = url.publicUrl;
+                    return url.publicUrl;
+                } finally {
+                    pencil.classList.remove('loading');
+                }
             }
 
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) { window.location.href = "user_login.html"; return; }
                 currentUserId = session.user.id;
-                const viewUserId = new URLSearchParams(window.location.search).get('user');
 
-                if (viewUserId && viewUserId !== currentUserId) {
-                    isOwner = false;
-                    const { data: profile } = await supabase.from('profiles').select('*').eq('id', viewUserId).single();
-                    if (!profile) { alert('User not found'); history.back(); return; }
-                    renderProfile(profile);
-                    $('pencilBtn').style.display = 'none';
-                    $('bottomActions').innerHTML = '';
-                    updateHeaderButtons();
-                    return;
-                }
-
-                isOwner = true;
+                // Always show own profile (no ?user= support)
                 await setOnlineStatus(true);
                 setupInactivity();
                 startHeartbeat();
+
+                // Set offline on tab close
+                window.addEventListener('beforeunload', () => {
+                    if (currentUserId) {
+                        // Use sendBeacon for reliability; fallback to fetch
+                        const payload = JSON.stringify({ is_online: false, last_seen: new Date().toISOString() });
+                        if (navigator.sendBeacon) {
+                            const blob = new Blob([payload], { type: 'application/json' });
+                            navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${currentUserId}`, blob);
+                        } else {
+                            supabase.from('profiles').update({ is_online: false, last_seen: new Date().toISOString() }).eq('id', currentUserId);
+                        }
+                    }
+                });
 
                 const profile = await loadProfile();
                 if (profile) renderProfile(profile); else renderProfile({});
@@ -535,8 +566,18 @@
                 deleteBtn.addEventListener('click', async () => {
                     if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
                     if (!confirm('Final confirmation: delete your account?')) return;
+
+                    // Delete profile row
                     await supabase.from('profiles').delete().eq('id', currentUserId);
                     stopHeartbeat(); clearTimeout(inactivityTimer);
+
+                    // Delete auth user via Edge Function
+                    try {
+                        await supabase.functions.invoke('delete-user', { body: { user_id: currentUserId } });
+                    } catch (e) {
+                        console.warn('Edge Function delete-user not available:', e);
+                    }
+
                     await supabase.auth.signOut();
                     location.href = "index.html";
                 });
