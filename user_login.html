@@ -141,12 +141,59 @@
   .google-btn svg {
     display: block;
   }
+
+  /* Onboarding modal overlay (forced username) */
+  .onboarding-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(4,2,1,0.8); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .onboarding-overlay.hidden { display: none; }
+
+  .onboarding-card {
+    width: 100%; max-width: 400px;
+    background: rgba(20,14,8,0.9); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 32px 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    text-align: center;
+    animation: goin .3s cubic-bezier(.175,.885,.32,1.275);
+  }
+  @keyframes goin{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+  .onboarding-card h2 {
+    font-family: 'Cinzel', serif; font-size: 20px;
+    color: var(--accent); letter-spacing: .1em; margin-bottom: 16px;
+  }
+  .onboarding-card p {
+    font-size: 13px; color: var(--muted); font-style: italic; margin-bottom: 20px;
+  }
+  .onboarding-card .field { margin-bottom: 20px; }
+  .onboarding-card .field input {
+    text-align: center; font-size: 16px;
+  }
+  .onboarding-card .submit-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 0;
+  }
+  .onboarding-card .err-msg,
+  .onboarding-card .success-msg {
+    margin-top: 12px; font-size: 12px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading-spinner{
+    width:18px;height:18px;border:2px solid transparent;
+    border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;
+    display:inline-block;
+  }
 </style>
 </head>
 <body>
   <div class="bg-glow"></div>
 
-  <div class="container">
+  <div class="container" id="loginContainer">
     <div class="tabs">
       <button class="tab-btn active" id="tabLogin">Log in</button>
       <button class="tab-btn" id="tabSignup">Sign up</button>
@@ -246,6 +293,22 @@
     </a>
   </div>
 
+  <!-- Onboarding modal (forced username for Google OAuth users without one) -->
+  <div class="onboarding-overlay hidden" id="onboardingOverlay">
+    <div class="onboarding-card">
+      <h2>Choose a username</h2>
+      <p>You signed in with Google. Before you can play, please pick a permanent username.</p>
+      <div class="field">
+        <input type="text" id="onboardingUsername" placeholder="Your username" maxlength="30" autocomplete="off" />
+      </div>
+      <button class="submit-btn" id="onboardingSubmit">
+        <span id="onboardingBtnText">Set username</span>
+      </button>
+      <div class="err-msg" id="onboardingErr"></div>
+      <div class="success-msg" id="onboardingSuccess"></div>
+    </div>
+  </div>
+
 <script>
 (() => {
   const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
@@ -341,7 +404,7 @@
     }
   });
 
-  // Google OAuth Login Trigger
+  // Google OAuth Login Trigger – redirects back to this page with ?onboarding=1
   $("googleSubmit").addEventListener("click", async () => {
     const err = $("loginErr");
     err.classList.remove("show");
@@ -350,7 +413,7 @@
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + "/index.html",
+          redirectTo: window.location.origin + "/user_login.html?onboarding=1",
         },
       });
       if (error) throw error;
@@ -387,6 +450,119 @@
   });
 
   document.addEventListener("keydown", (e) => { if (e.key==="Enter") { tabLogin.classList.contains("active") ? $("loginSubmit").click() : $("signupSubmit").click(); } });
+
+  // ---------- Onboarding modal logic (forced username for Google OAuth) ----------
+  const onboardingOverlay = $("onboardingOverlay");
+  const onboardingUsername = $("onboardingUsername");
+  const onboardingSubmit = $("onboardingSubmit");
+  const onboardingBtnText = $("onboardingBtnText");
+  const onboardingErr = $("onboardingErr");
+  const onboardingSuccess = $("onboardingSuccess");
+  const loginContainer = $("loginContainer");
+
+  let onboardingInProgress = false;
+
+  function showOnboardingModal() {
+    onboardingOverlay.classList.remove("hidden");
+    loginContainer.style.opacity = "0.3";   // dim the background forms
+  }
+
+  function hideOnboardingModal() {
+    onboardingOverlay.classList.add("hidden");
+    loginContainer.style.opacity = "1";
+  }
+
+  onboardingSubmit.addEventListener("click", async () => {
+    if (onboardingInProgress) return;
+    const username = onboardingUsername.value.trim();
+    onboardingErr.classList.remove("show");
+    onboardingSuccess.classList.remove("show");
+
+    if (!username) {
+      onboardingErr.textContent = "Username cannot be empty.";
+      onboardingErr.classList.add("show");
+      return;
+    }
+    if (username.length < 3) {
+      onboardingErr.textContent = "Username must be at least 3 characters.";
+      onboardingErr.classList.add("show");
+      return;
+    }
+
+    onboardingInProgress = true;
+    onboardingSubmit.disabled = true;
+    onboardingBtnText.innerHTML = '<span class="loading-spinner"></span> Checking…';
+
+    try {
+      // Check uniqueness
+      const { data: existing } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
+      if (existing) {
+        onboardingErr.textContent = "This username is already taken. Please choose another.";
+        onboardingErr.classList.add("show");
+        return;
+      }
+
+      // Update the current user's profile
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Session expired. Please refresh the page.");
+
+      const { error: updateError } = await supabase.from("profiles")
+        .update({ username })
+        .eq("id", session.user.id);
+
+      if (updateError) throw updateError;
+
+      // Success
+      onboardingSuccess.textContent = `Welcome, ${username}! Redirecting to the game…`;
+      onboardingSuccess.classList.add("show");
+      onboardingBtnText.innerHTML = "Done!";
+
+      // After 3 seconds, hide modal and redirect to home
+      setTimeout(() => {
+        hideOnboardingModal();
+        window.location.href = "index.html";
+      }, 3000);
+
+    } catch (e) {
+      onboardingErr.textContent = e.message || "An error occurred. Please try again.";
+      onboardingErr.classList.add("show");
+    } finally {
+      onboardingInProgress = false;
+      onboardingSubmit.disabled = false;
+      onboardingBtnText.textContent = "Set username";
+    }
+  });
+
+  // Check on page load if user just came from Google OAuth and needs a username
+  (async function checkOnboarding() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return; // not logged in, nothing to do
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const onboardingFlag = urlParams.get("onboarding");
+
+      if (onboardingFlag === "1") {
+        // Fetch profile to see if username is missing
+        const { data: profile } = await supabase.from("profiles")
+          .select("username")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profile && !profile.username) {
+          // Show forced onboarding modal
+          showOnboardingModal();
+        } else {
+          // Already has a username, just redirect to home
+          window.location.href = "index.html";
+        }
+      }
+      // If no onboarding param, do nothing (normal login page)
+    } catch (e) {
+      console.error("Onboarding check error:", e);
+    }
+  })();
+
 })();
 </script>
 </body>
