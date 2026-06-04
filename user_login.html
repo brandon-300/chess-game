@@ -485,13 +485,12 @@
 
   let onboardingInProgress = false;
 
-  // Populate DOB dropdowns in onboarding (independent of signup)
+  // Populate DOB dropdowns in onboarding
   const onboardCurrentYear = new Date().getFullYear();
   for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; onboardingDobMonth.appendChild(o); }
   for (let y = onboardCurrentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; onboardingDobYear.appendChild(o); }
   function populateOnboardingDays() {
-    const m = parseInt(onboardingDobMonth.value), y = parseInt(onboardingDobYear.value);
-    const days = getDaysInMonth(m||1, y||2000), cur = onboardingDobDay.value ? parseInt(onboardingDobDay.value) : 0;
+    const m = parseInt(onboardingDobMonth.value), y = parseInt(onboardingDobYear.value), days = getDaysInMonth(m||1, y||2000), cur = onboardingDobDay.value ? parseInt(onboardingDobDay.value) : 0;
     onboardingDobDay.innerHTML = '<option value="">Day</option>';
     for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; onboardingDobDay.appendChild(o); }
     if (cur > 0 && cur <= days) onboardingDobDay.value = cur; else onboardingDobDay.value = "";
@@ -507,14 +506,8 @@
     let age = now.getFullYear() - dob.getFullYear();
     const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
     onboardingAge.value = age;
-    if (age < 14) {
-      onboardingAge.classList.add("invalid-age");
-      onboardingAgeError.textContent = "You must be at least 14 years old.";
-      onboardingAgeError.classList.add("show");
-    } else {
-      onboardingAge.classList.remove("invalid-age");
-      onboardingAgeError.classList.remove("show");
-    }
+    if (age < 14) { onboardingAge.classList.add("invalid-age"); onboardingAgeError.textContent = "You must be at least 14 years old."; onboardingAgeError.classList.add("show"); }
+    else { onboardingAge.classList.remove("invalid-age"); onboardingAgeError.classList.remove("show"); }
   }
   onboardingDobDay.addEventListener("change", updateOnboardingAge);
   onboardingDobMonth.addEventListener("change", updateOnboardingAge);
@@ -523,7 +516,6 @@
   function showOnboardingModal() {
     onboardingOverlay.classList.remove("hidden");
     loginContainer.style.opacity = "0.3";
-    // Clear any pre-filled values
     onboardingUsername.value = "";
     onboardingCountry.value = "";
     onboardingDobDay.value = "";
@@ -572,34 +564,21 @@
     onboardingBtnText.innerHTML = '<span class="loading-spinner"></span> Saving…';
 
     try {
-      // Check username uniqueness
       const { data: existing } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
-      if (existing) {
-        onboardingErr.textContent = "This username is already taken. Please choose another.";
-        onboardingErr.classList.add("show");
-        return;
-      }
+      if (existing) { onboardingErr.textContent = "This username is already taken. Please choose another."; onboardingErr.classList.add("show"); return; }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Session expired. Please refresh the page.");
 
       const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-      const { error: updateError } = await supabase.from("profiles")
-        .update({ username, age, dob, country })
-        .eq("id", session.user.id);
-
+      const { error: updateError } = await supabase.from("profiles").update({ username, age, dob, country }).eq("id", session.user.id);
       if (updateError) throw updateError;
 
-      // Success
       onboardingSuccess.textContent = `Welcome, ${username}! Redirecting to the game…`;
       onboardingSuccess.classList.add("show");
       onboardingBtnText.innerHTML = "Done!";
 
-      setTimeout(() => {
-        hideOnboardingModal();
-        window.location.href = "index.html";
-      }, 3000);
-
+      setTimeout(() => { hideOnboardingModal(); window.location.href = "index.html"; }, 3000);
     } catch (e) {
       onboardingErr.textContent = e.message || "An error occurred. Please try again.";
       onboardingErr.classList.add("show");
@@ -610,7 +589,7 @@
     }
   });
 
-  // Page load: check for onboarding flag and missing fields
+  // Page load: check for onboarding flag, auto‑create profile if missing
   (async function checkOnboarding() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -618,19 +597,47 @@
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get("onboarding") === "1") {
-        const { data: profile } = await supabase.from("profiles")
-          .select("username, dob, country")
-          .eq("id", session.user.id)
-          .maybeSingle();
 
-        if (profile) {
-          // If all required fields are present, redirect to home
-          if (profile.username && profile.dob && profile.country) {
-            window.location.href = "index.html";
+        // 1. Try to fetch existing profile
+        let { data: profile } = await supabase.from("profiles").select("username, dob, country, email, full_name, avatar_url").eq("id", session.user.id).maybeSingle();
+
+        // 2. If NO profile exists, create one from Google's metadata
+        if (!profile) {
+          const user = session.user;
+          const fullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+          const avatar = user.user_metadata?.avatar_url || user.user_metadata?.picture || '';
+
+          const { error: insertError } = await supabase.from("profiles").insert({
+            id: user.id,
+            email: user.email,
+            full_name: fullName,
+            avatar_url: avatar,
+          });
+
+          if (insertError) {
+            console.error("Failed to create profile:", insertError);
+            alert("An error occurred while setting up your account. Please try again.");
             return;
           }
+
+          // Re‑fetch the newly created profile
+          const { data: newProfile } = await supabase.from("profiles").select("username, dob, country, email, full_name, avatar_url").eq("id", user.id).maybeSingle();
+          profile = newProfile;
         }
-        // Show onboarding modal – fields are missing
+
+        // 3. If profile still missing (shouldn't happen), abort
+        if (!profile) {
+          console.error("Profile still missing after creation attempt.");
+          return;
+        }
+
+        // 4. If all required fields are present, redirect to home
+        if (profile.username && profile.dob && profile.country) {
+          window.location.href = "index.html";
+          return;
+        }
+
+        // 5. Otherwise show onboarding modal – fields are missing
         showOnboardingModal();
       }
     } catch (e) {
