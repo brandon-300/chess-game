@@ -409,29 +409,42 @@
             const INACTIVITY_LIMIT = 15 * 60 * 1000;
             let inactivityTimer;
 
-            function resetInactivity() { clearTimeout(inactivityTimer); inactivityTimer = setTimeout(handleLogout, INACTIVITY_LIMIT); }
+            // This function is used for inactivity-triggered logout.
+            async function performLogout() {
+                if (currentUserId) await setOnlineStatus(false);
+                stopHeartbeat();
+                clearTimeout(inactivityTimer);
+                await supabase.auth.signOut();
+                window.location.href = "index.html";
+            }
 
-            function setupInactivity() { ['mousemove','keydown','mousedown','touchstart','scroll'].forEach(evt => document.addEventListener(evt, resetInactivity, { passive:true })); resetInactivity(); }
+            function resetInactivity() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(performLogout, INACTIVITY_LIMIT);
+            }
+
+            function setupInactivity() {
+                ['mousemove','keydown','mousedown','touchstart','scroll'].forEach(evt =>
+                    document.addEventListener(evt, resetInactivity, { passive:true })
+                );
+                resetInactivity();
+            }
 
             function startHeartbeat() {
                 heartbeatInterval = setInterval(async () => {
                     if (!currentUserId || document.hidden) return;
-                    await supabase.from('profiles').update({ last_seen: new Date().toISOString(), is_online: true }).eq('id', currentUserId);
+                    await supabase.from('profiles')
+                        .update({ last_seen: new Date().toISOString(), is_online: true })
+                        .eq('id', currentUserId);
                 }, 30000);
             }
             function stopHeartbeat() { clearInterval(heartbeatInterval); }
 
             async function setOnlineStatus(online) {
                 if (!currentUserId) return;
-                await supabase.from('profiles').update({ is_online: online, last_seen: new Date().toISOString() }).eq('id', currentUserId);
-            }
-
-            // We'll replace the original handleLogout with a button-specific version later.
-            async function performLogout() {
-                if (currentUserId) await setOnlineStatus(false);
-                stopHeartbeat(); clearTimeout(inactivityTimer);
-                await supabase.auth.signOut();
-                // Redirection handled by the button click handler
+                await supabase.from('profiles')
+                    .update({ is_online: online, last_seen: new Date().toISOString() })
+                    .eq('id', currentUserId);
             }
 
             function renderProfile(profile) {
@@ -446,7 +459,9 @@
                     lastSeenEl.textContent = 'Online';
                 } else {
                     dot.classList.remove('online');
-                    lastSeenEl.textContent = profile?.last_seen ? 'Last seen: ' + new Date(profile.last_seen).toLocaleString() : 'Last seen: —';
+                    lastSeenEl.textContent = profile?.last_seen
+                        ? 'Last seen: ' + new Date(profile.last_seen).toLocaleString()
+                        : 'Last seen: —';
                 }
 
                 $('displayFullName').textContent = profile?.full_name || '—';
@@ -481,19 +496,30 @@
 
                 if (isEditing) {
                     const saveBtn = document.createElement('button');
-                    saveBtn.className = 'btn primary'; saveBtn.textContent = 'Save'; saveBtn.addEventListener('click', saveProfile);
+                    saveBtn.className = 'btn primary';
+                    saveBtn.textContent = 'Save';
+                    saveBtn.addEventListener('click', saveProfile);
                     const cancelBtn = document.createElement('button');
-                    cancelBtn.className = 'btn'; cancelBtn.textContent = 'Cancel'; cancelBtn.addEventListener('click', cancelEdit);
+                    cancelBtn.className = 'btn';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.addEventListener('click', cancelEdit);
                     container.appendChild(saveBtn);
                     container.appendChild(cancelBtn);
                 } else {
                     const editBtn = document.createElement('button');
-                    editBtn.className = 'btn primary'; editBtn.textContent = 'Edit Profile'; editBtn.addEventListener('click', () => setEditMode(true));
+                    editBtn.className = 'btn primary';
+                    editBtn.textContent = 'Edit Profile';
+                    editBtn.addEventListener('click', () => setEditMode(true));
                     container.appendChild(editBtn);
                 }
             }
 
-            function cancelEdit() { if (originalProfile) renderProfile(originalProfile); setEditMode(false); $('updateErr').classList.remove('show'); $('updateSuccess').classList.remove('show'); }
+            function cancelEdit() {
+                if (originalProfile) renderProfile(originalProfile);
+                setEditMode(false);
+                $('updateErr').classList.remove('show');
+                $('updateSuccess').classList.remove('show');
+            }
 
             async function saveProfile() {
                 const fullName = $('fullNameInput').value.trim();
@@ -502,28 +528,53 @@
                 const age = parseInt($('ageInput').value) || null;
                 const dob = $('dobInput').value;
                 const country = $('countryInput').value.trim();
-                const errEl = $('updateErr'); const successEl = $('updateSuccess');
-                errEl.classList.remove('show'); successEl.classList.remove('show');
-                if (!fullName || !username || !email) { errEl.textContent = 'All fields are required.'; errEl.classList.add('show'); return; }
-                if (age && age < 14) { errEl.textContent = 'You must be at least 14 years old.'; errEl.classList.add('show'); return; }
-                try {
-                    const { data: exist } = await supabase.from('profiles').select('id').eq('username', username).neq('id', currentUserId).maybeSingle();
-                    if (exist) { errEl.textContent = 'Username already taken.'; errEl.classList.add('show'); return; }
+                const errEl = $('updateErr');
+                const successEl = $('updateSuccess');
+                errEl.classList.remove('show');
+                successEl.classList.remove('show');
 
-                    // If email changed, update auth email as well
+                if (!fullName || !username || !email) {
+                    errEl.textContent = 'All fields are required.';
+                    errEl.classList.add('show');
+                    return;
+                }
+                if (age && age < 14) {
+                    errEl.textContent = 'You must be at least 14 years old.';
+                    errEl.classList.add('show');
+                    return;
+                }
+                try {
+                    const { data: exist } = await supabase.from('profiles')
+                        .select('id').eq('username', username).neq('id', currentUserId)
+                        .maybeSingle();
+                    if (exist) {
+                        errEl.textContent = 'Username already taken.';
+                        errEl.classList.add('show');
+                        return;
+                    }
                     if (email !== originalProfile.email) {
                         const { error: authUpdateErr } = await supabase.auth.updateUser({ email });
                         if (authUpdateErr) throw new Error('Failed to update login email: ' + authUpdateErr.message);
                     }
-
-                    const updates = { full_name: fullName, username, email, age: age || null, dob: dob || null, country: country || null };
+                    const updates = {
+                        full_name: fullName,
+                        username,
+                        email,
+                        age: age || null,
+                        dob: dob || null,
+                        country: country || null
+                    };
                     const { error } = await supabase.from('profiles').update(updates).eq('id', currentUserId);
                     if (error) throw error;
                     $('displayFullName').textContent = fullName;
                     $('displayUsername').textContent = '@' + username;
-                    successEl.textContent = 'Profile updated.'; successEl.classList.add('show');
+                    successEl.textContent = 'Profile updated.';
+                    successEl.classList.add('show');
                     setEditMode(false);
-                } catch(e) { errEl.textContent = e.message; errEl.classList.add('show'); }
+                } catch (e) {
+                    errEl.textContent = e.message;
+                    errEl.classList.add('show');
+                }
             }
 
             async function uploadAvatar(file) {
@@ -533,11 +584,12 @@
                     const ext = file.name.split('.').pop();
                     const path = `${currentUserId}-${Date.now()}.${ext}`;
                     const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-                    if (upErr) throw new Error('Upload failed: '+upErr.message);
+                    if (upErr) throw new Error('Upload failed: ' + upErr.message);
                     const { data: url } = supabase.storage.from('avatars').getPublicUrl(path);
                     if (!url?.publicUrl) throw new Error('Could not get URL');
-                    const { error: updateErr } = await supabase.from('profiles').update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
-                    if (updateErr) throw new Error('Update failed: '+updateErr.message);
+                    const { error: updateErr } = await supabase.from('profiles')
+                        .update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
+                    if (updateErr) throw new Error('Update failed: ' + updateErr.message);
                     $('avatarImg').src = url.publicUrl;
                     return url.publicUrl;
                 } finally {
@@ -547,7 +599,10 @@
 
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (!session) { window.location.href = "user_login.html"; return; }
+                if (!session) {
+                    window.location.href = "user_login.html";
+                    return;
+                }
                 currentUserId = session.user.id;
 
                 await setOnlineStatus(true);
@@ -567,7 +622,8 @@
                 });
 
                 const profile = await loadProfile();
-                if (profile) renderProfile(profile); else renderProfile({});
+                if (profile) renderProfile(profile);
+                else renderProfile({});
                 updateHeaderButtons();
 
                 $('pencilBtn').addEventListener('click', () => $('avatarInput').click());
@@ -576,18 +632,23 @@
                     if (!file) return;
                     try {
                         await uploadAvatar(file);
-                        $('updateSuccess').textContent = 'Avatar updated.'; $('updateSuccess').classList.add('show');
-                    } catch(err) { $('updateErr').textContent = err.message; $('updateErr').classList.add('show'); }
-                    finally { e.target.value = ''; }
+                        $('updateSuccess').textContent = 'Avatar updated.';
+                        $('updateSuccess').classList.add('show');
+                    } catch (err) {
+                        $('updateErr').textContent = err.message;
+                        $('updateErr').classList.add('show');
+                    } finally {
+                        e.target.value = '';
+                    }
                 });
 
                 const bottom = $('bottomActions');
 
-                // Logout button with loading spinner & success message
+                // Logout button with loading spinner
                 const logoutBtn = document.createElement('button');
                 logoutBtn.className = 'btn-red';
                 logoutBtn.textContent = 'Logout';
-                logoutBtn.addEventListener('click', async function() {
+                logoutBtn.addEventListener('click', async function () {
                     if (logoutBtn.disabled) return;
                     logoutBtn.disabled = true;
                     const originalHTML = logoutBtn.innerHTML;
@@ -595,7 +656,8 @@
 
                     try {
                         if (currentUserId) await setOnlineStatus(false);
-                        stopHeartbeat(); clearTimeout(inactivityTimer);
+                        stopHeartbeat();
+                        clearTimeout(inactivityTimer);
                         await supabase.auth.signOut();
                         logoutBtn.innerHTML = 'Logged out successfully';
                         setTimeout(() => {
@@ -609,7 +671,7 @@
                     }
                 });
 
-                // Delete account button with loading spinner & success message
+                // Delete account button with loading spinner
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn-red';
                 deleteBtn.style.background = 'transparent';
@@ -626,7 +688,8 @@
 
                     try {
                         await supabase.from('profiles').delete().eq('id', currentUserId);
-                        stopHeartbeat(); clearTimeout(inactivityTimer);
+                        stopHeartbeat();
+                        clearTimeout(inactivityTimer);
 
                         try {
                             await supabase.functions.invoke('delete-user', { body: { user_id: currentUserId } });
@@ -635,7 +698,6 @@
                         }
 
                         await supabase.auth.signOut();
-
                         deleteBtn.innerHTML = 'Account deleted successfully';
                         setTimeout(() => {
                             location.href = "index.html";
@@ -652,7 +714,10 @@
                 bottom.appendChild(deleteBtn);
 
                 document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden) { setOnlineStatus(true); resetInactivity(); }
+                    if (!document.hidden) {
+                        setOnlineStatus(true);
+                        resetInactivity();
+                    }
                 });
             }
 
