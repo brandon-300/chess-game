@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess 3D · Complete Your Profile</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Cropper.js -->
+    <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <style>
@@ -79,6 +82,34 @@
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         #toast.success { border-color: var(--success); color: var(--success); }
         #toast.error { border-color: var(--danger); color: var(--danger); }
+
+        /* Avatar Crop Modal */
+        .avatar-modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 200; justify-content: center; align-items: center;
+        }
+        .avatar-modal.show { display: flex; }
+        .avatar-modal-content {
+            background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
+            padding: 20px; max-width: 90vw; max-height: 90vh;
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .avatar-modal-content h3 { color: var(--accent); text-align: center; }
+        .crop-image-wrapper {
+            max-height: 60vh; overflow: hidden; display: flex; justify-content: center; background: #000;
+        }
+        .crop-image-wrapper img { max-width: 100%; display: block; }
+        .avatar-actions {
+            display: flex; gap: 12px; justify-content: flex-end;
+        }
+        .avatar-actions button {
+            padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
+            cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+            transition: all 0.2s;
+        }
+        .avatar-actions button.primary { background: var(--accent); color: #0a0806; }
+        .avatar-actions button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .avatar-upload-input { display: none; }
     </style>
 </head>
 <body>
@@ -116,9 +147,25 @@
             <label for="country">Country</label>
             <input id="country" type="text" placeholder="Your country" />
         </div>
-        <button class="submit-btn" id="submitBtn">Complete Setup</button>
+        <button class="submit-btn" id="submitBtn">Complete Profile</button>
     </div>
     <div id="toast"></div>
+
+    <!-- Avatar crop modal -->
+    <div class="avatar-modal" id="avatarModal">
+        <div class="avatar-modal-content">
+            <h3>Add a profile picture (optional)</h3>
+            <div class="crop-image-wrapper">
+                <img id="cropImage" src="" alt="" />
+            </div>
+            <div class="avatar-actions">
+                <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
+                <button id="skipAvatarBtn">Skip</button>
+                <button id="finishAvatarBtn" class="primary">Finish</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (() => {
             const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
@@ -128,6 +175,7 @@
 
             let currentUserId = null;
             let currentEmail = '';
+            let cropper = null;
 
             // Toast
             let toastTimer;
@@ -178,6 +226,150 @@
             }
             dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
+            // --- Avatar crop logic ---
+            function openAvatarModal() {
+                $('avatarModal').classList.add('show');
+                if (cropper) { cropper.destroy(); cropper = null; }
+                $('cropImage').src = '';
+                $('avatarInput').value = '';
+                // Trigger file input when the crop area is clicked (a simple label would be better, but we'll reuse pencil style)
+            }
+
+            function closeAvatarModal() {
+                $('avatarModal').classList.remove('show');
+                if (cropper) { cropper.destroy(); cropper = null; }
+            }
+
+            $('avatarInput').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (cropper) { cropper.destroy(); cropper = null; }
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    $('cropImage').src = ev.target.result;
+                    cropper = new Cropper($('cropImage'), {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 1,
+                        cropBoxResizable: false,
+                        background: false
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Click on crop wrapper to trigger file select
+            $('cropImage').addEventListener('click', () => $('avatarInput').click());
+
+            // --- Handle save profile with/without avatar ---
+            async function saveProfileAndRedirect(avatarUrl = null) {
+                const fn = $("firstName").value.trim();
+                const ln = $("lastName").value.trim();
+                const username = $("username").value.trim();
+                const country = $("country").value.trim();
+                const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+                const age = parseInt(ageField.value,10);
+                const fullName = `${fn} ${ln}`;
+                const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+
+                const updates = {
+                    id: currentUserId,
+                    username,
+                    full_name: fullName,
+                    age,
+                    dob,
+                    country,
+                    email: currentEmail,
+                };
+                if (avatarUrl) updates.avatar_url = avatarUrl;
+
+                setButtonLoading($("submitBtn"), true, 'Saving…');
+                const { error } = await supabase.from("profiles").upsert(updates, { onConflict: 'id' });
+                if (error) {
+                    showToast("Error saving profile: " + error.message, "error");
+                    setButtonLoading($("submitBtn"), false);
+                    return false;
+                }
+                return true;
+            }
+
+            async function finishWithAvatar() {
+                if (!cropper) {
+                    showToast("Please select a picture or click Skip.", "error");
+                    return;
+                }
+                const finishBtn = $("finishAvatarBtn");
+                setButtonLoading(finishBtn, true, 'Uploading…');
+                try {
+                    const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+
+                    const path = `${currentUserId}-${Date.now()}.webp`;
+                    const { error: uploadErr } = await supabase.storage
+                        .from('avatars')
+                        .upload(path, blob, { contentType: 'image/webp', upsert: true });
+                    if (uploadErr) throw new Error('Upload failed: ' + uploadErr.message);
+
+                    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+                    const avatarUrl = urlData.publicUrl;
+
+                    closeAvatarModal();
+                    const ok = await saveProfileAndRedirect(avatarUrl);
+                    if (ok) {
+                        showToast("Profile complete!", "success");
+                        setTimeout(() => { window.location.href = "welcome.html"; }, 1500);
+                    }
+                } catch (err) {
+                    showToast(err.message, "error");
+                } finally {
+                    setButtonLoading(finishBtn, false);
+                }
+            }
+
+            async function skipAvatar() {
+                closeAvatarModal();
+                const ok = await saveProfileAndRedirect(null);
+                if (ok) {
+                    showToast("Profile complete!", "success");
+                    setTimeout(() => { window.location.href = "welcome.html"; }, 1500);
+                }
+            }
+
+            // --- Form submission opens avatar modal ---
+            $("submitBtn").addEventListener("click", () => {
+                const fn = $("firstName").value.trim();
+                const ln = $("lastName").value.trim();
+                const username = $("username").value.trim();
+                const country = $("country").value.trim();
+                const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+                const age = parseInt(ageField.value,10);
+
+                if (!fn || !ln || !username || !country || !day || !month || !year) {
+                    showToast("All fields are required.", "error");
+                    return;
+                }
+                if (age < 14) {
+                    showToast("You must be at least 14 years old.", "error");
+                    return;
+                }
+                // Username uniqueness check
+                (async () => {
+                    const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).neq("id", currentUserId).maybeSingle();
+                    if (exist) {
+                        showToast("Username already taken.", "error");
+                        return;
+                    }
+                    openAvatarModal();
+                })();
+            });
+
+            $("skipAvatarBtn").addEventListener("click", skipAvatar);
+            $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
+
+            // Close modal if background clicked (optional, but keep simple: user must use buttons)
+            // Not adding background click to prevent accidental close.
+
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
@@ -188,71 +380,14 @@
                 currentEmail = session.user.email || '';
                 $("emailField").value = currentEmail;
 
-                // Pre-fill from auth metadata if available (for OAuth, but won't hurt)
+                // If profile already complete, skip to welcome
                 const { data: profile } = await supabase.from("profiles").select("*").eq("id", currentUserId).maybeSingle();
                 if (profile && profile.username) {
-                    // Profile already complete, redirect to welcome
                     window.location.href = "welcome.html";
                     return;
                 }
 
-                // Pre-fill name if available from metadata (Google OAuth, etc.)
-                const meta = session.user.user_metadata;
-                if (meta?.full_name) {
-                    const parts = meta.full_name.split(' ');
-                    $("firstName").value = parts[0] || '';
-                    $("lastName").value = parts.slice(1).join(' ') || '';
-                }
-
-                $("submitBtn").addEventListener("click", async () => {
-                    const fn = $("firstName").value.trim();
-                    const ln = $("lastName").value.trim();
-                    const username = $("username").value.trim();
-                    const country = $("country").value.trim();
-                    const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
-                    const age = parseInt(ageField.value,10);
-
-                    if (!fn || !ln || !username || !country || !day || !month || !year) {
-                        showToast("All fields are required.", "error");
-                        return;
-                    }
-                    if (age < 14) {
-                        showToast("You must be at least 14 years old.", "error");
-                        return;
-                    }
-
-                    // Check username uniqueness
-                    const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).neq("id", currentUserId).maybeSingle();
-                    if (exist) {
-                        showToast("Username already taken.", "error");
-                        return;
-                    }
-
-                    setButtonLoading($("submitBtn"), true, 'Saving…');
-                    const fullName = `${fn} ${ln}`;
-                    const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                    const { error: updateErr } = await supabase.from("profiles").upsert({
-                        id: currentUserId,
-                        username,
-                        full_name: fullName,
-                        age,
-                        dob,
-                        country,
-                        email: currentEmail,
-                    }, { onConflict: 'id' });
-
-                    if (updateErr) {
-                        showToast("Error saving profile: " + updateErr.message, "error");
-                        setButtonLoading($("submitBtn"), false);
-                        return;
-                    }
-
-                    showToast("Profile complete!", "success");
-                    // Redirect to welcome after short delay
-                    setTimeout(() => {
-                        window.location.href = "welcome.html";
-                    }, 1500);
-                });
+                // Leave name fields empty – no pre-fill
             }
 
             document.addEventListener("DOMContentLoaded", init);
