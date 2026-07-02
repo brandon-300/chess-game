@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess 3D · Complete Your Profile</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <style>
+        :root {
+            --bg:#0a0806; --card:rgba(20,14,8,.95); --panel:rgba(16,10,6,.98);
+            --accent:#c9a84c; --accent2:#7a6230;
+            --text:#f0e6ce; --muted:#6b5f4e; --border:rgba(201,168,76,.22);
+            --danger:#cc0000; --success:#2ed573;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .container {
+            width: 100%; max-width: 440px;
+            background: rgba(16,10,6,.70); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 4px; padding: 32px 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,.5);
+        }
+        h2 {
+            font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 700;
+            margin-bottom: 20px; text-align: center; color: var(--accent); letter-spacing: .02em;
+        }
+        .field { margin-bottom: 16px; }
+        .field label {
+            display: block; font-size: 11px; color: var(--accent2); margin-bottom: 6px; font-weight: 500;
+            letter-spacing: .05em;
+        }
+        .field input, .field select {
+            width: 100%; padding: 12px 14px; border-radius: 4px;
+            background: var(--panel); border: 1px solid var(--border);
+            color: var(--text); font-size: 16px; outline: none;
+            transition: border-color .15s; font-family: inherit;
+        }
+        .field input:focus, .field select:focus { border-color: var(--accent); }
+        .field input[readonly] { opacity: 0.8; cursor: default; }
+        .dob-row { display: flex; gap: 8px; }
+        .dob-row select {
+            flex: 1; padding: 12px 8px; border-radius: 4px; background: var(--panel);
+            border: 1px solid var(--border); color: var(--text); font-size: 16px; outline: none;
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b5f4e'><path d='M7 10l5 5 5-5z'/></svg>");
+            background-repeat: no-repeat; background-position: right 8px center; padding-right: 30px;
+            font-family: inherit;
+        }
+        .submit-btn {
+            width: 100%; padding: 14px; border: none; border-radius: 4px;
+            background: var(--accent); color: #0a0806; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: filter .15s; margin-top: 8px;
+            font-family: inherit; letter-spacing: .02em;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .submit-btn:hover:not(:disabled) { filter: brightness(1.08); }
+        .loading-spinner {
+            width: 18px; height: 18px; border: 2px solid transparent;
+            border-top-color: #0a0806; border-radius: 50%; animation: spin 0.7s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: var(--card); color: var(--text); border: 1px solid var(--border);
+            padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
+            opacity: 0; pointer-events: none; z-index: 9999;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast.success { border-color: var(--success); color: var(--success); }
+        #toast.error { border-color: var(--danger); color: var(--danger); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Complete Your Profile</h2>
+        <div class="field">
+            <label>Email</label>
+            <input id="emailField" type="email" readonly />
+        </div>
+        <div class="field">
+            <label for="firstName">First name</label>
+            <input id="firstName" type="text" placeholder="First name" />
+        </div>
+        <div class="field">
+            <label for="lastName">Last name</label>
+            <input id="lastName" type="text" placeholder="Last name" />
+        </div>
+        <div class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" placeholder="Choose a username" />
+        </div>
+        <div class="field">
+            <label>Date of birth</label>
+            <div class="dob-row">
+                <select id="dobDay"><option value="">Day</option></select>
+                <select id="dobMonth"><option value="">Month</option></select>
+                <select id="dobYear"><option value="">Year</option></select>
+            </div>
+        </div>
+        <div class="field">
+            <label for="ageField">Age (auto-calculated)</label>
+            <input id="ageField" type="text" readonly placeholder="From date of birth" />
+        </div>
+        <div class="field">
+            <label for="country">Country</label>
+            <input id="country" type="text" placeholder="Your country" />
+        </div>
+        <button class="submit-btn" id="submitBtn">Complete Setup</button>
+    </div>
+    <div id="toast"></div>
+    <script>
+        (() => {
+            const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
+            const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const $ = id => document.getElementById(id);
+
+            let currentUserId = null;
+            let currentEmail = '';
+
+            // Toast
+            let toastTimer;
+            function showToast(msg, type = 'success') {
+                const toast = $('toast');
+                toast.textContent = msg;
+                toast.className = type;
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+
+            // Button loading
+            function setButtonLoading(btn, loading, label) {
+                if (loading) {
+                    btn._originalHTML = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = `<span class="loading-spinner"></span> ${label || ''}`;
+                } else {
+                    btn.innerHTML = btn._originalHTML || btn.innerHTML;
+                    btn.disabled = false;
+                    delete btn._originalHTML;
+                }
+            }
+
+            // DOB setup
+            const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
+            const ageField = $("ageField");
+            const currentYear = new Date().getFullYear();
+            const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+            for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; dobMonth.appendChild(o); }
+            for (let y = currentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; dobYear.appendChild(o); }
+            function getDaysInMonth(m, y) { if (!m || !y) return 31; return new Date(y, m, 0).getDate(); }
+            function populateDays() {
+                const m = parseInt(dobMonth.value), y = parseInt(dobYear.value), days = getDaysInMonth(m||1, y||2000), cur = dobDay.value ? parseInt(dobDay.value) : 0;
+                dobDay.innerHTML = '<option value="">Day</option>';
+                for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; dobDay.appendChild(o); }
+                if (cur > 0 && cur <= days) dobDay.value = cur; else dobDay.value = "";
+            }
+            dobMonth.addEventListener("change", populateDays); dobYear.addEventListener("change", populateDays); populateDays();
+            function updateAgeField() {
+                const d = parseInt(dobDay.value), m = parseInt(dobMonth.value), y = parseInt(dobYear.value);
+                if (!d || !m || !y) { ageField.value = ""; return; }
+                const dob = new Date(y, m-1, d), now = new Date();
+                let age = now.getFullYear() - dob.getFullYear();
+                const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
+                ageField.value = age;
+            }
+            dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
+
+            async function init() {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = "user_login.html";
+                    return;
+                }
+                currentUserId = session.user.id;
+                currentEmail = session.user.email || '';
+                $("emailField").value = currentEmail;
+
+                // Pre-fill from auth metadata if available (for OAuth, but won't hurt)
+                const { data: profile } = await supabase.from("profiles").select("*").eq("id", currentUserId).maybeSingle();
+                if (profile && profile.username) {
+                    // Profile already complete, redirect to welcome
+                    window.location.href = "welcome.html";
+                    return;
+                }
+
+                // Pre-fill name if available from metadata (Google OAuth, etc.)
+                const meta = session.user.user_metadata;
+                if (meta?.full_name) {
+                    const parts = meta.full_name.split(' ');
+                    $("firstName").value = parts[0] || '';
+                    $("lastName").value = parts.slice(1).join(' ') || '';
+                }
+
+                $("submitBtn").addEventListener("click", async () => {
+                    const fn = $("firstName").value.trim();
+                    const ln = $("lastName").value.trim();
+                    const username = $("username").value.trim();
+                    const country = $("country").value.trim();
+                    const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+                    const age = parseInt(ageField.value,10);
+
+                    if (!fn || !ln || !username || !country || !day || !month || !year) {
+                        showToast("All fields are required.", "error");
+                        return;
+                    }
+                    if (age < 14) {
+                        showToast("You must be at least 14 years old.", "error");
+                        return;
+                    }
+
+                    // Check username uniqueness
+                    const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).neq("id", currentUserId).maybeSingle();
+                    if (exist) {
+                        showToast("Username already taken.", "error");
+                        return;
+                    }
+
+                    setButtonLoading($("submitBtn"), true, 'Saving…');
+                    const fullName = `${fn} ${ln}`;
+                    const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                    const { error: updateErr } = await supabase.from("profiles").upsert({
+                        id: currentUserId,
+                        username,
+                        full_name: fullName,
+                        age,
+                        dob,
+                        country,
+                        email: currentEmail,
+                    }, { onConflict: 'id' });
+
+                    if (updateErr) {
+                        showToast("Error saving profile: " + updateErr.message, "error");
+                        setButtonLoading($("submitBtn"), false);
+                        return;
+                    }
+
+                    showToast("Profile complete!", "success");
+                    // Redirect to welcome after short delay
+                    setTimeout(() => {
+                        window.location.href = "welcome.html";
+                    }, 1500);
+                });
+            }
+
+            document.addEventListener("DOMContentLoaded", init);
+        })();
+    </script>
+</body>
+</html>
