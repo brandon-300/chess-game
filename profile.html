@@ -79,10 +79,14 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .user-info { flex: 1; }
         .user-info h2 { font-size: 24px; margin-bottom: 4px; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
-        .user-info .username { color: var(--muted); font-size: 14px; }
+        .user-info .username {
+            color: var(--muted); font-size: 14px;
+            text-align: center;   /* centered */
+        }
         .last-seen {
             color: var(--muted); font-size: 12px; margin-top: 8px;
             display: flex; align-items: center; gap: 6px;
+            justify-content: center;   /* centered */
         }
         .status-dot-inline {
             width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
@@ -114,6 +118,16 @@
         .btn-red:hover { filter: brightness(1.1); }
         .btn-red:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
         .avatar-upload-input { display: none; }
+
+        /* Button spinner */
+        .btn-spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+        }
 
         /* Crop modal */
         .crop-modal {
@@ -255,6 +269,19 @@
                 toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3000);
             }
 
+            // --- Button loading helper ---
+            function setButtonLoading(btn, loading, label) {
+                if (loading) {
+                    btn._originalHTML = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = `<span class="btn-spinner"></span> ${label || ''}`;
+                } else {
+                    btn.innerHTML = btn._originalHTML || btn.innerHTML;
+                    btn.disabled = false;
+                    delete btn._originalHTML;
+                }
+            }
+
             // --- Online / Heartbeat ---
             async function performLogout() {
                 if (currentUserId) await setOnlineStatus(false);
@@ -341,7 +368,11 @@
                     const saveBtn = document.createElement('button');
                     saveBtn.className = 'btn primary';
                     saveBtn.textContent = 'Save';
-                    saveBtn.addEventListener('click', saveProfile);
+                    saveBtn.addEventListener('click', async () => {
+                        setButtonLoading(saveBtn, true, 'Saving…');
+                        await saveProfile();
+                        setButtonLoading(saveBtn, false);
+                    });
                     const cancelBtn = document.createElement('button');
                     cancelBtn.className = 'btn';
                     cancelBtn.textContent = 'Cancel';
@@ -436,8 +467,7 @@
             async function handleCropConfirm() {
                 if (!cropper) return;
                 const confirmBtn = $('confirmCropBtn');
-                confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<span class="loading-spinner"></span> Uploading…';
+                setButtonLoading(confirmBtn, true, 'Uploading…');
 
                 try {
                     const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
@@ -466,8 +496,7 @@
                 } catch (err) {
                     showToast(err.message, 'error');
                 } finally {
-                    confirmBtn.disabled = false;
-                    confirmBtn.innerHTML = 'Crop & Save';
+                    setButtonLoading(confirmBtn, false);
                 }
             }
 
@@ -520,21 +549,18 @@
                 const logoutBtn = document.createElement('button');
                 logoutBtn.className = 'btn-red';
                 logoutBtn.textContent = 'Logout';
-                logoutBtn.addEventListener('click', async function () {
+                logoutBtn.addEventListener('click', async () => {
                     if (logoutBtn.disabled) return;
-                    logoutBtn.disabled = true;
-                    const originalHTML = logoutBtn.innerHTML;
-                    logoutBtn.innerHTML = '<span class="loading-spinner"></span> Logging out...';
+                    setButtonLoading(logoutBtn, true, 'Logging out…');
                     try {
                         if (currentUserId) await setOnlineStatus(false);
                         stopHeartbeat();
                         clearTimeout(inactivityTimer);
                         await supabase.auth.signOut();
-                        logoutBtn.innerHTML = 'Logged out successfully';
-                        setTimeout(() => { window.location.href = "index.html"; }, 2000);
+                        // Keep spinner until redirect
+                        setTimeout(() => { window.location.href = "index.html"; }, 1500);
                     } catch (e) {
-                        logoutBtn.disabled = false;
-                        logoutBtn.innerHTML = originalHTML;
+                        setButtonLoading(logoutBtn, false);
                         showToast('Logout failed: ' + (e.message || 'Unknown error'), 'error');
                     }
                 });
@@ -550,9 +576,7 @@
                     if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
                     if (!confirm('Final confirmation: delete your account?')) return;
 
-                    deleteBtn.disabled = true;
-                    const originalHTML = deleteBtn.innerHTML;
-                    deleteBtn.innerHTML = '<span class="loading-spinner"></span> Deleting account...';
+                    setButtonLoading(deleteBtn, true, 'Deleting…');
                     try {
                         await supabase.from('profiles').delete().eq('id', currentUserId);
                         stopHeartbeat();
@@ -566,8 +590,7 @@
                         deleteBtn.innerHTML = 'Account deleted successfully';
                         setTimeout(() => { location.href = "index.html"; }, 2000);
                     } catch (e) {
-                        deleteBtn.disabled = false;
-                        deleteBtn.innerHTML = originalHTML;
+                        setButtonLoading(deleteBtn, false);
                         showToast('Delete failed: ' + (e.message || 'Unknown error'), 'error');
                     }
                 });
