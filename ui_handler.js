@@ -5,18 +5,13 @@ import * as engine from './game_engine.js';
 let els = {};
 let callbacks = {};
 let toastTimer = null;
-let chatNotificationTimer = null;
-let isChatOpen = false;
-
-let knownMessageIds = new Set();
-let notifiedMessageIds = new Set();
 
 export function initUI(cb) {
     callbacks = cb;
     cacheElements();
     attachListeners();
     if (els.debugOverlay) els.debugOverlay.textContent = 'Loading...';
-    setChatVisibility(false);
+    setVoiceControlsVisibility(false);
 }
 
 function cacheElements() {
@@ -31,9 +26,9 @@ function cacheElements() {
         'gu', 'top', 'bot',
         'tdot', 'tlbl', 'smsg',
         'tmrW', 'tmrB', 'tvW', 'tvB',
-        'thkstrip', 'chat-toggle-btn', 'chat-box', 'chat-messages', 'chat-input', 'btn-send-chat',
+        'thkstrip', 'voice-controls', 'mic-toggle-btn', 'speaker-toggle-btn', 'voice-status',
         'go', 'got', 'gos', 'go-btns',
-        'pm', 'po', 'toast', 'chat-notification',
+        'pm', 'po', 'toast',
         'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel',
         'delete-confirm-panel', 'exit-online-panel',
         'new-game-btn', 'undo-btn', 'mode-btn',
@@ -121,9 +116,8 @@ function attachListeners() {
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    if (els['chat-toggle-btn']) els['chat-toggle-btn'].addEventListener('click', () => toggleChat());
-    if (els['btn-send-chat']) els['btn-send-chat'].addEventListener('click', () => sendChatFromInput());
-    if (els['chat-input']) els['chat-input'].addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatFromInput(); });
+    if (els['mic-toggle-btn']) els['mic-toggle-btn'].addEventListener('click', () => callbacks.onToggleMic && callbacks.onToggleMic());
+    if (els['speaker-toggle-btn']) els['speaker-toggle-btn'].addEventListener('click', () => callbacks.onToggleSpeaker && callbacks.onToggleSpeaker());
 
     btn('btn-restore-ai', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestoreAI) callbacks.onRestoreAI(); });
     btn('btn-restore-2p', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestore2P) callbacks.onRestore2P(); });
@@ -135,55 +129,33 @@ function attachListeners() {
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
-function sendChatFromInput() {
-    const input = els['chat-input'];
-    if (!input) return;
-    const msg = input.value.trim();
-    if (msg) { callbacks.onSendChat(msg); input.value = ''; }
+// ---------- Voice ----------
+export function setVoiceControlsVisibility(visible) {
+    if (els['voice-controls']) els['voice-controls'].style.display = visible ? '' : 'none';
+    if (!visible) resetVoiceState();
 }
-
-// ---------- Chat ----------
-export function toggleChat() {
-    isChatOpen = !isChatOpen;
-    if (els['chat-box']) { els['chat-box'].classList.toggle('show', isChatOpen); }
+export function setMicState(on) {
+    const btn = els['mic-toggle-btn']; if (!btn) return;
+    btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on);
 }
-export function showChatNotification(senderName) {
-    const el = els['chat-notification']; if (!el) return;
-    el.textContent = senderName + ' sent you a message'; el.classList.add('show');
-    clearTimeout(chatNotificationTimer);
-    chatNotificationTimer = setTimeout(() => el.classList.remove('show'), 3000);
+export function setSpeakerState(on) {
+    const btn = els['speaker-toggle-btn']; if (!btn) return;
+    btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on);
 }
-export function displayChatMessages(messages) {
-    const box = els['chat-messages']; if (!box) return;
-    let added = false;
-    for (const msg of messages) {
-        const id = String(msg.id); if (!id || id === 'undefined') continue;
-        if (!knownMessageIds.has(id)) {
-            knownMessageIds.add(id);
-            appendChatMessage(msg.nickname, msg.message, false);
-            maybeShowNotification(id, msg.nickname);
-            added = true;
-        }
-    }
-    if (added) box.scrollTop = box.scrollHeight;
-}
-export function appendChatMessage(nickname, msg, skipNotification = false) {
-    const box = els['chat-messages']; if (!box) return;
-    const div = document.createElement('div'); div.innerHTML = `<b>${nickname}:</b> ${msg}`;
-    box.appendChild(div); box.scrollTop = box.scrollHeight;
-}
-export function registerOwnMessage(id) {
-    const strId = String(id); if (!strId || strId === 'undefined') return;
-    knownMessageIds.add(strId); notifiedMessageIds.add(strId);
-}
-export function maybeShowNotification(id, nickname) {
-    const strId = String(id); if (!strId || strId === 'undefined') return;
-    if (!notifiedMessageIds.has(strId)) {
-        notifiedMessageIds.add(strId);
-        if (!isChatOpen) showChatNotification(nickname);
+export function setOpponentTalking(talking, nickname) {
+    const el = els['voice-status']; if (!el) return;
+    if (talking && nickname) {
+        el.innerHTML = `<span class="spk-ic">🔊</span> ${nickname} is talking`;
+        el.classList.add('show');
+    } else {
+        el.classList.remove('show');
     }
 }
-export function resetChatState() { knownMessageIds.clear(); notifiedMessageIds.clear(); if (els['chat-messages']) els['chat-messages'].innerHTML = ''; }
+export function resetVoiceState() {
+    setMicState(false);
+    setSpeakerState(true);
+    setOpponentTalking(false, '');
+}
 
 // ---------- Panel helpers ----------
 export function showPanel(panelId) { hideAllPanels(); const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
@@ -199,10 +171,9 @@ export function showMenu() {
     if (els['main-cards']) els['main-cards'].style.display = 'flex';
     if (els['original-buttons']) els['original-buttons'].style.display = '';
     setOnlineBottomButtons(false); hideAllPanels();
-    isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show');
 }
 export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; }
-export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show'); }
+export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; }
 export function hideGameOver() { if (els['go']) els['go'].classList.remove('on'); }
 
 export function updateHeaderUI(userId, avatarUrl) {
@@ -237,11 +208,6 @@ export function updateThinkingIndicator(thinking) {
     if (!els['smsg'] || !els['thkstrip']) return;
     els['smsg'].textContent = thinking ? 'Thinking…' : '';
     if (thinking) els['thkstrip'].classList.add('on'); else els['thkstrip'].classList.remove('on');
-}
-export function setChatVisibility(visible) {
-    const toggle = els['chat-toggle-btn']?.parentElement;
-    if (toggle) toggle.style.display = visible ? '' : 'none';
-    if (!visible) { isChatOpen = false; if (els['chat-box']) els['chat-box'].classList.remove('show'); resetChatState(); }
 }
 export function setOnlineBottomButtons(isOnline) {
     if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
