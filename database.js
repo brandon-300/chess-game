@@ -169,20 +169,24 @@ export async function getFrozenGameForUser(userId) {
     return data;
 }
 
-// ---------- Chat ----------
-export async function getChatMessages(gameId) {
-    if (!sb) return [];
-    const { data } = await sb.from('chat_messages').select('*').eq('game_id', gameId).order('id', { ascending: true });
-    return data || [];
+// ---------- Voice signaling (Realtime Broadcast) ----------
+// Ephemeral WebRTC offer/answer/ICE relay for the in-match voice call.
+// Nothing here is persisted — it's just a pub/sub pipe scoped to one game.
+export function subscribeVoiceSignal(gameId, onSignal) {
+    if (!sb) return null;
+    const channel = sb.channel('voice_' + gameId, { config: { broadcast: { self: false } } });
+    channel.on('broadcast', { event: 'signal' }, (msg) => onSignal(msg.payload));
+    channel.subscribe();
+    return channel;
 }
 
-export async function sendChatMessage(gameId, playerId, nickname, message) {
-    if (!sb) return null;
-    const { data, error } = await sb.from('chat_messages')
-        .insert({ game_id: gameId, player_id: playerId, nickname, message })
-        .select().single();
-    if (error) { console.error('sendChatMessage error:', error); return null; }
-    return data;
+export function sendVoiceSignal(channel, payload) {
+    if (!channel) return;
+    channel.send({ type: 'broadcast', event: 'signal', payload });
+}
+
+export function unsubscribeVoiceSignal(channel) {
+    if (channel && sb) sb.removeChannel(channel);
 }
 
 // ---------- Offline backup sync ----------
