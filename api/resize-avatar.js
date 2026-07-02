@@ -1,8 +1,9 @@
+// /api/resize-avatar.js
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
 export const config = {
-  api: { bodyParser: false },
+  api: { bodyParser: false },   // we handle the multipart form ourselves
 };
 
 const supabase = createClient(
@@ -16,72 +17,53 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Read the raw body
+    // Parse the multipart form data
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
     }
     const buffer = Buffer.concat(chunks);
 
-    // Get boundary
+    // We used a simple FormData, so we need to extract the file from the raw buffer.
+    // A lightweight approach: use the content‑type boundary to parse.
     const contentType = req.headers['content-type'] || '';
     const boundary = contentType.split('boundary=')[1];
-    if (!boundary) {
-      return res.status(400).json({ error: 'No boundary found in content-type' });
-    }
+    if (!boundary) throw new Error('No boundary found');
 
-    // Split parts
+    // Find the file part (the second part after "Content-Type: image/webp")
+    // This is a minimal parser for a two‑field form (file + userId)
     const parts = buffer.toString('binary').split('--' + boundary);
-    let fileBuffer = null;
-    let userId = null;
+    const filePart = parts.find(p => p.includes('Content-Type: image/webp'));
+    if (!filePart) throw new Error('File part not found');
 
-    for (const part of parts) {
-      if (part.includes('Content-Disposition')) {
-        if (part.includes('name="file"')) {
-          // Extract binary data after double CRLF
-          const dataStart = part.indexOf('\r\n\r\n');
-          if (dataStart === -1) continue;
-          const raw = part.slice(dataStart + 4);
-          // Remove trailing \r\n before the next boundary or end
-          fileBuffer = Buffer.from(raw.replace(/\r\n$/, ''), 'binary');
-        }
-        if (part.includes('name="userId"')) {
-          const dataStart = part.indexOf('\r\n\r\n');
-          if (dataStart !== -1) {
-            userId = part.slice(dataStart + 4).trim();
-          }
-        }
-      }
-    }
+    // Extract the binary data after the double CRLF
+    const binaryStart = filePart.indexOf('\r\n\r\n') + 4;
+    const fileBuffer = Buffer.from(filePart.slice(binaryStart, filePart.lastIndexOf('\r\n')), 'binary');
 
-    if (!fileBuffer) {
-      return res.status(400).json({ error: 'No file found in request' });
-    }
-    if (!userId) {
-      return res.status(400).json({ error: 'No userId found in request' });
-    }
+    // Extract the userId from the other part
+    const userIdPart = parts.find(p => p.includes('name="userId"'));
+    const userIdMatch = userIdPart?.match(/^\d+\r\n([a-zA-Z0-9-]+)/m);
+    const userId = userIdMatch ? userIdMatch[1] : 'unknown';
 
-    // Resize with Sharp
+    // Resize to exactly 256x256
     const resized = await sharp(fileBuffer)
       .resize(256, 256, { fit: 'cover' })
       .webp({ quality: 85 })
       .toBuffer();
 
-    // Upload to Supabase
+    // Upload to Supabase Storage
     const path = `${userId}-${Date.now()}.webp`;
     const { error } = await supabase.storage
       .from('avatars')
       .upload(path, resized, { contentType: 'image/webp', upsert: true });
 
-    if (error) {
-      console.error('Supabase upload error:', error);
-      return res.status(500).json({ error: error.message });
-    }
+    if (error) throw error;
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    return res.status(200).json({ url: data.publicUrl });
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+
+    return res.status(200).json({ url: publicUrl });
   } catch (err) {
-    console.error('Function error:', err);
-    return res.status(500).json({ error: err.message || 'Internal error' });
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 }
