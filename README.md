@@ -29,7 +29,7 @@ It supports three ways to play:
   - Countdown-to-start sequence
   - Rematch requests after a game ends
   - Leave/forfeit confirmation and reconnect handling for dropped connections
-- 💬 **In-game chat** during online matches, with a toast/notification system for new messages
+- 🎙️ **Real-time voice chat** between players during online matches (peer-to-peer WebRTC audio, no typing needed — just talk)
 - 🔐 **Accounts via Supabase Auth** — sign up, log in, forgot/reset password, and a profile page with an avatar
 - ⏱️ **Per-player move timers** with a low-time visual warning
 - ♛ **Pawn promotion** picker
@@ -44,6 +44,7 @@ It supports three ways to play:
 |---|---|
 | 3D rendering | [Three.js](https://threejs.org/) (r128) |
 | Game logic / UI | Vanilla JavaScript (ES modules), HTML5, CSS3 — no framework, no build tooling |
+| Voice chat | WebRTC (peer-to-peer audio), signaled over Supabase Realtime |
 | Backend / data | [Supabase](https://supabase.com) — Auth, Postgres database, Realtime |
 | Hosting | [Vercel](https://vercel.com) |
 | Fonts | Cinzel & Cormorant Garamond (Google Fonts) |
@@ -57,7 +58,7 @@ chess-game/
 ├── game_engine.js         # Core chess rules: move generation/validation, game state, AI logic
 ├── ui_handler.js          # DOM & 3D scene glue — rendering, input handling, animations, panels
 ├── config.js               # App/Supabase configuration (project URL & public anon key)
-├── database.js            # Supabase queries — auth, profile, save/restore, online rooms & chat
+├── database.js            # Supabase queries — auth, profile, save/restore, online rooms & voice-call signaling
 ├── user_login.html        # Sign in / sign up page
 ├── forgot_password.html   # Request a password reset email
 ├── reset_password.html    # Set a new password from the reset link
@@ -82,7 +83,9 @@ cd chess-game
 3. Set up the tables/columns that `database.js` expects (profiles, saved games, online rooms, chat/call logs, etc.) to match the queries in that file.
 4. Copy your **Project URL** and **anon public key** into `config.js`.
 
-> Local two-player and vs-AI modes will work without Supabase configured; accounts, cloud save/restore, and online multiplayer require it.
+> Local two-player and vs-AI modes will work without Supabase configured; accounts, cloud save/restore, and online multiplayer (including voice chat) require it.
+
+> Voice chat uses WebRTC, with signaling passed over a Supabase Realtime channel. It requires microphone permission and a working STUN/TURN setup for players on restrictive networks (e.g. mobile carriers) to connect to each other.
 
 ### 3. Serve the project locally
 
@@ -110,7 +113,7 @@ The project is a static site, so it deploys as-is to any static host. The live d
 4. **Online** — sign in, then either:
    - Join or create a **Public Room** to be matched with another player, or
    - Create or join a **Private Room** using a room code to play with someone specific.
-5. Use the in-game chat bubble to message your opponent during an online match.
+5. Grant microphone permission when prompted so you can talk to your opponent live during an online match.
 6. Tap the board to select and move pieces; promote pawns via the on-screen picker when they reach the final rank.
 7. Save progress, restore a previous game, or sync your offline data to the cloud from the main menu buttons.
 
