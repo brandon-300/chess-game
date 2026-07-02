@@ -504,7 +504,8 @@
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
-                    window.location.href = "user_login.html";
+                    // ✅ Redirect to login with a return path
+                    window.location.href = "user_login.html?redirect=" + encodeURIComponent(window.location.pathname);
                     return;
                 }
                 currentUserId = session.user.id;
