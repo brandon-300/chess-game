@@ -411,7 +411,7 @@
 
   function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
 
-  // --- Redirect logic ---
+  // --- Redirect logic (only for email/password login) ---
   function getRedirectUrl() {
     const params = new URLSearchParams(window.location.search);
     const redirect = params.get('redirect');
@@ -419,11 +419,6 @@
       return redirect;
     }
     return 'index.html';
-  }
-  function getFinalRedirectPath() {
-    let path = getRedirectUrl();
-    if (path.startsWith('/')) path = path.substring(1);
-    return path;
   }
 
   // --- Check if already logged in ---
@@ -450,12 +445,11 @@
     } catch(e) { showToast(e.message || "Login failed.", "error"); setButtonLoading(btn, false); }
   });
 
-  // ---- OAuth helpers ----
+  // ---- OAuth helpers (now always redirect to onboarding) ----
   async function handleOAuthLogin(provider, btn) {
     setButtonLoading(btn, true, 'Redirecting…');
     try {
-      const finalPath = getFinalRedirectPath();
-      const redirectUrl = window.location.origin + "/" + finalPath;
+      const redirectUrl = window.location.origin + "/onboarding.html";
       const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl } });
       if (error) throw error;
     } catch(e) { showToast(e.message || `${provider} authentication failed.`, "error"); setButtonLoading(btn, false); }
@@ -474,7 +468,7 @@
   const githubBtn = $("githubSubmit");
   if (githubBtn) githubBtn.addEventListener("click", () => handleOAuthLogin('github', githubBtn));
 
-  // ---- Signup ----
+  // ---- Signup (unchanged) ----
   $("signupSubmit").addEventListener("click", async () => {
     const btn = $("signupSubmit");
     const fn = $("signupFirstName").value.trim(), ln = $("signupLastName").value.trim();
@@ -511,7 +505,6 @@
   const emailModalCloseBtn = $("emailModalCloseBtn");
   let emailCheckTimer = null;
 
-  // Open modal when "Sign in with Email" button is clicked
   $("emailLoginBtn").addEventListener("click", () => {
     emailModal.classList.add("show");
     emailModalInput.value = "";
@@ -519,38 +512,31 @@
     sendMagicBtn.style.display = "none";
   });
 
-  // Close modal on cancel (but not on outside click or escape)
   emailModalCloseBtn.addEventListener("click", () => {
     emailModal.classList.remove("show");
   });
 
-  // Real-time email validation
   emailModalInput.addEventListener("input", () => {
     clearTimeout(emailCheckTimer);
     const email = emailModalInput.value.trim();
-    // Reset UI
     emailModalStatus.innerHTML = "";
     sendMagicBtn.style.display = "none";
 
     if (!email) return;
 
-    // Basic format check
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       emailModalStatus.innerHTML = '<span style="color:var(--danger)">Invalid email address, please check and try again.</span>';
       return;
     }
 
-    // Debounce database check
     emailCheckTimer = setTimeout(async () => {
       try {
         const { data, error } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
         if (error) throw error;
         if (data) {
-          // Existing email
           emailModalStatus.innerHTML = `This email is already registered. <a href="forgot_password.html?email=${encodeURIComponent(email)}" style="color:var(--accent); text-decoration:underline;">Reset your password</a>.`;
           sendMagicBtn.style.display = "none";
         } else {
-          // New email – show send button
           sendMagicBtn.style.display = "block";
         }
       } catch (e) {
@@ -559,14 +545,12 @@
     }, 500);
   });
 
-  // Send magic link
   sendMagicBtn.addEventListener("click", async () => {
     const email = emailModalInput.value.trim();
     if (!email) return;
     setButtonLoading(sendMagicBtn, true, 'Sending link…');
     try {
-      // For new user, redirect to welcome.html after magic link confirmation
-      const redirectTo = window.location.origin + "/welcome.html";
+      const redirectTo = window.location.origin + "/onboarding.html";
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
       if (error) throw error;
       showToast("Check your email for the magic link!", "success");
@@ -578,7 +562,6 @@
     }
   });
 
-  // Global Enter key
   document.addEventListener("keydown", (e) => {
     if (e.key==="Enter") {
       if (tabLogin.classList.contains("active")) $("loginSubmit").click();
@@ -587,7 +570,6 @@
     }
   });
 
-  // Redirect if already logged in
   checkSessionAndRedirect();
 })();
 </script>
