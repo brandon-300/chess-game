@@ -38,7 +38,7 @@
   .tabs{display:flex;gap:0;margin-bottom:28px;background:var(--panel);border-radius:4px;padding:4px}
   .tab-btn{
     flex:1;padding:10px;border:none;background:transparent;
-    color:var(--muted);font-size:15px;font-weight:600;
+    color:var(--muted);font-size:14px;font-weight:600;
     border-radius:4px;cursor:pointer;transition:all .25s ease;
     font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     letter-spacing:.05em;
@@ -143,21 +143,18 @@
     border-top-color: currentColor;
   }
 
-  .err-msg{
+  .err-msg, .success-msg{
     font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12px;color:var(--danger);margin-top:8px;display:none;
+    font-size:12px;margin-top:8px;display:none;
   }
-  .err-msg.show{display:block}
-  .success-msg{
-    font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    font-size:12px;color:var(--accent);margin-top:8px;display:none;
-  }
-  .success-msg.show{display:block}
+  .err-msg{color:var(--danger)} .success-msg{color:var(--accent)}
+  .err-msg.show, .success-msg.show{display:block}
   .age-error-text{
     font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     font-size:11px;color:var(--danger);margin-top:4px;display:none;
   }
   .age-error-text.show{display:block}
+
   .switch-link{display:block;text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
   .switch-link button{background:none;border:none;color:var(--accent);font-weight:600;cursor:pointer;font:inherit}
   .back-link{
@@ -195,6 +192,24 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.success { border-color: var(--success); color: var(--success); }
   #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Reset password modal */
+  .reset-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 200; justify-content: center; align-items: center;
+  }
+  .reset-modal.show { display: flex; }
+  .reset-modal-content {
+    background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 24px; max-width: 320px; width: 90%;
+    text-align: center;
+  }
+  .reset-modal-content h3 { color: var(--accent); margin-bottom: 12px; }
+  .reset-modal-content p { font-size: 14px; color: var(--text); margin-bottom: 16px; }
+  .reset-modal-content .submit-btn { margin-top: 0; }
+  .reset-modal-content .btn { margin-top: 8px; width: 100%; }
+  .modal-status { font-size: 12px; margin-top: 8px; display: none; }
+  .modal-status.show { display: block; }
 </style>
 </head>
 <body>
@@ -204,6 +219,7 @@
     <div class="tabs">
       <button class="tab-btn active" id="tabLogin">Log in</button>
       <button class="tab-btn" id="tabSignup">Sign up</button>
+      <button class="tab-btn" id="tabEmail">Email</button>
     </div>
     <div class="forms-wrapper">
       <div class="forms-slider" id="slider">
@@ -256,55 +272,32 @@
           </div>
         </div>
 
-        <!-- SIGNUP PANEL -->
+        <!-- SIGNUP PANEL (unchanged) -->
         <div class="form-panel" id="signupPanel">
           <h2>Create account</h2>
-          <div class="field">
-            <label for="signupFirstName">First name</label>
-            <input id="signupFirstName" type="text" autocomplete="given-name" placeholder="First name" />
-          </div>
-          <div class="field">
-            <label for="signupLastName">Last name</label>
-            <input id="signupLastName" type="text" autocomplete="family-name" placeholder="Last name" />
-          </div>
-          <div class="field">
-            <label>Date of birth</label>
-            <div class="dob-row">
-              <select id="dobDay"><option value="">Day</option></select>
-              <select id="dobMonth"><option value="">Month</option></select>
-              <select id="dobYear"><option value="">Year</option></select>
-            </div>
-          </div>
-          <div class="field">
-            <label for="signupAge">Age (auto‑calculated)</label>
-            <input id="signupAge" type="text" readonly placeholder="From date of birth" />
-            <div class="age-error-text" id="ageError"></div>
-          </div>
-          <div class="field">
-            <label for="signupCountry">Country</label>
-            <input id="signupCountry" type="text" placeholder="Your country" />
-          </div>
-          <div class="field">
-            <label for="signupUsername">Username</label>
-            <input id="signupUsername" type="text" autocomplete="username" placeholder="Choose a username" />
-          </div>
-          <div class="field">
-            <label for="signupEmail">Email</label>
-            <input id="signupEmail" type="email" autocomplete="email" placeholder="your@email.com" />
-          </div>
-          <div class="field">
-            <label for="signupPassword">Password</label>
-            <div class="pwd-wrap">
-              <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 8 chars, 1 letter, 1 number, 1 special" />
-              <button type="button" class="reveal" data-target="signupPassword"><span class="material-symbols-outlined">visibility</span></button>
-            </div>
-          </div>
-          <div class="err-msg" id="signupErr"></div>
-          <div class="success-msg" id="signupSuccess"></div>
+          <div class="field"><label for="signupFirstName">First name</label><input id="signupFirstName" type="text" autocomplete="given-name" placeholder="First name" /></div>
+          <div class="field"><label for="signupLastName">Last name</label><input id="signupLastName" type="text" autocomplete="family-name" placeholder="Last name" /></div>
+          <div class="field"><label>Date of birth</label><div class="dob-row"><select id="dobDay"><option value="">Day</option></select><select id="dobMonth"><option value="">Month</option></select><select id="dobYear"><option value="">Year</option></select></div></div>
+          <div class="field"><label for="signupAge">Age (auto‑calculated)</label><input id="signupAge" type="text" readonly placeholder="From date of birth" /><div class="age-error-text" id="ageError"></div></div>
+          <div class="field"><label for="signupCountry">Country</label><input id="signupCountry" type="text" placeholder="Your country" /></div>
+          <div class="field"><label for="signupUsername">Username</label><input id="signupUsername" type="text" autocomplete="username" placeholder="Choose a username" /></div>
+          <div class="field"><label for="signupEmail">Email</label><input id="signupEmail" type="email" autocomplete="email" placeholder="your@email.com" /></div>
+          <div class="field"><label for="signupPassword">Password</label><div class="pwd-wrap"><input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 8 chars, 1 letter, 1 number, 1 special" /><button type="button" class="reveal" data-target="signupPassword"><span class="material-symbols-outlined">visibility</span></button></div></div>
+          <div class="err-msg" id="signupErr"></div><div class="success-msg" id="signupSuccess"></div>
           <button class="submit-btn" id="signupSubmit">Sign up</button>
-          <div class="switch-link">
-            Already have an account? <button id="switchToLogin">Log in</button>
+          <div class="switch-link">Already have an account? <button id="switchToLogin">Log in</button></div>
+        </div>
+
+        <!-- EMAIL MAGIC LINK PANEL -->
+        <div class="form-panel" id="emailPanel">
+          <h2>Sign in with Email</h2>
+          <div class="field">
+            <label for="emailInput">Email address</label>
+            <input id="emailInput" type="email" autocomplete="email" placeholder="your@email.com" />
+            <div id="emailCheckResult" style="font-size:12px; margin-top:6px; color:var(--muted)"></div>
           </div>
+          <button class="submit-btn" id="sendMagicLinkBtn" disabled>Send Magic Link</button>
+          <div class="switch-link">Have a password? <button id="switchToLoginFromEmail">Log in</button></div>
         </div>
       </div>
     </div>
@@ -316,6 +309,17 @@
   <!-- Toast -->
   <div id="toast"></div>
 
+  <!-- Reset password modal -->
+  <div class="reset-modal" id="resetModal">
+    <div class="reset-modal-content glass-panel">
+      <h3>Reset Password</h3>
+      <p>Send a reset link to <strong id="resetModalEmail"></strong></p>
+      <button id="resetModalSendBtn" class="submit-btn">Send Reset Link</button>
+      <button id="resetModalCloseBtn" class="btn">Cancel</button>
+      <div class="modal-status" id="resetModalStatus"></div>
+    </div>
+  </div>
+
 <script>
 (() => {
   const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
@@ -326,8 +330,9 @@
   const slider = $("slider");
   const tabLogin = $("tabLogin");
   const tabSignup = $("tabSignup");
+  const tabEmail = $("tabEmail");
 
-  // DOB dropdowns
+  // DOB dropdowns (unchanged)
   const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
   const signupAge = $("signupAge"), ageError = $("ageError");
   const currentYear = new Date().getFullYear();
@@ -355,10 +360,18 @@
   dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
   // Tab switching
-  function switchToLogin() { slider.style.transform = "translateX(0)"; tabLogin.classList.add("active"); tabSignup.classList.remove("active"); clearMessages(); }
-  function switchToSignup() { slider.style.transform = "translateX(-100%)"; tabSignup.classList.add("active"); tabLogin.classList.remove("active"); clearMessages(); }
-  tabLogin.addEventListener("click", switchToLogin); tabSignup.addEventListener("click", switchToSignup);
-  $("switchToSignup").addEventListener("click", switchToSignup); $("switchToLogin").addEventListener("click", switchToLogin);
+  function switchTab(index, tab) {
+    slider.style.transform = `translateX(-${index*100}%)`;
+    [tabLogin, tabSignup, tabEmail].forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    clearMessages();
+  }
+  tabLogin.addEventListener("click", () => switchTab(0, tabLogin));
+  tabSignup.addEventListener("click", () => switchTab(1, tabSignup));
+  tabEmail.addEventListener("click", () => switchTab(2, tabEmail));
+  $("switchToSignup").addEventListener("click", () => switchTab(1, tabSignup));
+  $("switchToLogin").addEventListener("click", () => switchTab(0, tabLogin));
+  $("switchToLoginFromEmail").addEventListener("click", () => switchTab(0, tabLogin));
 
   // Password reveal
   document.querySelectorAll(".reveal").forEach(btn => {
@@ -417,10 +430,8 @@
     }
     return 'index.html';
   }
-
   function getFinalRedirectPath() {
     let path = getRedirectUrl();
-    // Ensure no leading slash issue
     if (path.startsWith('/')) path = path.substring(1);
     return path;
   }
@@ -437,62 +448,41 @@
   $("loginSubmit").addEventListener("click", async function() {
     const btn = this;
     const username = $("loginUsername").value.trim(), password = $("loginPassword").value;
-
-    if (!username || !password) {
-      showToast("Please enter both username and password.", "error");
-      return;
-    }
-
+    if (!username || !password) { showToast("Please enter both username and password.", "error"); return; }
     setButtonLoading(btn, true, 'Logging in…');
-
     try {
       const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
-      if (!profile) {
-        showToast("Username does not exist.", "error");
-        setButtonLoading(btn, false);
-        return;
-      }
-
+      if (!profile) { showToast("Username does not exist.", "error"); setButtonLoading(btn, false); return; }
       const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
       if (authErr) throw authErr;
-
       await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
       window.location.href = getRedirectUrl();
-    } catch(e) {
-      showToast(e.message || "Login failed.", "error");
-      setButtonLoading(btn, false);
-    }
+    } catch(e) { showToast(e.message || "Login failed.", "error"); setButtonLoading(btn, false); }
   });
 
   // ---- OAuth helpers ----
   async function handleOAuthLogin(provider, btn) {
     setButtonLoading(btn, true, 'Redirecting…');
     try {
-      // Store redirect path for OAuth callback (so we don't lose it)
       const finalPath = getFinalRedirectPath();
       const redirectUrl = window.location.origin + "/" + finalPath;
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: redirectUrl,
-        },
-      });
+      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl } });
       if (error) throw error;
-      // OAuth will redirect; no need to reset button
-    } catch(e) {
-      showToast(e.message || `${provider} authentication failed.`, "error");
-      setButtonLoading(btn, false);
-    }
+    } catch(e) { showToast(e.message || `${provider} authentication failed.`, "error"); setButtonLoading(btn, false); }
   }
 
-  // Google OAuth
-  $("googleSubmit").addEventListener("click", () => handleOAuthLogin('google', $("googleSubmit")));
+  const googleBtn = $("googleSubmit");
+  if (googleBtn) googleBtn.addEventListener("click", () => handleOAuthLogin('google', googleBtn));
 
-  // Facebook OAuth
-  $("facebookSubmit").addEventListener("click", () => handleOAuthLogin('facebook', $("facebookSubmit")));
+  const facebookBtn = $("facebookSubmit");
+  if (facebookBtn) {
+    facebookBtn.addEventListener("click", () => {
+      showToast("Coming soon…", "success");
+    });
+  }
 
-  // GitHub OAuth
-  $("githubSubmit").addEventListener("click", () => handleOAuthLogin('github', $("githubSubmit")));
+  const githubBtn = $("githubSubmit");
+  if (githubBtn) githubBtn.addEventListener("click", () => handleOAuthLogin('github', githubBtn));
 
   // ---- Signup ----
   $("signupSubmit").addEventListener("click", async () => {
@@ -502,59 +492,141 @@
     const email = $("signupEmail").value.trim(), password = $("signupPassword").value;
     const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
     const age = parseInt(signupAge.value,10);
-
-    if (!fn||!ln||!country||!username||!email||!password||!day||!month||!year) {
-      showToast("All fields are required.", "error");
-      return;
-    }
-    if (isNaN(age)||age<14) {
-      showToast("You must be at least 14 years old.", "error");
-      return;
-    }
-    if (!isValidPassword(password)) {
-      showToast("Password must be 8+ chars with letter, number, special.", "error");
-      return;
-    }
-
+    if (!fn||!ln||!country||!username||!email||!password||!day||!month||!year) { showToast("All fields are required.", "error"); return; }
+    if (isNaN(age)||age<14) { showToast("You must be at least 14 years old.", "error"); return; }
+    if (!isValidPassword(password)) { showToast("Password must be 8+ chars with letter, number, special.", "error"); return; }
     setButtonLoading(btn, true, 'Creating account…');
     const fullName = `${fn} ${ln}`, dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-
     try {
       const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
-      if (exist) {
-        showToast("Username already taken.", "error");
-        setButtonLoading(btn, false);
-        return;
-      }
-      const { data: auth, error: authErr } = await supabase.auth.signUp({
-        email, password,
-        options: {
-          data: { username, full_name: fullName },
-          emailRedirectTo: window.location.origin + "/index.html"
-        }
-      });
+      if (exist) { showToast("Username already taken.", "error"); setButtonLoading(btn, false); return; }
+      const { data: auth, error: authErr } = await supabase.auth.signUp({ email, password, options: { data: { username, full_name: fullName }, emailRedirectTo: window.location.origin+"/index.html" } });
       if (authErr) throw authErr;
       if (!auth.user) throw new Error("Signup failed.");
-
-      const { error: insErr } = await supabase.from("profiles").insert({
-        id: auth.user.id, username, full_name: fullName, age, dob, country, email
-      });
+      const { error: insErr } = await supabase.from("profiles").insert({ id: auth.user.id, username, full_name: fullName, age, dob, country, email });
       if (insErr) throw new Error("Profile creation failed: "+insErr.message);
-
       showToast("Account created! Logging you in…", "success");
       const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
       if (loginErr) throw loginErr;
       await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", auth.user.id);
       window.location.href = getRedirectUrl();
+    } catch(e) { showToast(e.message || "Registration failed.", "error"); setButtonLoading(btn, false); }
+  });
+
+  // ---- Email magic link / live check ----
+  const emailInput = $("emailInput");
+  const sendMagicBtn = $("sendMagicLinkBtn");
+  const emailCheckResult = $("emailCheckResult");
+  let emailCheckTimer = null;
+
+  async function checkEmailExists(email) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      emailCheckResult.textContent = '';
+      sendMagicBtn.disabled = true;
+      return;
+    }
+    // validate basic email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      emailCheckResult.textContent = '';
+      sendMagicBtn.disabled = true;
+      return;
+    }
+    try {
+      const { data, error } = await supabase.from("profiles").select("id").eq("email", cleanEmail).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        emailCheckResult.innerHTML = 'An account exists with this email. <a href="#" id="forgotPasswordLink">Forgot password?</a>';
+        document.getElementById("forgotPasswordLink").addEventListener("click", (e) => {
+          e.preventDefault();
+          openResetModal(cleanEmail);
+        });
+        sendMagicBtn.disabled = false;
+      } else {
+        emailCheckResult.textContent = 'No account found – please sign up.';
+        sendMagicBtn.disabled = true;
+      }
     } catch(e) {
-      showToast(e.message || "Registration failed.", "error");
-      setButtonLoading(btn, false);
+      emailCheckResult.textContent = 'Error checking email.';
+      sendMagicBtn.disabled = true;
+    }
+  }
+
+  emailInput.addEventListener("input", () => {
+    clearTimeout(emailCheckTimer);
+    const email = emailInput.value;
+    emailCheckTimer = setTimeout(() => checkEmailExists(email), 500);
+  });
+
+  sendMagicBtn.addEventListener("click", async () => {
+    const email = emailInput.value.trim();
+    if (!email) return;
+    setButtonLoading(sendMagicBtn, true, 'Sending link…');
+    try {
+      const finalPath = getFinalRedirectPath();
+      const redirectTo = window.location.origin + "/" + finalPath;
+      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+      if (error) throw error;
+      showToast("Check your email for the magic link!", "success");
+      emailInput.value = '';
+      emailCheckResult.textContent = '';
+      sendMagicBtn.disabled = true;
+    } catch(e) {
+      showToast(e.message || "Failed to send magic link.", "error");
+    } finally {
+      setButtonLoading(sendMagicBtn, false);
     }
   });
 
+  // ---- Reset password modal ----
+  const resetModal = $("resetModal");
+  const resetModalEmail = $("resetModalEmail");
+  const resetModalSendBtn = $("resetModalSendBtn");
+  const resetModalCloseBtn = $("resetModalCloseBtn");
+  const resetModalStatus = $("resetModalStatus");
+
+  function openResetModal(email) {
+    resetModalEmail.textContent = email;
+    resetModal.classList.add("show");
+    resetModalStatus.classList.remove("show");
+    resetModalSendBtn.disabled = false;
+  }
+
+  function closeResetModal() {
+    resetModal.classList.remove("show");
+  }
+
+  resetModalCloseBtn.addEventListener("click", closeResetModal);
+  resetModal.addEventListener("click", (e) => {
+    if (e.target === resetModal) closeResetModal();
+  });
+
+  resetModalSendBtn.addEventListener("click", async () => {
+    const email = resetModalEmail.textContent;
+    setButtonLoading(resetModalSendBtn, true, 'Sending…');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + "/reset_password.html",
+      });
+      if (error) throw error;
+      resetModalStatus.textContent = 'Reset link sent! Check your email.';
+      resetModalStatus.className = 'modal-status success-msg show';
+      resetModalSendBtn.disabled = true;
+      setTimeout(closeResetModal, 3000);
+    } catch(e) {
+      resetModalStatus.textContent = e.message || 'Error sending reset link.';
+      resetModalStatus.className = 'modal-status err-msg show';
+    } finally {
+      setButtonLoading(resetModalSendBtn, false);
+    }
+  });
+
+  // Global Enter key
   document.addEventListener("keydown", (e) => {
     if (e.key==="Enter") {
-      tabLogin.classList.contains("active") ? $("loginSubmit").click() : $("signupSubmit").click();
+      if (tabLogin.classList.contains("active")) $("loginSubmit").click();
+      else if (tabSignup.classList.contains("active")) $("signupSubmit").click();
+      else if (tabEmail.classList.contains("active")) $("sendMagicLinkBtn").click();
     }
   });
 
