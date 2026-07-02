@@ -83,7 +83,7 @@
         #toast.success { border-color: var(--success); color: var(--success); }
         #toast.error { border-color: var(--danger); color: var(--danger); }
 
-        /* Avatar Crop Modal */
+        /* Avatar Modal Styles */
         .avatar-modal {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
             z-index: 200; justify-content: center; align-items: center;
@@ -92,15 +92,35 @@
         .avatar-modal-content {
             background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
             padding: 20px; max-width: 90vw; max-height: 90vh;
-            display: flex; flex-direction: column; gap: 16px;
+            display: flex; flex-direction: column; gap: 16px; align-items: center;
         }
         .avatar-modal-content h3 { color: var(--accent); text-align: center; }
+
+        /* Avatar placeholder circle */
+        .avatar-placeholder {
+            width: 120px; height: 120px; border-radius: 50%;
+            border: 2px dashed var(--accent);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; margin: 0 auto;
+            transition: all .2s;
+            background: rgba(201,168,76,0.05);
+        }
+        .avatar-placeholder:hover { border-color: var(--text); background: rgba(201,168,76,0.1); }
+        .avatar-placeholder .material-symbols-outlined {
+            font-size: 36px; color: var(--accent);
+        }
+        .avatar-placeholder p { color: var(--muted); font-size: 12px; margin: 0; }
+
+        /* Crop wrapper (hidden initially) */
+        .crop-wrapper { display: none; width: 100%; }
+        .crop-wrapper.active { display: block; }
         .crop-image-wrapper {
             max-height: 60vh; overflow: hidden; display: flex; justify-content: center; background: #000;
         }
         .crop-image-wrapper img { max-width: 100%; display: block; }
+
         .avatar-actions {
-            display: flex; gap: 12px; justify-content: flex-end;
+            display: flex; gap: 12px; justify-content: center; margin-top: 8px;
         }
         .avatar-actions button {
             padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
@@ -151,15 +171,23 @@
     </div>
     <div id="toast"></div>
 
-    <!-- Avatar crop modal -->
+    <!-- Avatar Modal -->
     <div class="avatar-modal" id="avatarModal">
         <div class="avatar-modal-content">
             <h3>Add a profile picture (optional)</h3>
-            <div class="crop-image-wrapper">
-                <img id="cropImage" src="" alt="" />
+            <!-- Placeholder circle (visible when no image is selected) -->
+            <div class="avatar-placeholder" id="avatarPlaceholder">
+                <span class="material-symbols-outlined">add_a_photo</span>
+                <p>Add Photo</p>
             </div>
+            <!-- Cropper area (hidden initially) -->
+            <div class="crop-wrapper" id="cropWrapper">
+                <div class="crop-image-wrapper">
+                    <img id="cropImage" src="" alt="" />
+                </div>
+            </div>
+            <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
             <div class="avatar-actions">
-                <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
                 <button id="skipAvatarBtn">Skip</button>
                 <button id="finishAvatarBtn" class="primary">Finish</button>
             </div>
@@ -226,28 +254,46 @@
             }
             dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
-            // --- Avatar crop logic ---
+            // --- Avatar modal logic ---
+            const avatarModal = $("avatarModal");
+            const avatarPlaceholder = $("avatarPlaceholder");
+            const cropWrapper = $("cropWrapper");
+            const cropImage = $("cropImage");
+            const avatarInput = $("avatarInput");
+
             function openAvatarModal() {
-                $('avatarModal').classList.add('show');
+                avatarModal.classList.add('show');
+                // Reset UI: show placeholder, hide crop, clear file
+                avatarPlaceholder.style.display = 'flex';
+                cropWrapper.classList.remove('active');
                 if (cropper) { cropper.destroy(); cropper = null; }
-                $('cropImage').src = '';
-                $('avatarInput').value = '';
-                // Trigger file input when the crop area is clicked (a simple label would be better, but we'll reuse pencil style)
+                cropImage.src = '';
+                avatarInput.value = '';
             }
 
             function closeAvatarModal() {
-                $('avatarModal').classList.remove('show');
+                avatarModal.classList.remove('show');
                 if (cropper) { cropper.destroy(); cropper = null; }
             }
 
-            $('avatarInput').addEventListener('change', (e) => {
+            // Clicking the placeholder circle triggers file input
+            avatarPlaceholder.addEventListener('click', () => avatarInput.click());
+
+            avatarInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
+
+                // Destroy existing cropper if any
                 if (cropper) { cropper.destroy(); cropper = null; }
+                cropImage.src = '';
+
                 const reader = new FileReader();
                 reader.onload = (ev) => {
-                    $('cropImage').src = ev.target.result;
-                    cropper = new Cropper($('cropImage'), {
+                    cropImage.src = ev.target.result;
+                    // Hide placeholder, show cropper wrapper
+                    avatarPlaceholder.style.display = 'none';
+                    cropWrapper.classList.add('active');
+                    cropper = new Cropper(cropImage, {
                         aspectRatio: 1,
                         viewMode: 1,
                         dragMode: 'move',
@@ -259,10 +305,7 @@
                 reader.readAsDataURL(file);
             });
 
-            // Click on crop wrapper to trigger file select
-            $('cropImage').addEventListener('click', () => $('avatarInput').click());
-
-            // --- Handle save profile with/without avatar ---
+            // --- Save profile with/without avatar ---
             async function saveProfileAndRedirect(avatarUrl = null) {
                 const fn = $("firstName").value.trim();
                 const ln = $("lastName").value.trim();
@@ -367,9 +410,6 @@
             $("skipAvatarBtn").addEventListener("click", skipAvatar);
             $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
 
-            // Close modal if background clicked (optional, but keep simple: user must use buttons)
-            // Not adding background click to prevent accidental close.
-
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
@@ -386,8 +426,6 @@
                     window.location.href = "welcome.html";
                     return;
                 }
-
-                // Leave name fields empty – no pre-fill
             }
 
             document.addEventListener("DOMContentLoaded", init);
