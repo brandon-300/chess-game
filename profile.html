@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Chess 3D · Profile</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Cropper.js -->
+    <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <style>
@@ -306,10 +309,70 @@
             display: none;
         }
 
-        /* loading spinner for buttons */
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        /* Crop modal */
+        .crop-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
         }
+        .crop-modal.active { display: flex; }
+        .crop-container {
+            background: var(--panel);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .crop-container h3 {
+            font-family: 'Cinzel', serif;
+            color: var(--accent);
+            text-align: center;
+        }
+        .crop-image-wrapper {
+            max-height: 60vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            background: #000;
+        }
+        .crop-image-wrapper img {
+            max-width: 100%;
+            display: block;
+        }
+        .crop-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .crop-actions button {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-family: 'Cinzel', serif;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid var(--accent);
+            background: transparent;
+            color: var(--accent);
+            transition: all 0.2s;
+        }
+        .crop-actions button.primary {
+            background: var(--accent);
+            color: #0a0806;
+        }
+        .crop-actions button.primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* loading spinner for buttons */
         .loading-spinner {
             width: 18px;
             height: 18px;
@@ -385,6 +448,20 @@
             <div class="success-msg" id="updateSuccess"></div>
         </div>
 
+        <!-- Crop Modal -->
+        <div class="crop-modal" id="cropModal">
+            <div class="crop-container">
+                <h3>Crop your photo</h3>
+                <div class="crop-image-wrapper">
+                    <img id="cropImage" src="" alt="" />
+                </div>
+                <div class="crop-actions">
+                    <button id="cancelCropBtn">Cancel</button>
+                    <button id="confirmCropBtn" class="primary">Crop &amp; Save</button>
+                </div>
+            </div>
+        </div>
+
         <div class="bottom-actions" id="bottomActions"><!-- dynamic --></div>
     </main>
 
@@ -404,12 +481,12 @@
             let currentUserId = null;
             let originalProfile = null;
             let isEditing = false;
+            let cropper = null;
 
             let heartbeatInterval;
             const INACTIVITY_LIMIT = 15 * 60 * 1000;
             let inactivityTimer;
 
-            // This function is used for inactivity-triggered logout.
             async function performLogout() {
                 if (currentUserId) await setOnlineStatus(false);
                 stopHeartbeat();
@@ -447,6 +524,83 @@
                     .eq('id', currentUserId);
             }
 
+            // -------------------- Crop Modal Functions --------------------
+            function openCropModal(file) {
+                if (cropper) { cropper.destroy(); cropper = null; }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    $('cropImage').src = e.target.result;
+                    $('cropModal').classList.add('active');
+                    cropper = new Cropper($('cropImage'), {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 1,
+                        cropBoxResizable: false,
+                        background: false
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function closeCropModal() {
+                $('cropModal').classList.remove('active');
+                if (cropper) { cropper.destroy(); cropper = null; }
+                $('cropImage').src = '';
+                $('avatarInput').value = ''; // allow re‑selecting the same file
+            }
+
+            async function handleCropConfirm() {
+                if (!cropper) return;
+                const confirmBtn = $('confirmCropBtn');
+                // Show loading state
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<span class="loading-spinner"></span> Uploading…';
+
+                try {
+                    // 1. Get cropped canvas and convert to blob
+                    const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+
+                    // 2. Build FormData and send to Vercel function
+                    const formData = new FormData();
+                    formData.append('file', blob, 'avatar.webp');
+                    formData.append('userId', currentUserId);
+
+                    const response = await fetch('/api/resize-avatar', { method: 'POST', body: formData });
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        throw new Error(errData.error || 'Upload failed');
+                    }
+                    const { url } = await response.json();
+
+                    // 3. Update profile with new avatar URL
+                    const { error: updateErr } = await supabase
+                        .from('profiles')
+                        .update({ avatar_url: url })
+                        .eq('id', currentUserId);
+                    if (updateErr) throw new Error('DB update failed: ' + updateErr.message);
+
+                    // 4. Show new avatar immediately
+                    $('avatarImg').src = url;
+                    const successEl = $('updateSuccess');
+                    successEl.textContent = 'Avatar updated.';
+                    successEl.classList.add('show');
+                    setTimeout(() => successEl.classList.remove('show'), 3000);
+
+                    closeCropModal();
+                } catch (err) {
+                    const errEl = $('updateErr');
+                    errEl.textContent = err.message;
+                    errEl.classList.add('show');
+                    setTimeout(() => errEl.classList.remove('show'), 4000);
+                } finally {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = 'Crop & Save';
+                }
+            }
+
+            // -------------------- Profile Rendering --------------------
             function renderProfile(profile) {
                 originalProfile = { ...profile };
                 $('avatarImg').src = profile?.avatar_url || DEFAULT_AVATAR;
@@ -577,26 +731,6 @@
                 }
             }
 
-            async function uploadAvatar(file) {
-                const pencil = $('pencilBtn');
-                pencil.classList.add('loading');
-                try {
-                    const ext = file.name.split('.').pop();
-                    const path = `${currentUserId}-${Date.now()}.${ext}`;
-                    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-                    if (upErr) throw new Error('Upload failed: ' + upErr.message);
-                    const { data: url } = supabase.storage.from('avatars').getPublicUrl(path);
-                    if (!url?.publicUrl) throw new Error('Could not get URL');
-                    const { error: updateErr } = await supabase.from('profiles')
-                        .update({ avatar_url: url.publicUrl }).eq('id', currentUserId);
-                    if (updateErr) throw new Error('Update failed: ' + updateErr.message);
-                    $('avatarImg').src = url.publicUrl;
-                    return url.publicUrl;
-                } finally {
-                    pencil.classList.remove('loading');
-                }
-            }
-
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
@@ -626,25 +760,25 @@
                 else renderProfile({});
                 updateHeaderButtons();
 
+                // ---------- AVATAR UPLOAD LOGIC ----------
                 $('pencilBtn').addEventListener('click', () => $('avatarInput').click());
-                $('avatarInput').addEventListener('change', async (e) => {
+                $('avatarInput').addEventListener('change', (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
-                    try {
-                        await uploadAvatar(file);
-                        $('updateSuccess').textContent = 'Avatar updated.';
-                        $('updateSuccess').classList.add('show');
-                    } catch (err) {
-                        $('updateErr').textContent = err.message;
-                        $('updateErr').classList.add('show');
-                    } finally {
-                        e.target.value = '';
-                    }
+                    openCropModal(file);
+                });
+
+                $('cancelCropBtn').addEventListener('click', closeCropModal);
+                $('confirmCropBtn').addEventListener('click', handleCropConfirm);
+
+                // Close modal on background click
+                $('cropModal').addEventListener('click', (e) => {
+                    if (e.target === $('cropModal')) closeCropModal();
                 });
 
                 const bottom = $('bottomActions');
 
-                // Logout button with loading spinner
+                // Logout button
                 const logoutBtn = document.createElement('button');
                 logoutBtn.className = 'btn-red';
                 logoutBtn.textContent = 'Logout';
@@ -671,7 +805,7 @@
                     }
                 });
 
-                // Delete account button with loading spinner
+                // Delete account button
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn-red';
                 deleteBtn.style.background = 'transparent';
