@@ -193,23 +193,22 @@
   #toast.success { border-color: var(--success); color: var(--success); }
   #toast.error { border-color: var(--danger); color: var(--danger); }
 
-  /* Reset password modal */
-  .reset-modal {
+  /* Email modal */
+  .email-modal {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
     z-index: 200; justify-content: center; align-items: center;
   }
-  .reset-modal.show { display: flex; }
-  .reset-modal-content {
+  .email-modal.show { display: flex; }
+  .email-modal-content {
     background: var(--panel); border: 1px solid var(--accent);
-    border-radius: 8px; padding: 24px; max-width: 320px; width: 90%;
+    border-radius: 8px; padding: 24px; max-width: 340px; width: 90%;
     text-align: center;
   }
-  .reset-modal-content h3 { color: var(--accent); margin-bottom: 12px; }
-  .reset-modal-content p { font-size: 14px; color: var(--text); margin-bottom: 16px; }
-  .reset-modal-content .submit-btn { margin-top: 0; }
-  .reset-modal-content .btn { margin-top: 8px; width: 100%; }
-  .modal-status { font-size: 12px; margin-top: 8px; display: none; }
-  .modal-status.show { display: block; }
+  .email-modal-content h3 { color: var(--accent); margin-bottom: 12px; }
+  .email-modal-content input { margin-bottom: 12px; }
+  .email-modal-content .submit-btn { margin-bottom: 8px; }
+  .email-modal-content .btn { width: 100%; margin-bottom: 8px; }
+  .email-status { font-size: 12px; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -219,7 +218,6 @@
     <div class="tabs">
       <button class="tab-btn active" id="tabLogin">Log in</button>
       <button class="tab-btn" id="tabSignup">Sign up</button>
-      <button class="tab-btn" id="tabEmail">Email</button>
     </div>
     <div class="forms-wrapper">
       <div class="forms-slider" id="slider">
@@ -267,6 +265,11 @@
             Sign in with GitHub
           </button>
 
+          <button type="button" class="oauth-btn" id="emailLoginBtn">
+            <span class="material-symbols-outlined">email</span>
+            Sign in with Email
+          </button>
+
           <div class="switch-link">
             Don't have an account? <button id="switchToSignup">Sign up</button>
           </div>
@@ -287,18 +290,6 @@
           <button class="submit-btn" id="signupSubmit">Sign up</button>
           <div class="switch-link">Already have an account? <button id="switchToLogin">Log in</button></div>
         </div>
-
-        <!-- EMAIL MAGIC LINK PANEL -->
-        <div class="form-panel" id="emailPanel">
-          <h2>Sign in with Email</h2>
-          <div class="field">
-            <label for="emailInput">Email address</label>
-            <input id="emailInput" type="email" autocomplete="email" placeholder="your@email.com" />
-            <div id="emailCheckResult" style="font-size:12px; margin-top:6px; color:var(--muted)"></div>
-          </div>
-          <button class="submit-btn" id="sendMagicLinkBtn" disabled>Send Magic Link</button>
-          <div class="switch-link">Have a password? <button id="switchToLoginFromEmail">Log in</button></div>
-        </div>
       </div>
     </div>
     <a href="index.html" class="back-link">
@@ -309,14 +300,16 @@
   <!-- Toast -->
   <div id="toast"></div>
 
-  <!-- Reset password modal -->
-  <div class="reset-modal" id="resetModal">
-    <div class="reset-modal-content glass-panel">
-      <h3>Reset Password</h3>
-      <p>Send a reset link to <strong id="resetModalEmail"></strong></p>
-      <button id="resetModalSendBtn" class="submit-btn">Send Reset Link</button>
-      <button id="resetModalCloseBtn" class="btn">Cancel</button>
-      <div class="modal-status" id="resetModalStatus"></div>
+  <!-- Email modal -->
+  <div class="email-modal" id="emailModal">
+    <div class="email-modal-content glass-panel">
+      <h3>Sign in with Email</h3>
+      <div class="field">
+        <input id="emailModalInput" type="email" autocomplete="email" placeholder="your@email.com" />
+        <div id="emailModalStatus" class="email-status" style="color:var(--muted)"></div>
+      </div>
+      <button class="submit-btn" id="sendMagicLinkBtn" style="display:none;">Send Magic Link</button>
+      <button class="btn" id="emailModalCloseBtn">Cancel</button>
     </div>
   </div>
 
@@ -330,7 +323,6 @@
   const slider = $("slider");
   const tabLogin = $("tabLogin");
   const tabSignup = $("tabSignup");
-  const tabEmail = $("tabEmail");
 
   // DOB dropdowns (unchanged)
   const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
@@ -362,16 +354,14 @@
   // Tab switching
   function switchTab(index, tab) {
     slider.style.transform = `translateX(-${index*100}%)`;
-    [tabLogin, tabSignup, tabEmail].forEach(t => t.classList.remove('active'));
+    [tabLogin, tabSignup].forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     clearMessages();
   }
   tabLogin.addEventListener("click", () => switchTab(0, tabLogin));
   tabSignup.addEventListener("click", () => switchTab(1, tabSignup));
-  tabEmail.addEventListener("click", () => switchTab(2, tabEmail));
   $("switchToSignup").addEventListener("click", () => switchTab(1, tabSignup));
   $("switchToLogin").addEventListener("click", () => switchTab(0, tabLogin));
-  $("switchToLoginFromEmail").addEventListener("click", () => switchTab(0, tabLogin));
 
   // Password reveal
   document.querySelectorAll(".reveal").forEach(btn => {
@@ -513,111 +503,78 @@
     } catch(e) { showToast(e.message || "Registration failed.", "error"); setButtonLoading(btn, false); }
   });
 
-  // ---- Email magic link / live check ----
-  const emailInput = $("emailInput");
+  // ---- Email modal logic ----
+  const emailModal = $("emailModal");
+  const emailModalInput = $("emailModalInput");
+  const emailModalStatus = $("emailModalStatus");
   const sendMagicBtn = $("sendMagicLinkBtn");
-  const emailCheckResult = $("emailCheckResult");
+  const emailModalCloseBtn = $("emailModalCloseBtn");
   let emailCheckTimer = null;
 
-  async function checkEmailExists(email) {
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      emailCheckResult.textContent = '';
-      sendMagicBtn.disabled = true;
-      return;
-    }
-    // validate basic email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      emailCheckResult.textContent = '';
-      sendMagicBtn.disabled = true;
-      return;
-    }
-    try {
-      const { data, error } = await supabase.from("profiles").select("id").eq("email", cleanEmail).maybeSingle();
-      if (error) throw error;
-      if (data) {
-        emailCheckResult.innerHTML = 'An account exists with this email. <a href="#" id="forgotPasswordLink">Forgot password?</a>';
-        document.getElementById("forgotPasswordLink").addEventListener("click", (e) => {
-          e.preventDefault();
-          openResetModal(cleanEmail);
-        });
-        sendMagicBtn.disabled = false;
-      } else {
-        emailCheckResult.textContent = 'No account found – please sign up.';
-        sendMagicBtn.disabled = true;
-      }
-    } catch(e) {
-      emailCheckResult.textContent = 'Error checking email.';
-      sendMagicBtn.disabled = true;
-    }
-  }
-
-  emailInput.addEventListener("input", () => {
-    clearTimeout(emailCheckTimer);
-    const email = emailInput.value;
-    emailCheckTimer = setTimeout(() => checkEmailExists(email), 500);
+  // Open modal when "Sign in with Email" button is clicked
+  $("emailLoginBtn").addEventListener("click", () => {
+    emailModal.classList.add("show");
+    emailModalInput.value = "";
+    emailModalStatus.innerHTML = "";
+    sendMagicBtn.style.display = "none";
   });
 
+  // Close modal on cancel (but not on outside click or escape)
+  emailModalCloseBtn.addEventListener("click", () => {
+    emailModal.classList.remove("show");
+  });
+
+  // Real-time email validation
+  emailModalInput.addEventListener("input", () => {
+    clearTimeout(emailCheckTimer);
+    const email = emailModalInput.value.trim();
+    // Reset UI
+    emailModalStatus.innerHTML = "";
+    sendMagicBtn.style.display = "none";
+
+    if (!email) return;
+
+    // Basic format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailModalStatus.innerHTML = '<span style="color:var(--danger)">Invalid email address, please check and try again.</span>';
+      return;
+    }
+
+    // Debounce database check
+    emailCheckTimer = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
+        if (error) throw error;
+        if (data) {
+          // Existing email
+          emailModalStatus.innerHTML = `This email is already registered. <a href="forgot_password.html?email=${encodeURIComponent(email)}" style="color:var(--accent); text-decoration:underline;">Reset your password</a>.`;
+          sendMagicBtn.style.display = "none";
+        } else {
+          // New email – show send button
+          sendMagicBtn.style.display = "block";
+        }
+      } catch (e) {
+        emailModalStatus.innerHTML = '<span style="color:var(--danger)">Error checking email.</span>';
+      }
+    }, 500);
+  });
+
+  // Send magic link
   sendMagicBtn.addEventListener("click", async () => {
-    const email = emailInput.value.trim();
+    const email = emailModalInput.value.trim();
     if (!email) return;
     setButtonLoading(sendMagicBtn, true, 'Sending link…');
     try {
-      const finalPath = getFinalRedirectPath();
-      const redirectTo = window.location.origin + "/" + finalPath;
+      // For new user, redirect to welcome.html after magic link confirmation
+      const redirectTo = window.location.origin + "/welcome.html";
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
       if (error) throw error;
       showToast("Check your email for the magic link!", "success");
-      emailInput.value = '';
-      emailCheckResult.textContent = '';
-      sendMagicBtn.disabled = true;
+      emailModal.classList.remove("show");
     } catch(e) {
       showToast(e.message || "Failed to send magic link.", "error");
     } finally {
       setButtonLoading(sendMagicBtn, false);
-    }
-  });
-
-  // ---- Reset password modal ----
-  const resetModal = $("resetModal");
-  const resetModalEmail = $("resetModalEmail");
-  const resetModalSendBtn = $("resetModalSendBtn");
-  const resetModalCloseBtn = $("resetModalCloseBtn");
-  const resetModalStatus = $("resetModalStatus");
-
-  function openResetModal(email) {
-    resetModalEmail.textContent = email;
-    resetModal.classList.add("show");
-    resetModalStatus.classList.remove("show");
-    resetModalSendBtn.disabled = false;
-  }
-
-  function closeResetModal() {
-    resetModal.classList.remove("show");
-  }
-
-  resetModalCloseBtn.addEventListener("click", closeResetModal);
-  resetModal.addEventListener("click", (e) => {
-    if (e.target === resetModal) closeResetModal();
-  });
-
-  resetModalSendBtn.addEventListener("click", async () => {
-    const email = resetModalEmail.textContent;
-    setButtonLoading(resetModalSendBtn, true, 'Sending…');
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + "/reset_password.html",
-      });
-      if (error) throw error;
-      resetModalStatus.textContent = 'Reset link sent! Check your email.';
-      resetModalStatus.className = 'modal-status success-msg show';
-      resetModalSendBtn.disabled = true;
-      setTimeout(closeResetModal, 3000);
-    } catch(e) {
-      resetModalStatus.textContent = e.message || 'Error sending reset link.';
-      resetModalStatus.className = 'modal-status err-msg show';
-    } finally {
-      setButtonLoading(resetModalSendBtn, false);
     }
   });
 
@@ -626,7 +583,7 @@
     if (e.key==="Enter") {
       if (tabLogin.classList.contains("active")) $("loginSubmit").click();
       else if (tabSignup.classList.contains("active")) $("signupSubmit").click();
-      else if (tabEmail.classList.contains("active")) $("sendMagicLinkBtn").click();
+      else if (emailModal.classList.contains("show")) sendMagicBtn.click();
     }
   });
 
