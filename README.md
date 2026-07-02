@@ -1,8 +1,4 @@
-Here’s a complete README.md for your Chess 3D repository, covering the project overview, features, tech stack, setup, and a permissive license (MIT – anyone can use, modify, distribute freely).
-
-You can copy this into a file called README.md in the root of your repository.
-
-```markdown
+ ```markdown
 # ♟ Chess 3D
 
 A fully‑featured 3D chess game built with **Three.js**, **Supabase**, and **Vercel**. Play locally against a friend or the AI, or compete online with real‑time multiplayer, voice chat, and full account management.
