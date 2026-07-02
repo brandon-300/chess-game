@@ -83,7 +83,7 @@
         #toast.success { border-color: var(--success); color: var(--success); }
         #toast.error { border-color: var(--danger); color: var(--danger); }
 
-        /* Avatar Modal Styles */
+        /* Avatar Modal */
         .avatar-modal {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
             z-index: 200; justify-content: center; align-items: center;
@@ -96,31 +96,32 @@
         }
         .avatar-modal-content h3 { color: var(--accent); text-align: center; }
 
-        /* Avatar placeholder circle */
         .avatar-placeholder {
             width: 120px; height: 120px; border-radius: 50%;
             border: 2px dashed var(--accent);
-            display: flex; align-items: center; justify-content: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             cursor: pointer; margin: 0 auto;
-            transition: all .2s;
             background: rgba(201,168,76,0.05);
         }
-        .avatar-placeholder:hover { border-color: var(--text); background: rgba(201,168,76,0.1); }
         .avatar-placeholder .material-symbols-outlined {
             font-size: 36px; color: var(--accent);
         }
-        .avatar-placeholder p { color: var(--muted); font-size: 12px; margin: 0; }
+        .avatar-placeholder p { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
-        /* Crop wrapper (hidden initially) */
         .crop-wrapper { display: none; width: 100%; }
         .crop-wrapper.active { display: block; }
         .crop-image-wrapper {
             max-height: 60vh; overflow: hidden; display: flex; justify-content: center; background: #000;
         }
         .crop-image-wrapper img { max-width: 100%; display: block; }
+        .change-pic {
+            color: var(--accent); font-size: 12px; text-decoration: underline; cursor: pointer;
+            margin-top: 8px; display: none;
+        }
+        .crop-wrapper.active .change-pic { display: block; }
 
         .avatar-actions {
-            display: flex; gap: 12px; justify-content: center; margin-top: 8px;
+            display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
         }
         .avatar-actions button {
             padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 600;
@@ -175,19 +176,19 @@
     <div class="avatar-modal" id="avatarModal">
         <div class="avatar-modal-content">
             <h3>Add a profile picture (optional)</h3>
-            <!-- Placeholder circle (visible when no image is selected) -->
             <div class="avatar-placeholder" id="avatarPlaceholder">
                 <span class="material-symbols-outlined">add_a_photo</span>
                 <p>Add Photo</p>
             </div>
-            <!-- Cropper area (hidden initially) -->
             <div class="crop-wrapper" id="cropWrapper">
                 <div class="crop-image-wrapper">
                     <img id="cropImage" src="" alt="" />
                 </div>
+                <div class="change-pic" id="changePic">Change picture</div>
             </div>
             <input type="file" class="avatar-upload-input" id="avatarInput" accept="image/*" />
             <div class="avatar-actions">
+                <button id="cancelAvatarBtn">Cancel</button>
                 <button id="skipAvatarBtn">Skip</button>
                 <button id="finishAvatarBtn" class="primary">Finish</button>
             </div>
@@ -205,7 +206,6 @@
             let currentEmail = '';
             let cropper = null;
 
-            // Toast
             let toastTimer;
             function showToast(msg, type = 'success') {
                 const toast = $('toast');
@@ -216,7 +216,6 @@
                 toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
             }
 
-            // Button loading
             function setButtonLoading(btn, loading, label) {
                 if (loading) {
                     btn._originalHTML = btn.innerHTML;
@@ -229,7 +228,7 @@
                 }
             }
 
-            // DOB setup
+            // DOB setup (unchanged)
             const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
             const ageField = $("ageField");
             const currentYear = new Date().getFullYear();
@@ -254,21 +253,26 @@
             }
             dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
-            // --- Avatar modal logic ---
+            // --- Avatar modal ---
             const avatarModal = $("avatarModal");
             const avatarPlaceholder = $("avatarPlaceholder");
             const cropWrapper = $("cropWrapper");
             const cropImage = $("cropImage");
             const avatarInput = $("avatarInput");
+            const changePic = $("changePic");
+
+            function resetAvatarModal() {
+                // Destroy any existing cropper
+                if (cropper) { cropper.destroy(); cropper = null; }
+                cropImage.src = '';
+                cropWrapper.classList.remove('active');
+                avatarPlaceholder.style.display = 'flex';
+                avatarInput.value = '';
+            }
 
             function openAvatarModal() {
                 avatarModal.classList.add('show');
-                // Reset UI: show placeholder, hide crop, clear file
-                avatarPlaceholder.style.display = 'flex';
-                cropWrapper.classList.remove('active');
-                if (cropper) { cropper.destroy(); cropper = null; }
-                cropImage.src = '';
-                avatarInput.value = '';
+                resetAvatarModal();
             }
 
             function closeAvatarModal() {
@@ -276,36 +280,45 @@
                 if (cropper) { cropper.destroy(); cropper = null; }
             }
 
-            // Clicking the placeholder circle triggers file input
+            // Click placeholder to open file picker
             avatarPlaceholder.addEventListener('click', () => avatarInput.click());
 
+            // Change picture link
+            changePic.addEventListener('click', (e) => {
+                e.stopPropagation();
+                avatarInput.click();
+            });
+
+            // Handle file selection
             avatarInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
-                // Destroy existing cropper if any
+                // Destroy previous cropper
                 if (cropper) { cropper.destroy(); cropper = null; }
-                cropImage.src = '';
 
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     cropImage.src = ev.target.result;
-                    // Hide placeholder, show cropper wrapper
-                    avatarPlaceholder.style.display = 'none';
-                    cropWrapper.classList.add('active');
-                    cropper = new Cropper(cropImage, {
-                        aspectRatio: 1,
-                        viewMode: 1,
-                        dragMode: 'move',
-                        autoCropArea: 1,
-                        cropBoxResizable: false,
-                        background: false
-                    });
+                    // Wait for image to load before creating Cropper
+                    cropImage.onload = () => {
+                        // Hide placeholder, show crop wrapper
+                        avatarPlaceholder.style.display = 'none';
+                        cropWrapper.classList.add('active');
+                        cropper = new Cropper(cropImage, {
+                            aspectRatio: 1,
+                            viewMode: 1,
+                            dragMode: 'move',
+                            autoCropArea: 1,
+                            cropBoxResizable: false,
+                            background: false
+                        });
+                    };
                 };
                 reader.readAsDataURL(file);
             });
 
-            // --- Save profile with/without avatar ---
+            // --- Save profile ---
             async function saveProfileAndRedirect(avatarUrl = null) {
                 const fn = $("firstName").value.trim();
                 const ln = $("lastName").value.trim();
@@ -379,6 +392,15 @@
                 }
             }
 
+            // Cancel avatar modal (return to form)
+            $("cancelAvatarBtn").addEventListener("click", () => {
+                closeAvatarModal();
+                // No data loss because we haven't saved yet
+            });
+
+            $("skipAvatarBtn").addEventListener("click", skipAvatar);
+            $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
+
             // --- Form submission opens avatar modal ---
             $("submitBtn").addEventListener("click", () => {
                 const fn = $("firstName").value.trim();
@@ -396,7 +418,6 @@
                     showToast("You must be at least 14 years old.", "error");
                     return;
                 }
-                // Username uniqueness check
                 (async () => {
                     const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).neq("id", currentUserId).maybeSingle();
                     if (exist) {
@@ -406,9 +427,6 @@
                     openAvatarModal();
                 })();
             });
-
-            $("skipAvatarBtn").addEventListener("click", skipAvatar);
-            $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
 
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -420,7 +438,6 @@
                 currentEmail = session.user.email || '';
                 $("emailField").value = currentEmail;
 
-                // If profile already complete, skip to welcome
                 const { data: profile } = await supabase.from("profiles").select("*").eq("id", currentUserId).maybeSingle();
                 if (profile && profile.username) {
                     window.location.href = "welcome.html";
