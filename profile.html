@@ -153,7 +153,7 @@
         .crop-actions button.primary { background: var(--accent); color: #0a0806; }
         .crop-actions button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Toast – scrollable */
+        /* Toast */
         #toast {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
             background: var(--card); color: var(--text); border: 1px solid var(--border);
@@ -256,7 +256,6 @@
         (() => {
             const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
             const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
-            // Enable experimental passkey API
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                 auth: {
                     experimental: { passkey: true }
@@ -269,8 +268,6 @@
             );
 
             let currentUserId = null;
-            let originalProfile = null;
-            let isEditing = false;
             let cropper = null;
             let hasPasskey = false;
 
@@ -338,7 +335,6 @@
 
             // --- Profile Rendering ---
             function renderProfile(profile) {
-                originalProfile = { ...profile };
                 $('avatarImg').src = profile?.avatar_url || DEFAULT_AVATAR;
                 $('avatarImg').onerror = () => { $('avatarImg').src = DEFAULT_AVATAR; };
 
@@ -363,7 +359,6 @@
                 $('dobInput').value = profile?.dob || '';
                 $('countryInput').value = profile?.country || '';
 
-                // Passkey status
                 hasPasskey = !!profile?.passkey_created_at;
                 updatePasskeyUI();
             }
@@ -380,110 +375,13 @@
                 }
             }
 
-            // Passkey setup – coming soon
             function setupPasskey() {
                 showToast("Coming soon…", "success");
             }
 
             $('setupPasskeyBtn').addEventListener('click', setupPasskey);
 
-            function setEditMode(enabled) {
-                isEditing = enabled;
-                ['fullNameInput','usernameInput','emailInput','ageInput','dobInput','countryInput'].forEach(id => {
-                    $(id)[enabled ? 'removeAttribute' : 'setAttribute']('readonly', true);
-                });
-                updateHeaderButtons();
-            }
-
-            function updateHeaderButtons() {
-                const container = $('headerActions');
-                container.innerHTML = '';
-
-                const backBtn = document.createElement('button');
-                backBtn.className = 'btn';
-                backBtn.innerHTML = '<span class="material-symbols-outlined">arrow_back</span> Back';
-                backBtn.addEventListener('click', () => {
-                    window.location.href = "index.html";
-                });
-                container.appendChild(backBtn);
-
-                if (isEditing) {
-                    const saveBtn = document.createElement('button');
-                    saveBtn.className = 'btn primary';
-                    saveBtn.textContent = 'Save';
-                    saveBtn.addEventListener('click', async () => {
-                        setButtonLoading(saveBtn, true, 'Saving…');
-                        await saveProfile();
-                        setButtonLoading(saveBtn, false);
-                    });
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.className = 'btn';
-                    cancelBtn.textContent = 'Cancel';
-                    cancelBtn.addEventListener('click', cancelEdit);
-                    container.appendChild(saveBtn);
-                    container.appendChild(cancelBtn);
-                } else {
-                    const editBtn = document.createElement('button');
-                    editBtn.className = 'btn primary';
-                    editBtn.textContent = 'Edit Profile';
-                    editBtn.addEventListener('click', () => setEditMode(true));
-                    container.appendChild(editBtn);
-                }
-            }
-
-            function cancelEdit() {
-                if (originalProfile) renderProfile(originalProfile);
-                setEditMode(false);
-            }
-
-            async function saveProfile() {
-                const fullName = $('fullNameInput').value.trim();
-                const username = $('usernameInput').value.trim();
-                const email = $('emailInput').value.trim();
-                const age = parseInt($('ageInput').value) || null;
-                const dob = $('dobInput').value;
-                const country = $('countryInput').value.trim();
-
-                if (!fullName || !username || !email) {
-                    showToast('All fields are required.', 'error');
-                    return;
-                }
-                if (age && age < 14) {
-                    showToast('You must be at least 14 years old.', 'error');
-                    return;
-                }
-                try {
-                    const { data: exist } = await supabase.from('profiles')
-                        .select('id').eq('username', username).neq('id', currentUserId)
-                        .maybeSingle();
-                    if (exist) {
-                        showToast('Username already taken.', 'error');
-                        return;
-                    }
-                    if (email !== originalProfile.email) {
-                        const { error: authUpdateErr } = await supabase.auth.updateUser({ email });
-                        if (authUpdateErr) throw new Error('Failed to update login email: ' + authUpdateErr.message);
-                    }
-                    const updates = {
-                        full_name: fullName,
-                        username,
-                        email,
-                        age: age || null,
-                        dob: dob || null,
-                        country: country || null
-                    };
-                    const { error } = await supabase.from('profiles').update(updates).eq('id', currentUserId);
-                    if (error) throw error;
-                    $('displayFullName').textContent = fullName;
-                    $('displayUsername').textContent = '@' + username;
-                    showToast('Profile updated.', 'success');
-                    setEditMode(false);
-                } catch (e) {
-                    showToast(e.message, 'error');
-                }
-            }
-
-            // --- Avatar Upload (unchanged) ---
+            // --- Avatar Upload ---
             function openCropModal(file) {
                 if (cropper) { cropper.destroy(); cropper = null; }
                 const reader = new FileReader();
@@ -646,6 +544,28 @@
                         resetInactivity();
                     }
                 });
+            }
+
+            function updateHeaderButtons() {
+                const container = $('headerActions');
+                container.innerHTML = '';
+
+                const backBtn = document.createElement('button');
+                backBtn.className = 'btn';
+                backBtn.innerHTML = '<span class="material-symbols-outlined">arrow_back</span> Back';
+                backBtn.addEventListener('click', () => {
+                    window.location.href = "index.html";
+                });
+                container.appendChild(backBtn);
+
+                // Edit Profile button – now redirects to edit_profile.html
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn primary';
+                editBtn.textContent = 'Edit Profile';
+                editBtn.addEventListener('click', () => {
+                    window.location.href = "edit_profile.html";
+                });
+                container.appendChild(editBtn);
             }
 
             async function loadProfile() {
