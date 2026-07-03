@@ -380,40 +380,9 @@
                 }
             }
 
-            async function setupPasskey() {
-                const btn = $('setupPasskeyBtn');
-                setButtonLoading(btn, true, 'Setting up…');
-                try {
-                    // Check if the required experimental function is available
-                    if (typeof supabase.auth.signUpWithPasskey !== 'function') {
-                        showToast('Passkey creation is not supported by the current Supabase client version. Please try again later or use the sign‑up flow with a passkey.', 'error', 8000);
-                        return;
-                    }
-
-                    // Use the experimental passkey creation for the current user
-                    const { data, error } = await supabase.auth.signUpWithPasskey({
-                        email: originalProfile.email
-                    });
-                    if (error) {
-                        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
-                            showToast('A passkey already exists for this account or cannot be created here. Please use the Passkey button on the login page.', 'error', 8000);
-                        } else {
-                            throw error;
-                        }
-                    } else {
-                        // Success – record passkey creation time
-                        await supabase.from('profiles').update({
-                            passkey_created_at: new Date().toISOString()
-                        }).eq('id', currentUserId);
-                        hasPasskey = true;
-                        updatePasskeyUI();
-                        showToast('Passkey created! You can now sign in with it.', 'success', 4000);
-                    }
-                } catch (e) {
-                    showToast('Passkey setup failed: ' + (e.message || 'Unknown error'), 'error', 10000);
-                } finally {
-                    setButtonLoading(btn, false);
-                }
+            // Passkey setup – coming soon
+            function setupPasskey() {
+                showToast("Coming soon…", "success");
             }
 
             $('setupPasskeyBtn').addEventListener('click', setupPasskey);
