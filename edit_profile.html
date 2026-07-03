@@ -51,6 +51,18 @@
         .field input:focus, .field select:focus { border-color: var(--accent); }
         .field input[readonly] { opacity: 0.8; cursor: default; }
 
+        .dob-row {
+            display: flex; gap: 8px;
+        }
+        .dob-row select {
+            flex: 1; padding: 12px 8px; border-radius: 4px; background: var(--panel);
+            border: 1px solid var(--border); color: var(--text); font-size: 16px; outline: none;
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b5f4e'><path d='M7 10l5 5 5-5z'/></svg>");
+            background-repeat: no-repeat; background-position: right 8px center; padding-right: 30px;
+            font-family: inherit;
+        }
+
         .btn-row {
             display: flex; gap: 12px; margin-top: 24px;
         }
@@ -107,12 +119,16 @@
             <input id="emailInput" type="email" placeholder="Email" />
         </div>
         <div class="field">
-            <label for="ageInput">Age</label>
-            <input id="ageInput" type="number" placeholder="Age" />
+            <label>Date of birth</label>
+            <div class="dob-row">
+                <select id="dobDay"><option value="">Day</option></select>
+                <select id="dobMonth"><option value="">Month</option></select>
+                <select id="dobYear"><option value="">Year</option></select>
+            </div>
         </div>
         <div class="field">
-            <label for="dobInput">Date of birth</label>
-            <input id="dobInput" type="date" />
+            <label for="ageInput">Age (auto‑calculated)</label>
+            <input id="ageInput" type="text" readonly placeholder="From date of birth" />
         </div>
         <div class="field">
             <label for="countryInput">Country</label>
@@ -136,6 +152,31 @@
             const $ = id => document.getElementById(id);
             let currentUserId = null;
             let originalEmail = '';
+
+            // DOB dropdowns
+            const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
+            const ageField = $("ageInput");
+            const currentYear = new Date().getFullYear();
+            const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+            for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; dobMonth.appendChild(o); }
+            for (let y = currentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; dobYear.appendChild(o); }
+            function getDaysInMonth(m, y) { if (!m || !y) return 31; return new Date(y, m, 0).getDate(); }
+            function populateDays() {
+                const m = parseInt(dobMonth.value), y = parseInt(dobYear.value), days = getDaysInMonth(m||1, y||2000), cur = dobDay.value ? parseInt(dobDay.value) : 0;
+                dobDay.innerHTML = '<option value="">Day</option>';
+                for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; dobDay.appendChild(o); }
+                if (cur > 0 && cur <= days) dobDay.value = cur; else dobDay.value = "";
+            }
+            dobMonth.addEventListener("change", populateDays); dobYear.addEventListener("change", populateDays); populateDays();
+            function updateAgeField() {
+                const d = parseInt(dobDay.value), m = parseInt(dobMonth.value), y = parseInt(dobYear.value);
+                if (!d || !m || !y) { ageField.value = ""; return; }
+                const dob = new Date(y, m-1, d), now = new Date();
+                let age = now.getFullYear() - dob.getFullYear();
+                const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
+                ageField.value = age;
+            }
+            dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
             // Toast
             let toastTimer;
@@ -171,15 +212,19 @@
                 const fullName = $('fullNameInput').value.trim();
                 const username = $('usernameInput').value.trim();
                 const email = $('emailInput').value.trim();
-                const age = parseInt($('ageInput').value) || null;
-                const dob = $('dobInput').value;
+                const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+                const age = parseInt(ageField.value,10);
                 const country = $('countryInput').value.trim();
 
                 if (!fullName || !username || !email) {
                     showToast('Full name, username and email are required.', 'error');
                     return;
                 }
-                if (age && age < 14) {
+                if (!day || !month || !year) {
+                    showToast('Please select your date of birth.', 'error');
+                    return;
+                }
+                if (isNaN(age) || age < 14) {
                     showToast('You must be at least 14 years old.', 'error');
                     return;
                 }
@@ -187,7 +232,6 @@
                 setButtonLoading($('saveBtn'), true, 'Saving…');
 
                 try {
-                    // Check username uniqueness
                     const { data: exist } = await supabase.from('profiles')
                         .select('id').eq('username', username).neq('id', currentUserId)
                         .maybeSingle();
@@ -197,18 +241,18 @@
                         return;
                     }
 
-                    // If email changed, update auth user
                     if (email !== originalEmail) {
                         const { error: authUpdateErr } = await supabase.auth.updateUser({ email });
                         if (authUpdateErr) throw new Error('Failed to update login email: ' + authUpdateErr.message);
                     }
 
+                    const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                     const updates = {
                         full_name: fullName,
                         username,
                         email,
-                        age: age || null,
-                        dob: dob || null,
+                        age,
+                        dob,
                         country: country || null
                     };
 
@@ -234,7 +278,6 @@
                 }
                 currentUserId = session.user.id;
 
-                // Load current profile data
                 const { data: profile } = await supabase.from('profiles')
                     .select('*').eq('id', currentUserId).single();
 
@@ -242,10 +285,22 @@
                     $('fullNameInput').value = profile.full_name || '';
                     $('usernameInput').value = profile.username || '';
                     $('emailInput').value = profile.email || '';
-                    $('ageInput').value = profile.age != null ? profile.age : '';
-                    $('dobInput').value = profile.dob || '';
-                    $('countryInput').value = profile.country || '';
                     originalEmail = profile.email || '';
+                    $('countryInput').value = profile.country || '';
+
+                    // Parse DOB if present
+                    if (profile.dob) {
+                        const parts = profile.dob.split('-'); // YYYY-MM-DD
+                        if (parts.length === 3) {
+                            const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
+                            dobYear.value = y;
+                            dobMonth.value = m;
+                            // Repopulate days for that month/year, then set day
+                            populateDays();
+                            dobDay.value = d;
+                            updateAgeField();
+                        }
+                    }
                 }
             }
 
