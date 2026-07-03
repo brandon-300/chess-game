@@ -511,14 +511,16 @@
   const githubBtn = $("githubSubmit");
   if (githubBtn) githubBtn.addEventListener("click", () => handleOAuthLogin('github', githubBtn));
 
-  // Passkey (WebAuthn)
+  // Passkey (WebAuthn) – friendly error handling
   const passkeyBtn = $("passkeySubmit");
   if (passkeyBtn) {
     passkeyBtn.addEventListener("click", async () => {
       try {
         const { data, error } = await supabase.auth.signInWithPasskey();
         if (error) {
-          if (error.message && error.message.includes("cancelled")) {
+          // User cancelled or no credential available (NotAllowedError)
+          if (error.name === 'NotAllowedError' || error.message?.includes('timed out') || error.message?.includes('not allowed')) {
+            showToast("No passkeys found for this site. You can set one up in your account settings.", "success", 5000);
             return;
           }
           throw error;
