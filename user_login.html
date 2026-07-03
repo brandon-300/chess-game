@@ -340,7 +340,12 @@
 (() => {
   const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Enable experimental passkey API
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      experimental: { passkey: true }
+    }
+  });
 
   const $ = id => document.getElementById(id);
   const slider = $("slider");
@@ -513,7 +518,6 @@
       try {
         const { data, error } = await supabase.auth.signInWithPasskey();
         if (error) {
-          // User cancelled or no credential
           if (error.message && error.message.includes("cancelled")) {
             return;
           }
@@ -521,7 +525,6 @@
         }
         window.location.href = "onboarding.html";
       } catch(e) {
-        // Show the full error for debugging, with longer duration
         showToast(e.message || "Passkey authentication failed.", "error", 8000);
       }
     });
