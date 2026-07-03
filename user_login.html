@@ -180,15 +180,14 @@
   }
   .dob-row select:focus{border-color:var(--accent)}
 
-  /* Toast – now wraps text and allows longer messages */
+  /* Toast */
   #toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
     background: var(--card); color: var(--text); border: 1px solid var(--border);
     padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
     opacity: 0; pointer-events: none; z-index: 9999;
     transition: opacity 0.2s ease, transform 0.2s ease;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    max-width: 90vw; word-wrap: break-word; white-space: normal;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.success { border-color: var(--success); color: var(--success); }
@@ -336,306 +335,305 @@
     </div>
   </div>
 
-<script>
-(() => {
-  const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
-  // Enable experimental passkey API
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      experimental: { passkey: true }
-    }
-  });
-
-  const $ = id => document.getElementById(id);
-  const slider = $("slider");
-  const tabLogin = $("tabLogin");
-  const tabSignup = $("tabSignup");
-
-  // DOB dropdowns (unchanged)
-  const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
-  const signupAge = $("signupAge"), ageError = $("ageError");
-  const currentYear = new Date().getFullYear();
-  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; dobMonth.appendChild(o); }
-  for (let y = currentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; dobYear.appendChild(o); }
-  function getDaysInMonth(m, y) { if (!m || !y) return 31; return new Date(y, m, 0).getDate(); }
-  function populateDays() {
-    const m = parseInt(dobMonth.value), y = parseInt(dobYear.value), days = getDaysInMonth(m||1, y||2000), cur = dobDay.value ? parseInt(dobDay.value) : 0;
-    dobDay.innerHTML = '<option value="">Day</option>';
-    for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; dobDay.appendChild(o); }
-    if (cur > 0 && cur <= days) dobDay.value = cur; else dobDay.value = "";
-  }
-  dobMonth.addEventListener("change", populateDays); dobYear.addEventListener("change", populateDays); populateDays();
-  function updateAgeField() {
-    const d = parseInt(dobDay.value), m = parseInt(dobMonth.value), y = parseInt(dobYear.value);
-    if (!d || !m || !y) { signupAge.value = ""; signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); return; }
-    const dob = new Date(y, m-1, d), now = new Date();
-    let age = now.getFullYear() - dob.getFullYear();
-    const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
-    signupAge.value = age;
-    if (age < 14) { signupAge.classList.add("invalid-age"); ageError.textContent = "You must be at least 14 years old."; ageError.classList.add("show"); }
-    else { signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); }
-  }
-  dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
-
-  // Tab switching
-  function switchTab(index, tab) {
-    slider.style.transform = `translateX(-${index*100}%)`;
-    [tabLogin, tabSignup].forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    clearMessages();
-  }
-  tabLogin.addEventListener("click", () => switchTab(0, tabLogin));
-  tabSignup.addEventListener("click", () => switchTab(1, tabSignup));
-  $("switchToSignup").addEventListener("click", () => switchTab(1, tabSignup));
-  $("switchToLogin").addEventListener("click", () => switchTab(0, tabLogin));
-
-  // Password reveal
-  document.querySelectorAll(".reveal").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const input = document.getElementById(btn.dataset.target);
-      if (input) {
-        const isPw = input.type === "password";
-        input.type = isPw ? "text" : "password";
-        btn.querySelector('span').textContent = isPw ? "visibility_off" : "visibility";
+  <script src="config.js"></script>
+  <script>
+  (() => {
+    const SUPABASE_URL = window.SUPABASE_URL;
+    const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        experimental: { passkey: true }
       }
     });
-  });
 
-  // --- Toast ---
-  let toastTimer;
-  function showToast(msg, type = 'success', duration = 3000) {
-    const toast = $('toast');
-    if (!toast) return;
-    toast.textContent = msg;
-    toast.className = type;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.classList.remove('show'); }, duration);
-  }
+    const $ = id => document.getElementById(id);
+    const slider = $("slider");
+    const tabLogin = $("tabLogin");
+    const tabSignup = $("tabSignup");
 
-  // --- Button loading helper (only for login/signup buttons) ---
-  function setButtonLoading(btn, loading, label) {
-    if (loading) {
-      btn._originalHTML = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<span class="loading-spinner"></span> ${label || ''}`;
-    } else {
-      btn.innerHTML = btn._originalHTML || btn.innerHTML;
-      btn.disabled = false;
-      delete btn._originalHTML;
+    // DOB dropdowns (unchanged)
+    const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
+    const signupAge = $("signupAge"), ageError = $("ageError");
+    const currentYear = new Date().getFullYear();
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    for (let i = 1; i <= 12; i++) { const o = document.createElement("option"); o.value = i; o.textContent = monthNames[i-1]; dobMonth.appendChild(o); }
+    for (let y = currentYear; y >= 1900; y--) { const o = document.createElement("option"); o.value = y; o.textContent = y; dobYear.appendChild(o); }
+    function getDaysInMonth(m, y) { if (!m || !y) return 31; return new Date(y, m, 0).getDate(); }
+    function populateDays() {
+      const m = parseInt(dobMonth.value), y = parseInt(dobYear.value), days = getDaysInMonth(m||1, y||2000), cur = dobDay.value ? parseInt(dobDay.value) : 0;
+      dobDay.innerHTML = '<option value="">Day</option>';
+      for (let d = 1; d <= days; d++) { const o = document.createElement("option"); o.value = d; o.textContent = d; dobDay.appendChild(o); }
+      if (cur > 0 && cur <= days) dobDay.value = cur; else dobDay.value = "";
     }
-  }
-
-  function clearMessages() {
-    const loginErr = $("loginErr"), signupErr = $("signupErr"), signupSuccess = $("signupSuccess");
-    if (loginErr) loginErr.classList.remove("show");
-    if (signupErr) signupErr.classList.remove("show");
-    if (signupSuccess) signupSuccess.classList.remove("show");
-    signupAge.classList.remove("invalid-age");
-    ageError.classList.remove("show");
-  }
-
-  function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
-
-  // --- Redirect logic ---
-  function getRedirectUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const redirect = params.get('redirect');
-    if (redirect && (redirect.startsWith('/') || !redirect.includes('://'))) {
-      return redirect;
+    dobMonth.addEventListener("change", populateDays); dobYear.addEventListener("change", populateDays); populateDays();
+    function updateAgeField() {
+      const d = parseInt(dobDay.value), m = parseInt(dobMonth.value), y = parseInt(dobYear.value);
+      if (!d || !m || !y) { signupAge.value = ""; signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); return; }
+      const dob = new Date(y, m-1, d), now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const md = now.getMonth() - dob.getMonth(); if (md < 0 || (md === 0 && now.getDate() < dob.getDate())) age--;
+      signupAge.value = age;
+      if (age < 14) { signupAge.classList.add("invalid-age"); ageError.textContent = "You must be at least 14 years old."; ageError.classList.add("show"); }
+      else { signupAge.classList.remove("invalid-age"); ageError.classList.remove("show"); }
     }
-    return 'index.html';
-  }
-  function getFinalRedirectPath() {
-    let path = getRedirectUrl();
-    if (path.startsWith('/')) path = path.substring(1);
-    return path;
-  }
+    dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
-  // --- Check if already logged in ---
-  async function checkSessionAndRedirect() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      window.location.href = getRedirectUrl();
+    // Tab switching
+    function switchTab(index, tab) {
+      slider.style.transform = `translateX(-${index*100}%)`;
+      [tabLogin, tabSignup].forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      clearMessages();
     }
-  }
+    tabLogin.addEventListener("click", () => switchTab(0, tabLogin));
+    tabSignup.addEventListener("click", () => switchTab(1, tabSignup));
+    $("switchToSignup").addEventListener("click", () => switchTab(1, tabSignup));
+    $("switchToLogin").addEventListener("click", () => switchTab(0, tabLogin));
 
-  // ---- Email Login ----
-  $("loginSubmit").addEventListener("click", async function() {
-    const btn = this;
-    const username = $("loginUsername").value.trim(), password = $("loginPassword").value;
-    if (!username || !password) { showToast("Please enter both username and password.", "error"); return; }
-    setButtonLoading(btn, true, 'Logging in…');
-    try {
-      const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
-      if (!profile) { showToast("Username does not exist.", "error"); setButtonLoading(btn, false); return; }
-      const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
-      if (authErr) throw authErr;
-      await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
-      window.location.href = getRedirectUrl();
-    } catch(e) { showToast(e.message || "Login failed.", "error"); setButtonLoading(btn, false); }
-  });
-
-  // ---- OAuth helpers (no spinners) ----
-  async function handleOAuthLogin(provider, btn) {
-    try {
-      const redirectUrl = window.location.origin + "/onboarding.html";
-      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl } });
-      if (error) throw error;
-    } catch(e) { showToast(e.message || `${provider} authentication failed.`, "error"); }
-  }
-
-  // Google
-  const googleBtn = $("googleSubmit");
-  if (googleBtn) googleBtn.addEventListener("click", () => handleOAuthLogin('google', googleBtn));
-
-  // Apple (coming soon)
-  const appleBtn = $("appleSubmit");
-  if (appleBtn) {
-    appleBtn.addEventListener("click", () => {
-      showToast("Coming soon…", "success");
-    });
-  }
-
-  // Facebook (coming soon)
-  const facebookBtn = $("facebookSubmit");
-  if (facebookBtn) {
-    facebookBtn.addEventListener("click", () => {
-      showToast("Coming soon…", "success");
-    });
-  }
-
-  // GitHub
-  const githubBtn = $("githubSubmit");
-  if (githubBtn) githubBtn.addEventListener("click", () => handleOAuthLogin('github', githubBtn));
-
-  // Passkey (WebAuthn) – friendly error handling
-  const passkeyBtn = $("passkeySubmit");
-  if (passkeyBtn) {
-    passkeyBtn.addEventListener("click", async () => {
-      try {
-        const { data, error } = await supabase.auth.signInWithPasskey();
-        if (error) {
-          // User cancelled or no credential available (NotAllowedError)
-          if (error.name === 'NotAllowedError' || error.message?.includes('timed out') || error.message?.includes('not allowed')) {
-            showToast("No passkeys found for this site. You can set one up in your account settings.", "success", 5000);
-            return;
-          }
-          throw error;
+    // Password reveal
+    document.querySelectorAll(".reveal").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.target);
+        if (input) {
+          const isPw = input.type === "password";
+          input.type = isPw ? "text" : "password";
+          btn.querySelector('span').textContent = isPw ? "visibility_off" : "visibility";
         }
-        window.location.href = "onboarding.html";
-      } catch(e) {
-        showToast(e.message || "Passkey authentication failed.", "error", 8000);
-      }
+      });
     });
-  }
 
-  // ---- Signup ----
-  $("signupSubmit").addEventListener("click", async () => {
-    const btn = $("signupSubmit");
-    const fn = $("signupFirstName").value.trim(), ln = $("signupLastName").value.trim();
-    const country = $("signupCountry").value.trim(), username = $("signupUsername").value.trim();
-    const email = $("signupEmail").value.trim(), password = $("signupPassword").value;
-    const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
-    const age = parseInt(signupAge.value,10);
-    if (!fn||!ln||!country||!username||!email||!password||!day||!month||!year) { showToast("All fields are required.", "error"); return; }
-    if (isNaN(age)||age<14) { showToast("You must be at least 14 years old.", "error"); return; }
-    if (!isValidPassword(password)) { showToast("Password must be 8+ chars with letter, number, special.", "error"); return; }
-    setButtonLoading(btn, true, 'Creating account…');
-    const fullName = `${fn} ${ln}`, dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    try {
-      const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
-      if (exist) { showToast("Username already taken.", "error"); setButtonLoading(btn, false); return; }
-      const { data: auth, error: authErr } = await supabase.auth.signUp({ email, password, options: { data: { username, full_name: fullName }, emailRedirectTo: window.location.origin+"/index.html" } });
-      if (authErr) throw authErr;
-      if (!auth.user) throw new Error("Signup failed.");
-      const { error: insErr } = await supabase.from("profiles").insert({ id: auth.user.id, username, full_name: fullName, age, dob, country, email });
-      if (insErr) throw new Error("Profile creation failed: "+insErr.message);
-      showToast("Account created! Logging you in…", "success");
-      const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
-      if (loginErr) throw loginErr;
-      await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", auth.user.id);
-      window.location.href = getRedirectUrl();
-    } catch(e) { showToast(e.message || "Registration failed.", "error"); setButtonLoading(btn, false); }
-  });
-
-  // ---- Email modal logic ----
-  const emailModal = $("emailModal");
-  const emailModalInput = $("emailModalInput");
-  const emailModalStatus = $("emailModalStatus");
-  const sendMagicBtn = $("sendMagicLinkBtn");
-  const emailModalCloseBtn = $("emailModalCloseBtn");
-  let emailCheckTimer = null;
-
-  $("emailLoginBtn").addEventListener("click", () => {
-    emailModal.classList.add("show");
-    emailModalInput.value = "";
-    emailModalStatus.innerHTML = "";
-    sendMagicBtn.style.display = "none";
-  });
-
-  emailModalCloseBtn.addEventListener("click", () => {
-    emailModal.classList.remove("show");
-  });
-
-  emailModalInput.addEventListener("input", () => {
-    clearTimeout(emailCheckTimer);
-    const email = emailModalInput.value.trim();
-    emailModalStatus.innerHTML = "";
-    sendMagicBtn.style.display = "none";
-
-    if (!email) return;
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      emailModalStatus.innerHTML = '<span style="color:var(--danger)">Invalid email address, please check and try again.</span>';
-      return;
+    // --- Toast ---
+    let toastTimer;
+    function showToast(msg, type = 'success', duration = 3000) {
+      const toast = $('toast');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.className = type;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.classList.remove('show'); }, duration);
     }
 
-    emailCheckTimer = setTimeout(async () => {
+    // --- Button loading helper (only for login/signup buttons) ---
+    function setButtonLoading(btn, loading, label) {
+      if (loading) {
+        btn._originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="loading-spinner"></span> ${label || ''}`;
+      } else {
+        btn.innerHTML = btn._originalHTML || btn.innerHTML;
+        btn.disabled = false;
+        delete btn._originalHTML;
+      }
+    }
+
+    function clearMessages() {
+      const loginErr = $("loginErr"), signupErr = $("signupErr"), signupSuccess = $("signupSuccess");
+      if (loginErr) loginErr.classList.remove("show");
+      if (signupErr) signupErr.classList.remove("show");
+      if (signupSuccess) signupSuccess.classList.remove("show");
+      signupAge.classList.remove("invalid-age");
+      ageError.classList.remove("show");
+    }
+
+    function isValidPassword(pw) { return pw.length >= 8 && /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && /[^a-zA-Z0-9]/.test(pw); }
+
+    // --- Redirect logic ---
+    function getRedirectUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      if (redirect && (redirect.startsWith('/') || !redirect.includes('://'))) {
+        return redirect;
+      }
+      return 'index.html';
+    }
+    function getFinalRedirectPath() {
+      let path = getRedirectUrl();
+      if (path.startsWith('/')) path = path.substring(1);
+      return path;
+    }
+
+    // --- Check if already logged in ---
+    async function checkSessionAndRedirect() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        window.location.href = getRedirectUrl();
+      }
+    }
+
+    // ---- Email Login ----
+    $("loginSubmit").addEventListener("click", async function() {
+      const btn = this;
+      const username = $("loginUsername").value.trim(), password = $("loginPassword").value;
+      if (!username || !password) { showToast("Please enter both username and password.", "error"); return; }
+      setButtonLoading(btn, true, 'Logging in…');
       try {
-        const { data, error } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
+        const { data: profile } = await supabase.from("profiles").select("email, id").eq("username", username).maybeSingle();
+        if (!profile) { showToast("Username does not exist.", "error"); setButtonLoading(btn, false); return; }
+        const { error: authErr } = await supabase.auth.signInWithPassword({ email: profile.email, password });
+        if (authErr) throw authErr;
+        await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", profile.id);
+        window.location.href = getRedirectUrl();
+      } catch(e) { showToast(e.message || "Login failed.", "error"); setButtonLoading(btn, false); }
+    });
+
+    // ---- OAuth helpers (no spinners) ----
+    async function handleOAuthLogin(provider, btn) {
+      try {
+        const redirectUrl = window.location.origin + "/onboarding.html";
+        const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl } });
         if (error) throw error;
-        if (data) {
-          emailModalStatus.innerHTML = `This email is already registered. <a href="forgot_password.html?email=${encodeURIComponent(email)}" style="color:var(--accent); text-decoration:underline;">Reset your password</a>.`;
-          sendMagicBtn.style.display = "none";
-        } else {
-          sendMagicBtn.style.display = "block";
+      } catch(e) { showToast(e.message || `${provider} authentication failed.`, "error"); }
+    }
+
+    // Google
+    const googleBtn = $("googleSubmit");
+    if (googleBtn) googleBtn.addEventListener("click", () => handleOAuthLogin('google', googleBtn));
+
+    // Apple (coming soon)
+    const appleBtn = $("appleSubmit");
+    if (appleBtn) {
+      appleBtn.addEventListener("click", () => {
+        showToast("Coming soon…", "success");
+      });
+    }
+
+    // Facebook (coming soon)
+    const facebookBtn = $("facebookSubmit");
+    if (facebookBtn) {
+      facebookBtn.addEventListener("click", () => {
+        showToast("Coming soon…", "success");
+      });
+    }
+
+    // GitHub
+    const githubBtn = $("githubSubmit");
+    if (githubBtn) githubBtn.addEventListener("click", () => handleOAuthLogin('github', githubBtn));
+
+    // Passkey (WebAuthn)
+    const passkeyBtn = $("passkeySubmit");
+    if (passkeyBtn) {
+      passkeyBtn.addEventListener("click", async () => {
+        try {
+          const { data, error } = await supabase.auth.signInWithPasskey();
+          if (error) {
+            if (error.name === 'NotAllowedError' || error.message?.includes('timed out') || error.message?.includes('not allowed')) {
+              showToast("No passkeys found for this site. You can set one up in your account settings.", "success", 5000);
+              return;
+            }
+            throw error;
+          }
+          window.location.href = "onboarding.html";
+        } catch(e) {
+          showToast(e.message || "Passkey authentication failed.", "error", 8000);
         }
-      } catch (e) {
-        emailModalStatus.innerHTML = '<span style="color:var(--danger)">Error checking email.</span>';
-      }
-    }, 500);
-  });
+      });
+    }
 
-  sendMagicBtn.addEventListener("click", async () => {
-    const email = emailModalInput.value.trim();
-    if (!email) return;
-    setButtonLoading(sendMagicBtn, true, 'Sending link…');
-    try {
-      const redirectTo = window.location.origin + "/onboarding.html";
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
-      if (error) throw error;
-      showToast("Check your email for the magic link!", "success");
+    // ---- Signup ----
+    $("signupSubmit").addEventListener("click", async () => {
+      const btn = $("signupSubmit");
+      const fn = $("signupFirstName").value.trim(), ln = $("signupLastName").value.trim();
+      const country = $("signupCountry").value.trim(), username = $("signupUsername").value.trim();
+      const email = $("signupEmail").value.trim(), password = $("signupPassword").value;
+      const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
+      const age = parseInt(signupAge.value,10);
+      if (!fn||!ln||!country||!username||!email||!password||!day||!month||!year) { showToast("All fields are required.", "error"); return; }
+      if (isNaN(age)||age<14) { showToast("You must be at least 14 years old.", "error"); return; }
+      if (!isValidPassword(password)) { showToast("Password must be 8+ chars with letter, number, special.", "error"); return; }
+      setButtonLoading(btn, true, 'Creating account…');
+      const fullName = `${fn} ${ln}`, dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      try {
+        const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
+        if (exist) { showToast("Username already taken.", "error"); setButtonLoading(btn, false); return; }
+        const { data: auth, error: authErr } = await supabase.auth.signUp({ email, password, options: { data: { username, full_name: fullName }, emailRedirectTo: window.location.origin+"/index.html" } });
+        if (authErr) throw authErr;
+        if (!auth.user) throw new Error("Signup failed.");
+        const { error: insErr } = await supabase.from("profiles").insert({ id: auth.user.id, username, full_name: fullName, age, dob, country, email });
+        if (insErr) throw new Error("Profile creation failed: "+insErr.message);
+        showToast("Account created! Logging you in…", "success");
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (loginErr) throw loginErr;
+        await supabase.from("profiles").update({ is_online: true, last_seen: new Date().toISOString() }).eq("id", auth.user.id);
+        window.location.href = getRedirectUrl();
+      } catch(e) { showToast(e.message || "Registration failed.", "error"); setButtonLoading(btn, false); }
+    });
+
+    // ---- Email modal logic ----
+    const emailModal = $("emailModal");
+    const emailModalInput = $("emailModalInput");
+    const emailModalStatus = $("emailModalStatus");
+    const sendMagicBtn = $("sendMagicLinkBtn");
+    const emailModalCloseBtn = $("emailModalCloseBtn");
+    let emailCheckTimer = null;
+
+    $("emailLoginBtn").addEventListener("click", () => {
+      emailModal.classList.add("show");
+      emailModalInput.value = "";
+      emailModalStatus.innerHTML = "";
+      sendMagicBtn.style.display = "none";
+    });
+
+    emailModalCloseBtn.addEventListener("click", () => {
       emailModal.classList.remove("show");
-    } catch(e) {
-      showToast(e.message || "Failed to send magic link.", "error");
-    } finally {
-      setButtonLoading(sendMagicBtn, false);
-    }
-  });
+    });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key==="Enter") {
-      if (tabLogin.classList.contains("active")) $("loginSubmit").click();
-      else if (tabSignup.classList.contains("active")) $("signupSubmit").click();
-      else if (emailModal.classList.contains("show")) sendMagicBtn.click();
-    }
-  });
+    emailModalInput.addEventListener("input", () => {
+      clearTimeout(emailCheckTimer);
+      const email = emailModalInput.value.trim();
+      emailModalStatus.innerHTML = "";
+      sendMagicBtn.style.display = "none";
 
-  checkSessionAndRedirect();
-})();
-</script>
+      if (!email) return;
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        emailModalStatus.innerHTML = '<span style="color:var(--danger)">Invalid email address, please check and try again.</span>';
+        return;
+      }
+
+      emailCheckTimer = setTimeout(async () => {
+        try {
+          const { data, error } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
+          if (error) throw error;
+          if (data) {
+            emailModalStatus.innerHTML = `This email is already registered. <a href="forgot_password.html?email=${encodeURIComponent(email)}" style="color:var(--accent); text-decoration:underline;">Reset your password</a>.`;
+            sendMagicBtn.style.display = "none";
+          } else {
+            sendMagicBtn.style.display = "block";
+          }
+        } catch (e) {
+          emailModalStatus.innerHTML = '<span style="color:var(--danger)">Error checking email.</span>';
+        }
+      }, 500);
+    });
+
+    sendMagicBtn.addEventListener("click", async () => {
+      const email = emailModalInput.value.trim();
+      if (!email) return;
+      setButtonLoading(sendMagicBtn, true, 'Sending link…');
+      try {
+        const redirectTo = window.location.origin + "/onboarding.html";
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+        if (error) throw error;
+        showToast("Check your email for the magic link!", "success");
+        emailModal.classList.remove("show");
+      } catch(e) {
+        showToast(e.message || "Failed to send magic link.", "error");
+      } finally {
+        setButtonLoading(sendMagicBtn, false);
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key==="Enter") {
+        if (tabLogin.classList.contains("active")) $("loginSubmit").click();
+        else if (tabSignup.classList.contains("active")) $("signupSubmit").click();
+        else if (emailModal.classList.contains("show")) sendMagicBtn.click();
+      }
+    });
+
+    checkSessionAndRedirect();
+  })();
+  </script>
 </body>
 </html>
