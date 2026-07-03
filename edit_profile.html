@@ -143,10 +143,11 @@
 
     <div id="toast"></div>
 
+    <script src="config.js"></script>
     <script>
         (() => {
-            const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
-            const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+            const SUPABASE_URL = window.SUPABASE_URL;
+            const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
             const $ = id => document.getElementById(id);
@@ -288,14 +289,12 @@
                     originalEmail = profile.email || '';
                     $('countryInput').value = profile.country || '';
 
-                    // Parse DOB if present
                     if (profile.dob) {
-                        const parts = profile.dob.split('-'); // YYYY-MM-DD
+                        const parts = profile.dob.split('-');
                         if (parts.length === 3) {
                             const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
                             dobYear.value = y;
                             dobMonth.value = m;
-                            // Repopulate days for that month/year, then set day
                             populateDays();
                             dobDay.value = d;
                             updateAgeField();
