@@ -81,12 +81,12 @@
         .user-info h2 { font-size: 24px; margin-bottom: 4px; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
         .user-info .username {
             color: var(--muted); font-size: 14px;
-            text-align: center;   /* centered */
+            text-align: center;
         }
         .last-seen {
             color: var(--muted); font-size: 12px; margin-top: 8px;
             display: flex; align-items: center; gap: 6px;
-            justify-content: center;   /* centered */
+            justify-content: center;
         }
         .status-dot-inline {
             width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
@@ -215,6 +215,18 @@
                 <div class="field"><label for="dobInput">Date of birth</label><input id="dobInput" type="date" readonly /></div>
                 <div class="field"><label for="countryInput">Country</label><input id="countryInput" type="text" readonly /></div>
             </div>
+
+            <!-- Passkey Section -->
+            <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
+                <label style="font-size:11px; color:var(--accent2); letter-spacing:.05em; margin-bottom:8px; display:block;">PASSKEY</label>
+                <div id="passkeyStatus" style="font-size:14px; margin-bottom:8px; color:var(--muted);">
+                    <!-- filled dynamically -->
+                </div>
+                <button class="btn primary" id="setupPasskeyBtn" style="display:none;">
+                    <span class="material-symbols-outlined" style="font-size:16px;">vpn_key</span>
+                    Set Up Passkey
+                </button>
+            </div>
         </div>
 
         <!-- Crop Modal -->
@@ -242,7 +254,12 @@
         (() => {
             const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
             const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // Enable experimental passkey API
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: {
+                    experimental: { passkey: true }
+                }
+            });
 
             const $ = id => document.getElementById(id);
             const DEFAULT_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
@@ -253,6 +270,7 @@
             let originalProfile = null;
             let isEditing = false;
             let cropper = null;
+            let hasPasskey = false;
 
             let heartbeatInterval;
             const INACTIVITY_LIMIT = 15 * 60 * 1000;
@@ -342,7 +360,55 @@
                 $('ageInput').value = profile?.age != null ? profile.age : '';
                 $('dobInput').value = profile?.dob || '';
                 $('countryInput').value = profile?.country || '';
+
+                // Passkey status
+                hasPasskey = !!profile?.passkey_created_at;
+                updatePasskeyUI();
             }
+
+            function updatePasskeyUI() {
+                const statusEl = $('passkeyStatus');
+                const btn = $('setupPasskeyBtn');
+                if (hasPasskey) {
+                    statusEl.innerHTML = '<span style="color:var(--success);">✓</span> Passkey is active';
+                    btn.style.display = 'none';
+                } else {
+                    statusEl.innerHTML = 'No passkey set. You can add one for faster sign‑in.';
+                    btn.style.display = 'inline-flex';
+                }
+            }
+
+            async function setupPasskey() {
+                const btn = $('setupPasskeyBtn');
+                setButtonLoading(btn, true, 'Setting up…');
+                try {
+                    // Use the experimental passkey creation for the current user
+                    const { data, error } = await supabase.auth.signUpWithPasskey({
+                        email: originalProfile.email
+                    });
+                    if (error) {
+                        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+                            showToast('This account already has a passkey or could not be created. Try the login page.', 'error', 5000);
+                        } else {
+                            throw error;
+                        }
+                    } else {
+                        // Success – record passkey creation time
+                        await supabase.from('profiles').update({
+                            passkey_created_at: new Date().toISOString()
+                        }).eq('id', currentUserId);
+                        hasPasskey = true;
+                        updatePasskeyUI();
+                        showToast('Passkey created! You can now sign in with it.', 'success', 4000);
+                    }
+                } catch (e) {
+                    showToast('Passkey setup failed: ' + (e.message || 'Unknown error'), 'error', 6000);
+                } finally {
+                    setButtonLoading(btn, false);
+                }
+            }
+
+            $('setupPasskeyBtn').addEventListener('click', setupPasskey);
 
             function setEditMode(enabled) {
                 isEditing = enabled;
@@ -440,7 +506,7 @@
                 }
             }
 
-            // --- Avatar Upload ---
+            // --- Avatar Upload (unchanged) ---
             function openCropModal(file) {
                 if (cropper) { cropper.destroy(); cropper = null; }
                 const reader = new FileReader();
@@ -504,7 +570,6 @@
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session) {
-                    // ✅ Redirect to login with a return path
                     window.location.href = "user_login.html?redirect=" + encodeURIComponent(window.location.pathname);
                     return;
                 }
@@ -558,7 +623,6 @@
                         stopHeartbeat();
                         clearTimeout(inactivityTimer);
                         await supabase.auth.signOut();
-                        // Keep spinner until redirect
                         setTimeout(() => { window.location.href = "index.html"; }, 1500);
                     } catch (e) {
                         setButtonLoading(logoutBtn, false);
