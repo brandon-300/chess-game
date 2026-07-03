@@ -153,14 +153,16 @@
         .crop-actions button.primary { background: var(--accent); color: #0a0806; }
         .crop-actions button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Toast */
+        /* Toast – now scrollable for long messages */
         #toast {
             position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
             background: var(--card); color: var(--text); border: 1px solid var(--border);
             padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
             opacity: 0; pointer-events: none; z-index: 9999;
             transition: opacity 0.2s ease, transform 0.2s ease;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            max-width: 90vw; word-wrap: break-word; white-space: normal;
+            max-height: 50vh; overflow-y: auto;
         }
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         #toast.success { border-color: var(--success); color: var(--success); }
@@ -278,13 +280,13 @@
 
             // --- Toast ---
             let toastTimer;
-            function showToast(msg, type = 'success') {
+            function showToast(msg, type = 'success', duration = 3000) {
                 const toast = $('toast');
                 toast.textContent = msg;
                 toast.className = type;
                 toast.classList.add('show');
                 clearTimeout(toastTimer);
-                toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3000);
+                toastTimer = setTimeout(() => { toast.classList.remove('show'); }, duration);
             }
 
             // --- Button loading helper ---
@@ -388,7 +390,7 @@
                     });
                     if (error) {
                         if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
-                            showToast('This account already has a passkey or could not be created. Try the login page.', 'error', 5000);
+                            showToast('A passkey already exists for this account or cannot be created here. Please use the Passkey button on the login page.', 'error', 8000);
                         } else {
                             throw error;
                         }
@@ -402,7 +404,7 @@
                         showToast('Passkey created! You can now sign in with it.', 'success', 4000);
                     }
                 } catch (e) {
-                    showToast('Passkey setup failed: ' + (e.message || 'Unknown error'), 'error', 6000);
+                    showToast('Passkey setup failed: ' + (e.message || 'Unknown error'), 'error', 10000);
                 } finally {
                     setButtonLoading(btn, false);
                 }
