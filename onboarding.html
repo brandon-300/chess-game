@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess 3D · Complete Your Profile</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
     <!-- Cropper.js -->
     <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
@@ -12,10 +12,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <style>
         :root {
-            --bg:#0a0806; --card:rgba(20,14,8,.95); --panel:rgba(16,10,6,.98);
-            --accent:#c9a84c; --accent2:#7a6230;
-            --text:#f0e6ce; --muted:#6b5f4e; --border:rgba(201,168,76,.22);
-            --danger:#cc0000; --success:#2ed573;
+            --bg: #0a0806;
+            --card: rgba(20, 14, 8, 0.95);
+            --panel: rgba(16, 10, 6, 0.98);
+            --accent: #c9a84c;
+            --accent2: #7a6230;
+            --text: #f0e6ce;
+            --muted: #6b5f4e;
+            --border: rgba(201, 168, 76, 0.22);
+            --danger: #cc0000;
+            --success: #2ed573;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -25,7 +31,7 @@
             padding: 16px;
         }
         .container {
-            width: 100%; max-width: 440px;
+            width: 100%; max-width: 500px;
             background: rgba(16,10,6,.70); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border); border-radius: 4px; padding: 32px 24px;
             box-shadow: 0 20px 50px rgba(0,0,0,.5);
@@ -47,6 +53,15 @@
         }
         .field input:focus, .field select:focus { border-color: var(--accent); }
         .field input[readonly] { opacity: 0.8; cursor: default; }
+        .pwd-wrap { position: relative; }
+        .pwd-wrap input { padding-right: 48px; }
+        .pwd-wrap .reveal {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--muted); font-size: 20px;
+            cursor: pointer; padding: 4px; line-height: 1;
+        }
+        .pwd-wrap .reveal:hover { color: var(--text); }
+
         .dob-row { display: flex; gap: 8px; }
         .dob-row select {
             flex: 1; padding: 12px 8px; border-radius: 4px; background: var(--panel);
@@ -56,6 +71,20 @@
             background-repeat: no-repeat; background-position: right 8px center; padding-right: 30px;
             font-family: inherit;
         }
+
+        .strength-bars { display: flex; gap: 4px; margin-bottom: 8px; }
+        .strength-bar { height: 6px; flex: 1; border-radius: 3px; background: var(--panel); transition: background .3s; }
+        .strength-bar.active { background: var(--accent); }
+
+        .rules { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 12px; }
+        .rule { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+        .rule .material-symbols-outlined { font-size: 18px; }
+        .rule.pass { color: var(--success); }
+        .rule.fail { color: var(--muted); }
+
+        .match-err { display: none; font-size: 12px; color: var(--danger); margin-bottom: 12px; align-items: center; gap: 6px; }
+        .match-err.show { display: flex; }
+
         .submit-btn {
             width: 100%; padding: 14px; border: none; border-radius: 4px;
             background: var(--accent); color: #0a0806; font-size: 15px; font-weight: 600;
@@ -77,7 +106,8 @@
             padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
             opacity: 0; pointer-events: none; z-index: 9999;
             transition: opacity 0.2s ease, transform 0.2s ease;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: normal;
+            max-width: 90vw; word-wrap: break-word;
         }
         #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         #toast.success { border-color: var(--success); color: var(--success); }
@@ -168,11 +198,46 @@
             <label for="country">Country</label>
             <input id="country" type="text" placeholder="Your country" />
         </div>
-        <button class="submit-btn" id="submitBtn">Complete Profile</button>
+
+        <!-- Password fields -->
+        <div class="field">
+            <label for="password">Password</label>
+            <div class="pwd-wrap">
+                <input id="password" type="password" autocomplete="new-password" placeholder="Set a password" />
+                <button type="button" class="reveal" data-target="password"><span class="material-symbols-outlined">visibility</span></button>
+            </div>
+        </div>
+        <div class="strength-bars">
+            <div class="strength-bar" id="bar1"></div>
+            <div class="strength-bar" id="bar2"></div>
+            <div class="strength-bar" id="bar3"></div>
+            <div class="strength-bar" id="bar4"></div>
+            <div class="strength-bar" id="bar5"></div>
+        </div>
+        <div class="rules">
+            <div class="rule fail" id="ruleLength"><span class="material-symbols-outlined">radio_button_unchecked</span> At least 8 characters</div>
+            <div class="rule fail" id="ruleUpper"><span class="material-symbols-outlined">radio_button_unchecked</span> At least one uppercase letter</div>
+            <div class="rule fail" id="ruleLower"><span class="material-symbols-outlined">radio_button_unchecked</span> At least one lowercase letter</div>
+            <div class="rule fail" id="ruleNumber"><span class="material-symbols-outlined">radio_button_unchecked</span> At least one number</div>
+            <div class="rule fail" id="ruleSpecial"><span class="material-symbols-outlined">radio_button_unchecked</span> At least one special character</div>
+        </div>
+
+        <div class="field">
+            <label for="confirmPassword">Confirm password</label>
+            <div class="pwd-wrap">
+                <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Confirm your password" />
+                <button type="button" class="reveal" data-target="confirmPassword"><span class="material-symbols-outlined">visibility</span></button>
+            </div>
+        </div>
+        <div class="match-err" id="matchErr">
+            <span class="material-symbols-outlined" style="font-size:16px">error</span> Passwords do not match
+        </div>
+
+        <button class="submit-btn" id="submitBtn" disabled>Complete Profile</button>
     </div>
     <div id="toast"></div>
 
-    <!-- Avatar Modal -->
+    <!-- Avatar crop modal -->
     <div class="avatar-modal" id="avatarModal">
         <div class="avatar-modal-content">
             <h3>Add a profile picture (optional)</h3>
@@ -195,10 +260,11 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
         (() => {
-            const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
-            const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+            const SUPABASE_URL = window.SUPABASE_URL;
+            const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             const $ = id => document.getElementById(id);
 
@@ -206,6 +272,7 @@
             let currentEmail = '';
             let cropper = null;
 
+            // Toast
             let toastTimer;
             function showToast(msg, type = 'success') {
                 const toast = $('toast');
@@ -216,6 +283,7 @@
                 toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
             }
 
+            // Button loading
             function setButtonLoading(btn, loading, label) {
                 if (loading) {
                     btn._originalHTML = btn.innerHTML;
@@ -228,7 +296,7 @@
                 }
             }
 
-            // DOB setup (unchanged)
+            // DOB setup
             const dobDay = $("dobDay"), dobMonth = $("dobMonth"), dobYear = $("dobYear");
             const ageField = $("ageField");
             const currentYear = new Date().getFullYear();
@@ -253,7 +321,66 @@
             }
             dobDay.addEventListener("change", updateAgeField); dobMonth.addEventListener("change", updateAgeField); dobYear.addEventListener("change", updateAgeField);
 
-            // --- Avatar modal ---
+            // Password strength checker
+            const pwdInput = $("password");
+            const confirmPwdInput = $("confirmPassword");
+            const matchErr = $("matchErr");
+            const submitBtn = $("submitBtn");
+
+            function updatePasswordStrength() {
+                const pw = pwdInput.value;
+                const rules = {
+                    length: pw.length >= 8,
+                    upper: /[A-Z]/.test(pw),
+                    lower: /[a-z]/.test(pw),
+                    number: /[0-9]/.test(pw),
+                    special: /[^A-Za-z0-9]/.test(pw)
+                };
+
+                Object.entries(rules).forEach(([rule, passed]) => {
+                    const el = $(`rule${rule.charAt(0).toUpperCase() + rule.slice(1)}`);
+                    if (el) {
+                        const icon = el.querySelector('.material-symbols-outlined');
+                        if (passed) {
+                            icon.textContent = 'check_circle';
+                            el.classList.add('pass');
+                            el.classList.remove('fail');
+                        } else {
+                            icon.textContent = 'radio_button_unchecked';
+                            el.classList.add('fail');
+                            el.classList.remove('pass');
+                        }
+                    }
+                });
+
+                const score = Object.values(rules).filter(Boolean).length;
+                for (let i = 1; i <= 5; i++) {
+                    const bar = $(`bar${i}`);
+                    if (bar) bar.classList.toggle('active', i <= score);
+                }
+
+                const allPassed = Object.values(rules).every(v => v);
+                const matches = pw === confirmPwdInput.value && pw.length > 0;
+                submitBtn.disabled = !(allPassed && matches);
+                matchErr.classList.toggle('show', !matches && confirmPwdInput.value.length > 0);
+            }
+
+            pwdInput.addEventListener('input', updatePasswordStrength);
+            confirmPwdInput.addEventListener('input', updatePasswordStrength);
+
+            // Password reveal
+            document.querySelectorAll(".reveal").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const input = document.getElementById(btn.dataset.target);
+                    if (input) {
+                        const isPw = input.type === "password";
+                        input.type = isPw ? "text" : "password";
+                        btn.querySelector('span').textContent = isPw ? "visibility_off" : "visibility";
+                    }
+                });
+            });
+
+            // --- Avatar modal logic ---
             const avatarModal = $("avatarModal");
             const avatarPlaceholder = $("avatarPlaceholder");
             const cropWrapper = $("cropWrapper");
@@ -262,7 +389,6 @@
             const changePic = $("changePic");
 
             function resetAvatarModal() {
-                // Destroy any existing cropper
                 if (cropper) { cropper.destroy(); cropper = null; }
                 cropImage.src = '';
                 cropWrapper.classList.remove('active');
@@ -280,29 +406,20 @@
                 if (cropper) { cropper.destroy(); cropper = null; }
             }
 
-            // Click placeholder to open file picker
             avatarPlaceholder.addEventListener('click', () => avatarInput.click());
-
-            // Change picture link
             changePic.addEventListener('click', (e) => {
                 e.stopPropagation();
                 avatarInput.click();
             });
 
-            // Handle file selection
             avatarInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
-                // Destroy previous cropper
                 if (cropper) { cropper.destroy(); cropper = null; }
-
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     cropImage.src = ev.target.result;
-                    // Wait for image to load before creating Cropper
                     cropImage.onload = () => {
-                        // Hide placeholder, show crop wrapper
                         avatarPlaceholder.style.display = 'none';
                         cropWrapper.classList.add('active');
                         cropper = new Cropper(cropImage, {
@@ -318,7 +435,7 @@
                 reader.readAsDataURL(file);
             });
 
-            // --- Save profile ---
+            // --- Save profile with/without avatar ---
             async function saveProfileAndRedirect(avatarUrl = null) {
                 const fn = $("firstName").value.trim();
                 const ln = $("lastName").value.trim();
@@ -326,6 +443,7 @@
                 const country = $("country").value.trim();
                 const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
                 const age = parseInt(ageField.value,10);
+                const password = pwdInput.value;
                 const fullName = `${fn} ${ln}`;
                 const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 
@@ -341,6 +459,15 @@
                 if (avatarUrl) updates.avatar_url = avatarUrl;
 
                 setButtonLoading($("submitBtn"), true, 'Saving…');
+
+                // Set the password for the existing user
+                const { error: pwdError } = await supabase.auth.updateUser({ password });
+                if (pwdError) {
+                    showToast("Error setting password: " + pwdError.message, "error");
+                    setButtonLoading($("submitBtn"), false);
+                    return false;
+                }
+
                 const { error } = await supabase.from("profiles").upsert(updates, { onConflict: 'id' });
                 if (error) {
                     showToast("Error saving profile: " + error.message, "error");
@@ -392,15 +519,6 @@
                 }
             }
 
-            // Cancel avatar modal (return to form)
-            $("cancelAvatarBtn").addEventListener("click", () => {
-                closeAvatarModal();
-                // No data loss because we haven't saved yet
-            });
-
-            $("skipAvatarBtn").addEventListener("click", skipAvatar);
-            $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
-
             // --- Form submission opens avatar modal ---
             $("submitBtn").addEventListener("click", () => {
                 const fn = $("firstName").value.trim();
@@ -409,6 +527,8 @@
                 const country = $("country").value.trim();
                 const day = parseInt(dobDay.value), month = parseInt(dobMonth.value), year = parseInt(dobYear.value);
                 const age = parseInt(ageField.value,10);
+                const pw = pwdInput.value;
+                const confirmPw = confirmPwdInput.value;
 
                 if (!fn || !ln || !username || !country || !day || !month || !year) {
                     showToast("All fields are required.", "error");
@@ -418,6 +538,15 @@
                     showToast("You must be at least 14 years old.", "error");
                     return;
                 }
+                if (pw !== confirmPw) {
+                    showToast("Passwords do not match.", "error");
+                    return;
+                }
+                if (pw.length < 8 || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/[0-9]/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) {
+                    showToast("Password must have at least 8 characters, one uppercase, one lowercase, one number, and one special character.", "error");
+                    return;
+                }
+
                 (async () => {
                     const { data: exist } = await supabase.from("profiles").select("id").eq("username", username).neq("id", currentUserId).maybeSingle();
                     if (exist) {
@@ -426,6 +555,12 @@
                     }
                     openAvatarModal();
                 })();
+            });
+
+            $("skipAvatarBtn").addEventListener("click", skipAvatar);
+            $("finishAvatarBtn").addEventListener("click", finishWithAvatar);
+            $("cancelAvatarBtn").addEventListener("click", () => {
+                closeAvatarModal();
             });
 
             async function init() {
