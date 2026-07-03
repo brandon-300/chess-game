@@ -256,7 +256,8 @@
         (() => {
             const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
             const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
-            // Enable experimental passkey API
+            // Enable experimental passkey API (even though signUpWithPasskey may not exist,
+            // we still need it for signInWithPasskey on other pages)
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                 auth: {
                     experimental: { passkey: true }
@@ -384,6 +385,12 @@
                 const btn = $('setupPasskeyBtn');
                 setButtonLoading(btn, true, 'Setting up…');
                 try {
+                    // Check if the required experimental function is available
+                    if (typeof supabase.auth.signUpWithPasskey !== 'function') {
+                        showToast('Passkey creation is not supported by the current Supabase client version. Please try again later or use the sign‑up flow with a passkey.', 'error', 8000);
+                        return;
+                    }
+
                     // Use the experimental passkey creation for the current user
                     const { data, error } = await supabase.auth.signUpWithPasskey({
                         email: originalProfile.email
