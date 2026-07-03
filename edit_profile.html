@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chess 3D · Edit Profile</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0a0806;
+            --card: rgba(20, 14, 8, 0.95);
+            --panel: rgba(16, 10, 6, 0.98);
+            --accent: #c9a84c;
+            --accent2: #7a6230;
+            --text: #f0e6ce;
+            --muted: #6b5f4e;
+            --border: rgba(201, 168, 76, 0.22);
+            --danger: #cc0000;
+            --success: #2ed573;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .container {
+            width: 100%; max-width: 500px;
+            background: rgba(16,10,6,.70); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 4px; padding: 32px 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,.5);
+        }
+        h2 {
+            font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 700;
+            margin-bottom: 24px; text-align: center; color: var(--accent); letter-spacing: .02em;
+        }
+        .field { margin-bottom: 16px; }
+        .field label {
+            display: block; font-size: 11px; color: var(--accent2); margin-bottom: 6px; font-weight: 500;
+            letter-spacing: .05em;
+        }
+        .field input, .field select {
+            width: 100%; padding: 12px 14px; border-radius: 4px;
+            background: var(--panel); border: 1px solid var(--border);
+            color: var(--text); font-size: 16px; outline: none;
+            transition: border-color .15s; font-family: inherit;
+        }
+        .field input:focus, .field select:focus { border-color: var(--accent); }
+        .field input[readonly] { opacity: 0.8; cursor: default; }
+
+        .btn-row {
+            display: flex; gap: 12px; margin-top: 24px;
+        }
+        .btn {
+            flex: 1; padding: 14px; border-radius: 4px; font-size: 15px; font-weight: 600;
+            cursor: pointer; text-align: center; border: 1px solid var(--border);
+            background: var(--panel); color: var(--text);
+            font-family: inherit; letter-spacing: .02em;
+            transition: all .15s;
+        }
+        .btn.primary { background: var(--accent); border-color: transparent; color: #0a0806; }
+        .btn.primary:hover { filter: brightness(1.08); }
+        .btn:hover { border-color: var(--accent); background: var(--card); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-spinner {
+            display: inline-block; width: 18px; height: 18px;
+            border: 2px solid transparent;
+            border-top-color: #0a0806;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+        }
+
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: var(--card); color: var(--text); border: 1px solid var(--border);
+            padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 500;
+            opacity: 0; pointer-events: none; z-index: 9999;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            max-width: 90vw; word-wrap: break-word; white-space: normal;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast.success { border-color: var(--success); color: var(--success); }
+        #toast.error { border-color: var(--danger); color: var(--danger); }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Edit Profile</h2>
+        <div class="field">
+            <label for="fullNameInput">Full name</label>
+            <input id="fullNameInput" type="text" placeholder="Full name" />
+        </div>
+        <div class="field">
+            <label for="usernameInput">Username</label>
+            <input id="usernameInput" type="text" placeholder="Username" />
+        </div>
+        <div class="field">
+            <label for="emailInput">Email</label>
+            <input id="emailInput" type="email" placeholder="Email" />
+        </div>
+        <div class="field">
+            <label for="ageInput">Age</label>
+            <input id="ageInput" type="number" placeholder="Age" />
+        </div>
+        <div class="field">
+            <label for="dobInput">Date of birth</label>
+            <input id="dobInput" type="date" />
+        </div>
+        <div class="field">
+            <label for="countryInput">Country</label>
+            <input id="countryInput" type="text" placeholder="Country" />
+        </div>
+
+        <div class="btn-row">
+            <button class="btn" id="cancelBtn">Cancel</button>
+            <button class="btn primary" id="saveBtn">Save</button>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        (() => {
+            const SUPABASE_URL = "https://akrxbxzcvnspbmvgdrci.supabase.co";
+            const SUPABASE_ANON_KEY = "sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS";
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const $ = id => document.getElementById(id);
+            let currentUserId = null;
+            let originalEmail = '';
+
+            // Toast
+            let toastTimer;
+            function showToast(msg, type = 'success') {
+                const toast = $('toast');
+                toast.textContent = msg;
+                toast.className = type;
+                toast.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+
+            // Button loading
+            function setButtonLoading(btn, loading, label) {
+                if (loading) {
+                    btn._originalHTML = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = `<span class="btn-spinner"></span> ${label || ''}`;
+                } else {
+                    btn.innerHTML = btn._originalHTML || btn.innerHTML;
+                    btn.disabled = false;
+                    delete btn._originalHTML;
+                }
+            }
+
+            // Cancel button
+            $('cancelBtn').addEventListener('click', () => {
+                window.location.href = 'profile.html';
+            });
+
+            // Save button
+            $('saveBtn').addEventListener('click', async () => {
+                const fullName = $('fullNameInput').value.trim();
+                const username = $('usernameInput').value.trim();
+                const email = $('emailInput').value.trim();
+                const age = parseInt($('ageInput').value) || null;
+                const dob = $('dobInput').value;
+                const country = $('countryInput').value.trim();
+
+                if (!fullName || !username || !email) {
+                    showToast('Full name, username and email are required.', 'error');
+                    return;
+                }
+                if (age && age < 14) {
+                    showToast('You must be at least 14 years old.', 'error');
+                    return;
+                }
+
+                setButtonLoading($('saveBtn'), true, 'Saving…');
+
+                try {
+                    // Check username uniqueness
+                    const { data: exist } = await supabase.from('profiles')
+                        .select('id').eq('username', username).neq('id', currentUserId)
+                        .maybeSingle();
+                    if (exist) {
+                        showToast('Username already taken.', 'error');
+                        setButtonLoading($('saveBtn'), false);
+                        return;
+                    }
+
+                    // If email changed, update auth user
+                    if (email !== originalEmail) {
+                        const { error: authUpdateErr } = await supabase.auth.updateUser({ email });
+                        if (authUpdateErr) throw new Error('Failed to update login email: ' + authUpdateErr.message);
+                    }
+
+                    const updates = {
+                        full_name: fullName,
+                        username,
+                        email,
+                        age: age || null,
+                        dob: dob || null,
+                        country: country || null
+                    };
+
+                    const { error: updateErr } = await supabase.from('profiles')
+                        .update(updates).eq('id', currentUserId);
+                    if (updateErr) throw updateErr;
+
+                    showToast('Profile updated!', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'profile.html';
+                    }, 1000);
+                } catch (e) {
+                    showToast(e.message || 'Error saving profile.', 'error');
+                    setButtonLoading($('saveBtn'), false);
+                }
+            });
+
+            async function init() {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = "user_login.html?redirect=" + encodeURIComponent(window.location.pathname);
+                    return;
+                }
+                currentUserId = session.user.id;
+
+                // Load current profile data
+                const { data: profile } = await supabase.from('profiles')
+                    .select('*').eq('id', currentUserId).single();
+
+                if (profile) {
+                    $('fullNameInput').value = profile.full_name || '';
+                    $('usernameInput').value = profile.username || '';
+                    $('emailInput').value = profile.email || '';
+                    $('ageInput').value = profile.age != null ? profile.age : '';
+                    $('dobInput').value = profile.dob || '';
+                    $('countryInput').value = profile.country || '';
+                    originalEmail = profile.email || '';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+</body>
+</html>
