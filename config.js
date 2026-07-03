@@ -1,8 +1,6 @@
 // config.js — Supabase configuration for Chess 3D
+// This file sets global variables so that both ES modules and standalone
+// HTML pages can use them without hard‑coding credentials.
 
-export const SUPABASE_URL = 'https://akrxbxzcvnspbmvgdrci.supabase.co';
-export const SUPABASE_KEY = 'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS';
-
-// Also expose globally for non-module pages (profile, login, etc.)
-window.SUPABASE_URL = SUPABASE_URL;
-window.SUPABASE_KEY = SUPABASE_KEY;
+window.SUPABASE_URL = 'https://akrxbxzcvnspbmvgdrci.supabase.co';
+window.SUPABASE_KEY = 'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS';
