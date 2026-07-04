@@ -62,6 +62,7 @@
         <button id="manualBtn" onclick="window.location.href='index.html'">Go to Home</button>
     </div>
 
+    <script src="config.js"></script>
     <script>
         let seconds = 5;
         const span = document.getElementById('countdown');
@@ -73,7 +74,6 @@
                 clearInterval(interval);
                 span.textContent = '0';
                 manualBtn.style.display = 'inline-block';
-                // Optional: still try auto-redirect after showing button
                 setTimeout(() => { window.location.href = 'index.html'; }, 1000);
             }
         }, 1000);
