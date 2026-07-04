@@ -6,8 +6,8 @@ let sbStatus = 'Loading...';
 try {
     if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
         sb = window.supabase.createClient(
-            'https://akrxbxzcvnspbmvgdrci.supabase.co',
-            'sb_publishable_OZxwZSoSNj9r0MIqVYZtbQ_NwNK0MlS'
+            window.SUPABASE_URL,
+            window.SUPABASE_KEY
         );
         sbStatus = 'Loaded';
     } else {
@@ -170,8 +170,6 @@ export async function getFrozenGameForUser(userId) {
 }
 
 // ---------- Voice signaling (Realtime Broadcast) ----------
-// Ephemeral WebRTC offer/answer/ICE relay for the in-match voice call.
-// Nothing here is persisted — it's just a pub/sub pipe scoped to one game.
 export function subscribeVoiceSignal(gameId, onSignal) {
     if (!sb) return null;
     const channel = sb.channel('voice_' + gameId, { config: { broadcast: { self: false } } });
