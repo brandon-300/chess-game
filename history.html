@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Chess 3D · Game History</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0806; --card: rgba(20,14,8,.95); --panel: rgba(16,10,6,.98);
+            --accent: #c9a84c; --accent2: #7a6230; --text: #f0e6ce; --muted: #6b5f4e;
+            --border: rgba(201,168,76,.22); --danger: #cc0000; --success: #2ed573;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Inter', sans-serif; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 24px 16px;
+        }
+        h1 { font-size: 24px; color: var(--accent); margin-bottom: 24px; }
+        .container { width: 100%; max-width: 600px; }
+        .match-card {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 8px; padding: 16px; margin-bottom: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .match-info { flex: 1; }
+        .match-info .opponent { font-size: 16px; font-weight: 600; }
+        .match-info .details { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .result-badge {
+            font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 12px;
+        }
+        .result-badge.win { background: var(--success); color: #0a0806; }
+        .result-badge.loss { background: var(--danger); color: #fff; }
+        .result-badge.draw { background: var(--accent2); color: var(--text); }
+        .empty { text-align: center; color: var(--muted); margin-top: 48px; }
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 13px; color: var(--muted); text-decoration: none;
+            margin-bottom: 24px; transition: color .15s;
+        }
+        .back-btn:hover { color: var(--text); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-btn">
+            <span style="font-size:18px">←</span> Back to Home
+        </a>
+        <h1>Game History</h1>
+        <div id="historyList"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        (() => {
+            const SUPABASE_URL = window.SUPABASE_URL;
+            const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const $ = id => document.getElementById(id);
+            const historyList = $('historyList');
+
+            function renderMatch(match) {
+                const card = document.createElement('div');
+                card.className = 'match-card';
+
+                const dateStr = new Date(match.ended_at).toLocaleDateString();
+                const modeLabel = match.mode === 'ai' ? 'vs AI' : match.mode === '2p' ? '2 Players' : 'Online';
+                const colorLabel = match.player_color === 'w' ? 'Red' : 'Black';
+
+                card.innerHTML = `
+                    <div class="match-info">
+                        <div class="opponent">${escapeHTML(match.opponent_name)}</div>
+                        <div class="details">${modeLabel} · ${colorLabel} · ${dateStr}</div>
+                    </div>
+                    <span class="result-badge ${match.result}">${match.result.toUpperCase()}</span>
+                `;
+                return card;
+            }
+
+            function escapeHTML(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+            async function loadHistory() {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = 'user_login.html?redirect=' + encodeURIComponent(window.location.pathname);
+                    return;
+                }
+
+                const { data, error } = await supabase
+                    .from('match_history')
+                    .select('*')
+                    .eq('user_id', session.user.id)
+                    .order('ended_at', { ascending: false })
+                    .limit(50);
+
+                if (error) {
+                    historyList.innerHTML = '<div class="empty">Error loading history.</div>';
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    historyList.innerHTML = '<div class="empty">No games played yet.</div>';
+                    return;
+                }
+
+                data.forEach(match => {
+                    historyList.appendChild(renderMatch(match));
+                });
+            }
+
+            loadHistory();
+        })();
+    </script>
+</body>
+</html>
