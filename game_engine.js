@@ -977,6 +977,22 @@ export function rotateForPlayer(color) {
     updateCamera();
 }
 
+// NEW: Returns the move log as an array of formatted strings like "1. e4 e5"
+export function getMoveLogDisplay() {
+    const display = [];
+    for (let i = 0; i < mlog.length; i++) {
+        const num = i + 1;
+        const wMove = mlog[i].w || '…';
+        const bMove = mlog[i].b || '';
+        if (bMove) {
+            display.push(`${num}. ${wMove} ${bMove}`);
+        } else {
+            display.push(`${num}. ${wMove}`);
+        }
+    }
+    return display;
+}
+
 export function startAnimationLoop() {
     if (!engineInitialized) {
         console.error('Cannot start animation loop – engine not initialized.');
