@@ -139,6 +139,37 @@
         @keyframes spin{to{transform:rotate(360deg)}}
         .state-text{color:var(--cream);font-family:'Inter',sans-serif;font-size:14px}
 
+        /* ---------- Game‑over popup ---------- */
+        #go{
+            display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.65); z-index:70;
+            align-items:center; justify-content:center;
+            backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+        }
+        #go.on{ display:flex; }
+        .gob{
+            background:#1a0e04;
+            backdrop-filter:blur(12px);
+            border:1px solid var(--gold);
+            box-shadow:inset 0 1px 0 var(--glass-shine),0 0 40px rgba(201,168,76,0.12),0 16px 60px rgba(0,0,0,0.7);
+            border-radius:8px; padding:26px 40px; text-align:center;
+            animation:goin .4s cubic-bezier(.175,.885,.32,1.275);
+            max-width:88vw; display:flex; flex-direction:column; align-items:center; gap:14px;
+        }
+        @keyframes goin{ from{opacity:0;transform:scale(.85)} to{opacity:1;transform:scale(1)} }
+        .gob h2{ font-family:'Inter',sans-serif; font-size:clamp(16px,5vw,22px); color:var(--gold); letter-spacing:.05em; margin-bottom:2px; }
+        .gob p{ font-size:13px; color:var(--muted); font-style:italic; margin-bottom:4px; }
+        .gobtns{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+        .gobtns button{
+            font-family:'Inter',sans-serif; font-size:clamp(9px,2.5vw,11px); font-weight:600; letter-spacing:.05em;
+            background:rgba(201,168,76,0.06); border:1px solid var(--gold); color:var(--gold);
+            padding:10px 20px; cursor:pointer; text-transform:uppercase; white-space:nowrap;
+            border-radius:9999px; backdrop-filter:blur(4px); transition:all .2s;
+        }
+        .gobtns button:active{ background:rgba(201,168,76,0.18); box-shadow:0 0 12px rgba(201,168,76,0.2); }
+        .gobtns button.sec{ border-color:var(--gold-d); color:var(--muted); }
+        .gobtns button.sec:active{ border-color:var(--gold); color:var(--gold); }
+
         #toast{
             position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
             background:#1a0e04;border:1px solid var(--gold);
@@ -166,7 +197,6 @@
         .legacy-panel p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
 
         .online-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.12),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
-        /* FIX: online/AI panels as a centered overlay ABOVE the canvas */
         .online-panel.show {
             position: fixed;
             top: 50%; left: 50%;
@@ -258,6 +288,15 @@
         <div class="state-overlay" id="state-empty"><div class="state-text">No game found.</div></div>
         <div class="state-overlay" id="state-error"><div class="state-text">Something went wrong.</div></div>
         <div class="state-overlay" id="state-reconnecting"><div class="state-spinner"></div><div class="state-text">Reconnecting...</div></div>
+    </div>
+
+    <!-- ---------- GAME‑OVER POPUP ---------- -->
+    <div id="go">
+        <div class="gob">
+            <h2 id="got"></h2>
+            <p id="gos"></p>
+            <div class="gobtns" id="go-btns"></div>
+        </div>
     </div>
 
     <div id="toast"></div>
