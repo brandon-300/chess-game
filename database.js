@@ -237,6 +237,21 @@ export async function deleteAllSyncedData(userId) {
     if (error) throw error;
 }
 
+// ---------- Match History ----------
+export async function saveMatchHistory(userId, opponentName, result, playerColor, mode, moves) {
+    if (!sb) throw new Error('Supabase not available');
+    const { error } = await sb.from('match_history').insert({
+        user_id: userId,
+        opponent_name: opponentName,
+        result,
+        player_color: playerColor,
+        mode,
+        moves: moves ? JSON.stringify(moves) : null,
+        ended_at: new Date().toISOString()
+    });
+    if (error) throw error;
+}
+
 // ---------- Utilities ----------
 function generateRoomCode(len = 8) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
