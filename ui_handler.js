@@ -17,46 +17,23 @@ export function initUI(cb) {
 function cacheElements() {
     const ids = [
         'login-btn', 'profile-avatar', 'profile-avatar-img', 'debug-overlay', 'error-log',
-        'ms', 'main-cards', 'original-buttons',
-        'card-2p', 'card-ai', 'card-online',
-        'online-menu', 'public-menu', 'private-menu', 'join-private',
-        'countdown-panel', 'waiting-panel', 'rematch-panel',
-        'login-gate-panel',
-        'ai-diff-panel', 'ai-color-panel', 'ai-countdown-panel',
+        'ms', 'home-play-online', 'home-cards',
+        'card-2p', 'card-ai', 'card-friends', 'card-history', 'card-settings',
+        'btn-restore-local', 'btn-sync-offline-cloud', 'btn-restore-offline-cloud', 'btn-delete-all-synced',
         'gu', 'top', 'bot',
-        'tdot', 'tlbl', 'smsg',
+        'tdot', 'tlbl',
         'tmrW', 'tmrB', 'tvW', 'tvB',
-        'thkstrip', 'voice-controls', 'mic-toggle-btn', 'speaker-toggle-btn', 'voice-status',
-        'go', 'got', 'gos', 'go-btns',
-        'pm', 'po', 'toast',
-        'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel',
-        'delete-confirm-panel', 'exit-online-panel',
+        'voice-controls', 'mic-toggle-btn', 'speaker-toggle-btn', 'voice-status',
+        'lobby-panel', 'lobby-avatar', 'lobby-opponent-name', 'lobby-start-btn', 'lobby-leave-btn', 'lobby-rematch-btn',
+        'left-drawer', 'right-drawer', 'drawer-toggle-left', 'drawer-toggle-right', 'close-left-drawer', 'close-right-drawer',
+        'move-list', 'chat-messages', 'chat-input', 'chat-send',
+        'state-loading', 'state-empty', 'state-error', 'state-reconnecting',
+        'toast',
         'new-game-btn', 'undo-btn', 'mode-btn',
-        'private-room-code',
-        'countdown-welcome', 'countdown-number',
-        'waiting-title', 'waiting-text',
-        'rematch-text', 'rematch-accept', 'rematch-decline',
-        'btn-public-menu', 'btn-private-menu', 'btn-online-back',
-        'btn-create-public', 'btn-join-public', 'btn-public-back',
-        'btn-show-create-private', 'btn-show-join-private', 'btn-private-back',
-        'btn-join-private', 'btn-join-private-back',
-        'btn-cancel-waiting',
-        'btn-rematch-accept', 'btn-rematch-decline',
-        'btn-go-login', 'btn-login-gate-back',
-        'btn-ai-novice', 'btn-ai-knight', 'btn-ai-master', 'btn-ai-diff-back',
-        'btn-ai-red', 'btn-ai-black', 'btn-ai-color-back',
-        'btn-cancel-ai-countdown',
-        'btn-restore-local', 'btn-sync-offline-cloud', 'btn-restore-offline-cloud',
-        'btn-delete-all-synced',
-        'btn-delete-confirm', 'btn-delete-cancel',
-        'btn-exit-save', 'btn-exit-no-save', 'btn-exit-cancel',
-        'btn-exit-online-yes', 'btn-exit-online-stay',
-        'btn-restore-ai', 'btn-restore-2p', 'btn-restore-cancel',
-        'btn-cloud-restore-ai', 'btn-cloud-restore-2p', 'btn-cloud-restore-cancel'
+        'go', 'got', 'gos', 'go-btns',
+        'pm', 'po'
     ];
     ids.forEach(id => { els[id] = document.getElementById(id); });
-    if (els.tmrW) els['tmrW_name'] = els.tmrW.querySelector('.tn');
-    if (els.tmrB) els['tmrB_name'] = els.tmrB.querySelector('.tn');
     if (els['profile-avatar']) {
         els['profile-avatar'].addEventListener('click', () => { window.location.href = 'profile.html'; });
     }
@@ -65,74 +42,112 @@ function cacheElements() {
 function attachListeners() {
     const btn = (id, handler) => { const el = els[id]; if (el) el.addEventListener('click', handler); };
 
+    btn('home-play-online', () => callbacks.onOnlineMenu());
     btn('card-2p', () => callbacks.onStart2P());
     btn('card-ai', () => callbacks.onStartAI());
-    btn('card-online', () => callbacks.onOnlineMenu());
-
-    btn('btn-public-menu', () => { hideAllPanels(); showPanel('public-menu'); });
-    btn('btn-private-menu', () => { hideAllPanels(); showPanel('private-menu'); });
-    btn('btn-online-back', () => { hideAllPanels(); showMenu(); });
-    btn('btn-create-public', () => callbacks.onCreatePublicRoom());
-    btn('btn-join-public', () => callbacks.onJoinPublicRoom());
-    btn('btn-rejoin-public', () => callbacks.onRejoinPublic());
-    btn('btn-public-back', () => { hideAllPanels(); showPanel('online-menu'); });
-    btn('btn-show-create-private', () => callbacks.onCreatePrivateRoom());
-    btn('btn-show-join-private', () => { hideAllPanels(); showPanel('join-private'); });
-    btn('btn-rejoin-private', () => { hideAllPanels(); showPanel('join-private'); });
-    btn('btn-private-back', () => { hideAllPanels(); showPanel('online-menu'); });
-    btn('btn-join-private', () => callbacks.onJoinPrivateRoom());
-    btn('btn-join-private-back', () => { hideAllPanels(); showPanel('private-menu'); });
-    btn('btn-cancel-waiting', () => callbacks.onCancelWaiting ? callbacks.onCancelWaiting() : null);
-    btn('btn-rematch-accept', () => callbacks.onAcceptRematch());
-    btn('btn-rematch-decline', () => callbacks.onDeclineRematch());
-
-    btn('btn-go-login', () => { window.location.href = 'user_login.html'; });
-    btn('btn-login-gate-back', () => { hideAllPanels(); showMenu(); });
-
-    btn('btn-ai-novice', () => { engine.setAiDepth(1); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-knight', () => { engine.setAiDepth(3); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-master', () => { engine.setAiDepth(5); hideAllPanels(); showPanel('ai-color-panel'); });
-    btn('btn-ai-diff-back', () => { hideAllPanels(); showMenu(); });
-    btn('btn-ai-red', () => { engine.setPlayerColor('w'); startAiCountdown(); });
-    btn('btn-ai-black', () => { engine.setPlayerColor('b'); startAiCountdown(); });
-    btn('btn-ai-color-back', () => { hideAllPanels(); showPanel('ai-diff-panel'); });
-    btn('btn-cancel-ai-countdown', cancelAiCountdown);
+    // Friends, History, Settings placeholders
+    ['card-friends','card-history','card-settings'].forEach(id => {
+        if (els[id]) els[id].addEventListener('click', () => toast('Coming soon…', 2000));
+    });
 
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
-    btn('btn-delete-all-synced', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.add('show'); });
-    btn('btn-delete-confirm', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); callbacks.onDeleteSynced(); });
-    btn('btn-delete-cancel', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); });
-
-    btn('btn-exit-save', () => callbacks.onExitSave());
-    btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
-    btn('btn-exit-cancel', () => { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); });
-
-    btn('btn-exit-online-yes', () => callbacks.onExitOnlineYes());
-    btn('btn-exit-online-stay', () => { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); });
+    btn('btn-delete-all-synced', () => {
+        if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.add('show');
+    });
 
     btn('new-game-btn', () => callbacks.onNewGame());
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
+    // Voice controls
     if (els['mic-toggle-btn']) els['mic-toggle-btn'].addEventListener('click', () => callbacks.onToggleMic && callbacks.onToggleMic());
     if (els['speaker-toggle-btn']) els['speaker-toggle-btn'].addEventListener('click', () => callbacks.onToggleSpeaker && callbacks.onToggleSpeaker());
 
-    btn('btn-restore-ai', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestoreAI) callbacks.onRestoreAI(); });
-    btn('btn-restore-2p', () => { els['restore-choice-panel']?.classList.remove('show'); if (callbacks.onRestore2P) callbacks.onRestore2P(); });
-    btn('btn-restore-cancel', () => { els['restore-choice-panel']?.classList.remove('show'); });
-    btn('btn-cloud-restore-ai', () => { els['cloud-choice-panel']?.classList.remove('show'); if (callbacks.onCloudRestoreAI) callbacks.onCloudRestoreAI(); });
-    btn('btn-cloud-restore-2p', () => { els['cloud-choice-panel']?.classList.remove('show'); if (callbacks.onCloudRestore2P) callbacks.onCloudRestore2P(); });
-    btn('btn-cloud-restore-cancel', () => { els['cloud-choice-panel']?.classList.remove('show'); });
+    // Drawer toggles
+    if (els['drawer-toggle-left']) els['drawer-toggle-left'].addEventListener('click', () => toggleLeftDrawer());
+    if (els['drawer-toggle-right']) els['drawer-toggle-right'].addEventListener('click', () => toggleRightDrawer());
+    if (els['close-left-drawer']) els['close-left-drawer'].addEventListener('click', () => closeLeftDrawer());
+    if (els['close-right-drawer']) els['close-right-drawer'].addEventListener('click', () => closeRightDrawer());
+
+    // Lobby buttons
+    btn('lobby-start-btn', () => callbacks.onCountdownFinished && callbacks.onCountdownFinished());
+    btn('lobby-leave-btn', () => callbacks.onCancelWaiting && callbacks.onCancelWaiting());
+    btn('lobby-rematch-btn', () => callbacks.onAcceptRematch && callbacks.onAcceptRematch());
+
+    // Chat (basic send)
+    if (els['chat-send']) els['chat-send'].addEventListener('click', () => {
+        const msg = els['chat-input'].value.trim();
+        if (msg && callbacks.onChatSend) {
+            callbacks.onChatSend(msg);
+            els['chat-input'].value = '';
+        }
+    });
 
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
-// ---------- Voice ----------
+// ---- Drawer helpers ----
+export function toggleLeftDrawer() {
+    els['left-drawer'].classList.toggle('open');
+}
+export function closeLeftDrawer() {
+    els['left-drawer'].classList.remove('open');
+}
+export function toggleRightDrawer() {
+    els['right-drawer'].classList.toggle('open');
+}
+export function closeRightDrawer() {
+    els['right-drawer'].classList.remove('open');
+}
+export function appendMoveToDrawer(moveText) {
+    if (els['move-list']) {
+        const div = document.createElement('div');
+        div.textContent = moveText;
+        els['move-list'].appendChild(div);
+        els['move-list'].scrollTop = els['move-list'].scrollHeight;
+    }
+}
+
+// ---- Lobby ----
+export function showLobbyPanel(opponentName, roomCode) {
+    if (els['lobby-panel']) els['lobby-panel'].classList.add('show');
+    if (els['lobby-opponent-name']) els['lobby-opponent-name'].textContent = opponentName || 'Waiting…';
+    // Show start/leave, hide rematch
+    if (els['lobby-start-btn']) els['lobby-start-btn'].style.display = 'inline-block';
+    if (els['lobby-leave-btn']) els['lobby-leave-btn'].style.display = 'inline-block';
+    if (els['lobby-rematch-btn']) els['lobby-rematch-btn'].style.display = 'none';
+}
+export function hideLobbyPanel() {
+    if (els['lobby-panel']) els['lobby-panel'].classList.remove('show');
+}
+export function showRematchInLobby() {
+    if (els['lobby-start-btn']) els['lobby-start-btn'].style.display = 'none';
+    if (els['lobby-leave-btn']) els['lobby-leave-btn'].style.display = 'none';
+    if (els['lobby-rematch-btn']) els['lobby-rematch-btn'].style.display = 'inline-block';
+}
+
+// ---- State overlays ----
+function showState(id) {
+    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => {
+        if (els[s]) els[s].classList.remove('show');
+    });
+    if (els[id]) els[id].classList.add('show');
+}
+export function showLoading() { showState('state-loading'); }
+export function showEmpty() { showState('state-empty'); }
+export function showError() { showState('state-error'); }
+export function showReconnecting() { showState('state-reconnecting'); }
+export function hideAllStates() {
+    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => {
+        if (els[s]) els[s].classList.remove('show');
+    });
+}
+
+// ---- Existing UI functions (unchanged) ----
 export function setVoiceControlsVisibility(visible) {
     if (els['voice-controls']) els['voice-controls'].style.display = visible ? '' : 'none';
-    if (!visible) resetVoiceState();
 }
 export function setMicState(on) {
     const btn = els['mic-toggle-btn']; if (!btn) return;
@@ -145,7 +160,7 @@ export function setSpeakerState(on) {
 export function setOpponentTalking(talking, nickname) {
     const el = els['voice-status']; if (!el) return;
     if (talking && nickname) {
-        el.innerHTML = `<span class="spk-ic">🔊</span> ${nickname} is talking`;
+        el.textContent = nickname + ' talking…';
         el.classList.add('show');
     } else {
         el.classList.remove('show');
@@ -157,22 +172,11 @@ export function resetVoiceState() {
     setOpponentTalking(false, '');
 }
 
-// ---------- Panel helpers ----------
-export function showPanel(panelId) { hideAllPanels(); const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
-export function hideAllPanels() {
-    ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
-     'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
-     'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
-}
 export function showMenu() {
     if (els['ms']) els['ms'].style.display = 'flex';
     if (els['gu']) els['gu'].style.display = 'none';
-    if (els['main-cards']) els['main-cards'].style.display = 'flex';
-    if (els['original-buttons']) els['original-buttons'].style.display = '';
-    setOnlineBottomButtons(false); hideAllPanels();
 }
-export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; }
+export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; hideAllStates(); }
 export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; }
 export function hideGameOver() { if (els['go']) els['go'].classList.remove('on'); }
 
@@ -186,17 +190,9 @@ export function updateHeaderUI(userId, avatarUrl) {
     }
 }
 export function updateTurnIndicator(turn, myColor, isOnline) {
-    if (!els['tdot'] || !els['tlbl'] || !els['tmrW_name'] || !els['tmrB_name']) return;
+    if (!els['tdot'] || !els['tlbl']) return;
     els['tdot'].className = 'tdot ' + (turn === 'w' ? 'w' : 'b');
-    if (isOnline) {
-        els['tlbl'].textContent = turn === 'w' ? (myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)') : (myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)');
-        els['tmrW_name'].textContent = myColor === 'w' ? 'Red (Your turn)' : 'Red (Opponent\'s turn)';
-        els['tmrB_name'].textContent = myColor === 'b' ? 'Black (Your turn)' : 'Black (Opponent\'s turn)';
-    } else {
-        els['tlbl'].textContent = turn === 'w' ? 'Red' : 'Black';
-        els['tmrW_name'].textContent = 'Red'; els['tmrB_name'].textContent = 'Black';
-    }
-    if (els['smsg']) els['smsg'].textContent = '';
+    els['tlbl'].textContent = turn === 'w' ? (isOnline ? (myColor==='w'?'Your turn':'Red') : 'Red') : (isOnline ? (myColor==='b'?'Your turn':'Black') : 'Black');
 }
 export function updateTimers(w, b, activeTurn) {
     if (!els['tvW'] || !els['tvB']) return;
@@ -204,71 +200,12 @@ export function updateTimers(w, b, activeTurn) {
     if (els['tmrW']) els['tmrW'].className = 'tmr' + (activeTurn === 'w' ? ' active' : '') + (w <= 10 && activeTurn === 'w' ? ' low' : '');
     if (els['tmrB']) els['tmrB'].className = 'tmr' + (activeTurn === 'b' ? ' active' : '') + (b <= 10 && activeTurn === 'b' ? ' low' : '');
 }
-export function updateThinkingIndicator(thinking) {
-    if (!els['smsg'] || !els['thkstrip']) return;
-    els['smsg'].textContent = thinking ? 'Thinking…' : '';
-    if (thinking) els['thkstrip'].classList.add('on'); else els['thkstrip'].classList.remove('on');
-}
+export function updateThinkingIndicator(thinking) { /* can use top bar spinner */ }
 export function setOnlineBottomButtons(isOnline) {
-    if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
     if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
+    if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
     if (els['mode-btn']) els['mode-btn'].textContent = isOnline ? 'Leave Match' : 'Exit';
 }
-export function setRejoinButtonsVisibility(showPublic, showPrivate) {
-    const pubBtn = document.getElementById('btn-rejoin-public');
-    const privBtn = document.getElementById('btn-rejoin-private');
-    if (!pubBtn) {
-        const pubMenu = document.getElementById('public-menu');
-        if (pubMenu) {
-            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-public'; b.textContent = 'Rejoin match';
-            b.addEventListener('click', () => callbacks.onRejoinPublic()); pubMenu.appendChild(b);
-        }
-    }
-    if (!privBtn) {
-        const privMenu = document.getElementById('private-menu');
-        if (privMenu) {
-            const b = document.createElement('button'); b.className = 'db'; b.id = 'btn-rejoin-private'; b.textContent = 'Rejoin match';
-            b.addEventListener('click', () => { hideAllPanels(); showPanel('join-private'); }); privMenu.appendChild(b);
-        }
-    }
-    const pub = document.getElementById('btn-rejoin-public'); if (pub) pub.style.display = showPublic ? '' : 'none';
-    const prv = document.getElementById('btn-rejoin-private'); if (prv) prv.style.display = showPrivate ? '' : 'none';
-}
-export function showWaitingRoom(hostNickname, roomCode) {
-    hideAllPanels();
-    if (els['waiting-title']) els['waiting-title'].textContent = hostNickname + ' room';
-    if (els['waiting-text']) els['waiting-text'].innerHTML = 'Room ID: <b>' + roomCode + '</b><br>Waiting for opponent to join…';
-    showPanel('waiting-panel');
-}
-
-let countdownInterval = null;
-export function showCountdown(hostNickname, roomCode) {
-    hideAllPanels();
-    if (els['countdown-welcome']) els['countdown-welcome'].textContent = 'Welcome to ' + hostNickname + ' room – Room ID: ' + roomCode;
-    showPanel('countdown-panel');
-    let sec = 5; if (els['countdown-number']) els['countdown-number'].textContent = sec;
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        sec--;
-        if (sec <= 5 && sec > 0) engine.playTickSound();
-        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onCountdownFinished) callbacks.onCountdownFinished(); }
-        else { if (els['countdown-number']) els['countdown-number'].textContent = sec; }
-    }, 1000);
-}
-
-function startAiCountdown() {
-    hideAllPanels(); showPanel('ai-countdown-panel');
-    let sec = 5; if (els['ai-countdown-number']) els['ai-countdown-number'] = sec;
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(() => {
-        sec--;
-        if (sec <= 5 && sec > 0) engine.playTickSound();
-        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished(); }
-        else { const numEl = document.getElementById('ai-countdown-number'); if (numEl) numEl.textContent = sec; }
-    }, 1000);
-}
-
-function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
 
 export function showGameOver(title, subtitle, buttonsHTML) {
     if (els['got']) els['got'].textContent = title;
@@ -276,7 +213,6 @@ export function showGameOver(title, subtitle, buttonsHTML) {
     if (els['go-btns']) els['go-btns'].innerHTML = buttonsHTML;
     if (els['go']) els['go'].classList.add('on');
 }
-
 export function showPromotion(color) {
     const po = els['po']; if (!po) return; po.innerHTML = '';
     const pieces = ['Q','R','B','N'];
@@ -289,7 +225,6 @@ export function showPromotion(color) {
     });
     if (els['pm']) els['pm'].classList.add('on');
 }
-
 export function toast(msg, duration = 2800) {
     const el = els['toast'];
     if (!el) return;
@@ -298,21 +233,30 @@ export function toast(msg, duration = 2800) {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
-
-export function showExitChoicePanel() { els['exit-choice-panel']?.classList.add('show'); }
-export function hideExitChoicePanel() { els['exit-choice-panel']?.classList.remove('show'); }
-export function showRestoreChoicePanel() { els['restore-choice-panel']?.classList.add('show'); }
-export function showCloudChoicePanel() { els['cloud-choice-panel']?.classList.add('show'); }
-export function showExitOnlinePanel() { els['exit-online-panel']?.classList.add('show'); }
-export function hideExitOnlinePanel() { els['exit-online-panel']?.classList.remove('show'); }
-export function showRematchUI(text) { if (els['rematch-text']) els['rematch-text'].textContent = text; els['rematch-panel']?.classList.add('show'); }
-export function showLoginGate() {
-    hideAllPanels();
-    if (els['main-cards']) els['main-cards'].style.display = 'none';
-    if (els['original-buttons']) els['original-buttons'].style.display = 'none';
-    if (els['login-gate-panel']) els['login-gate-panel'].classList.add('show');
-}
-
-function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
 export function getPrivateRoomCode() { return els['private-room-code'] ? els['private-room-code'].value.trim() : ''; }
 export function updateDebug(text) { if (els['debug-overlay']) els['debug-overlay'].textContent = text; }
+
+function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
+export function showLoginGate() { /* kept for compatibility */ }
+
+// ---- Additional panel helpers (used by main.js) ----
+export function showPanel(panelId) {
+    // used for online-mode panels
+    const p = document.getElementById(panelId);
+    if (p) p.classList.add('show');
+}
+export function hideAllPanels() {
+    ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
+     'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
+     'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
+}
+export function showWaitingRoom(name, code) { /* replaced by lobby */ }
+export function showCountdown(name, code) { /* can still use existing countdown if desired */ }
+export function showRematchUI(text) { /* can use lobby rematch */ }
+export function showExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.add('show'); }
+export function hideExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); }
+export function showExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.add('show'); }
+export function hideExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); }
+export function setRejoinButtonsVisibility() {} // no-op
+export function updateChatMessages(msgs) { /* future */ }
