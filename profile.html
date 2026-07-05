@@ -356,7 +356,6 @@
                 $('dobInput').value = profile?.dob || '';
                 $('countryInput').value = profile?.country || '';
 
-                // Passkey status (only for own profile)
                 if (isOwnProfile) {
                     hasPasskey = !!profile?.passkey_created_at;
                     updatePasskeyUI();
@@ -455,14 +454,12 @@
                 }
                 currentUserId = session.user.id;
 
-                // Determine whose profile to view
                 const params = new URLSearchParams(window.location.search);
                 viewingUserId = params.get('user');
                 isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
                 if (isOwnProfile) {
                     viewingUserId = currentUserId;
-                    // Setup own profile features
                     await setOnlineStatus(true);
                     setupInactivity();
                     startHeartbeat();
@@ -477,7 +474,6 @@
                             }
                         }
                     });
-                    // Show edit pencil
                     $('pencilBtn').style.display = 'flex';
                     $('pencilBtn').addEventListener('click', () => $('avatarInput').click());
                     $('avatarInput').addEventListener('change', (e) => {
@@ -491,7 +487,6 @@
                         if (e.target === $('cropModal')) closeCropModal();
                     });
                 } else {
-                    // Viewing another user
                     $('pencilBtn').style.display = 'none';
                     $('passkeySection').style.display = 'none';
                 }
@@ -533,7 +528,6 @@
                 bottom.innerHTML = '';
 
                 if (isOwnProfile) {
-                    // Logout & Delete buttons
                     const logoutBtn = document.createElement('button');
                     logoutBtn.className = 'btn-red';
                     logoutBtn.textContent = 'Logout';
@@ -578,7 +572,6 @@
                     bottom.appendChild(logoutBtn);
                     bottom.appendChild(deleteBtn);
                 } else {
-                    // Viewing another user – add friend/invite button
                     const { data: existingReq } = await supabase.from('friend_requests')
                         .select('id').eq('from_user_id', currentUserId).eq('to_user_id', viewingUserId)
                         .eq('status', 'pending').maybeSingle();
@@ -594,7 +587,6 @@
                     if (friendship) {
                         actionBtn.textContent = 'Invite to Game';
                         actionBtn.addEventListener('click', async () => {
-                            // Generate room and invite
                             const code = Math.random().toString(36).substring(2,10).toUpperCase();
                             const { data: profile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single();
                             await supabase.from('online_games').insert({
@@ -626,7 +618,7 @@
                             await supabase.from('friends').insert({ user_id: currentUserId, friend_id: viewingUserId });
                             await supabase.from('friends').insert({ user_id: viewingUserId, friend_id: currentUserId });
                             showToast('Friend request accepted!');
-                            buildBottomActions(); // refresh button
+                            buildBottomActions(); // refresh
                         });
                     } else {
                         actionBtn.textContent = 'Send Friend Request';
@@ -640,7 +632,7 @@
                                 showToast('Error: ' + error.message, 'error');
                             } else {
                                 showToast('Friend request sent!');
-                                buildBottomActions(); // refresh button
+                                buildBottomActions(); // refresh
                             }
                         });
                     }
