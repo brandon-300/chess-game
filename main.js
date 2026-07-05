@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (full sync + lobby avatar)
+// main.js — Orchestrator for Chess 3D (all fixes: faster sync, voice, lobby, exit)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -96,7 +96,8 @@ async function init() {
                 }
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
-            if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 2000) { lastTimerSync = Date.now(); syncTimers(); }
+            // Faster timer sync: push every 1s
+            if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 1000) { lastTimerSync = Date.now(); syncTimers(); }
         });
 
         if (db.sb) {
@@ -390,8 +391,8 @@ function getOpponentNickname() {
     return currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.joiner_nickname : currentOnlineGame.host_nickname;
 }
 
-// ========== FULL ONLINE SYNC (restored) ==========
-function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterval(pollGameState, 1000); }
+// ========== FULL ONLINE SYNC (restored, faster) ==========
+function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterval(pollGameState, 500); }
 function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
 async function pollGameState() {
