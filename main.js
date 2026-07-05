@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (cloud restore fixed + all features)
+// main.js — Orchestrator for Chess 3D (friends + all fixes)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -8,6 +8,7 @@ function showError(source, err) {
 let gameMode = null, currentOnlineGame = null, myColor = 'w', sessionPlayerKey = null, started = false, over = false, frozen = false, currentUserId = null;
 let moveSyncing = false, lastKnownServerState = null, pollInterval = null, waitingPollInterval = null, lastTimerSync = 0;
 let voiceChannel = null;
+let invitePollInterval = null;
 let db, engine, ui, voice;
 
 async function loadModules() {
@@ -72,6 +73,61 @@ function getResultText(resultType) {
     return iWon ? 'win' : 'loss';
 }
 
+// ---------- FRIENDS: invite polling ----------
+function startInvitePolling() {
+    if (invitePollInterval) clearInterval(invitePollInterval);
+    invitePollInterval = setInterval(async () => {
+        if (!currentUserId || !db) return;
+        try {
+            const invites = await db.getPendingInvites(currentUserId);
+            if (invites.length > 0) {
+                const inv = invites[0];
+                clearInterval(invitePollInterval);
+                invitePollInterval = null;
+                // Show toast with accept button
+                ui.toast(`Game invite from ${inv.profiles.username}. <button id="acceptInviteBtn" style="margin-left:8px;border:1px solid var(--gold);background:var(--gold);color:#0a0806;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:600;">Accept</button>`, 10000);
+                // Attach accept handler dynamically
+                setTimeout(() => {
+                    const btn = document.getElementById('acceptInviteBtn');
+                    if (btn) btn.addEventListener('click', () => acceptInvite(inv));
+                }, 100);
+            }
+        } catch (e) {}
+    }, 10000);
+}
+
+function stopInvitePolling() {
+    if (invitePollInterval) { clearInterval(invitePollInterval); invitePollInterval = null; }
+}
+
+async function acceptInvite(invite) {
+    try {
+        const roomCode = await db.respondToMatchInvite(invite.id, currentUserId, true);
+        if (roomCode) {
+            // Join the private room
+            const username = await db.fetchUsername(currentUserId);
+            const joinerKey = generatePlayerKey();
+            const game = await db.joinPrivateGame(roomCode, currentUserId, joinerKey, username);
+            if (game.status === 'active') {
+                enterOnlineGame(game);
+            } else {
+                onlineGameJoined(game, joinerKey);
+            }
+        }
+    } catch (e) {
+        ui.toast('Could not accept invite: ' + e.message);
+    }
+}
+
+window.acceptInvite = (inviteId) => {
+    // For global access from toast button
+    (async () => {
+        const invites = await db.getPendingInvites(currentUserId);
+        const inv = invites.find(i => i.id === inviteId);
+        if (inv) acceptInvite(inv);
+    })();
+};
+
 async function init() {
     if (!await loadModules()) return;
     try {
@@ -106,7 +162,6 @@ async function init() {
             onRestoreOfflineCloud: () => restoreOfflineFromCloud(),
             onDeleteSynced: () => deleteAllSyncedData(),
             onAiCountdownFinished: () => startOfflineGame('ai'),
-            // NEW – missing cloud restore callbacks
             onCloudRestoreAI: () => restoreCloudMode('ai'),
             onCloudRestore2P: () => restoreCloudMode('2p'),
         });
@@ -172,6 +227,8 @@ async function init() {
                                 started = false;
                                 gameMode = null;
                                 over = false;
+                                // Restart invite polling when back to menu
+                                startInvitePolling();
                             }
                         }, 5000);
                     }
@@ -192,6 +249,8 @@ async function init() {
         await updateHeaderWithAvatar();
         ui.showMenu();
         updateDebugOverlay();
+        // Start friends invite polling
+        startInvitePolling();
     } catch (err) { showError('init()', err); }
 }
 
@@ -285,6 +344,8 @@ async function startOnlineGame() {
     lastTimerSync = Date.now();
     startOnlineGameLoop();
     startVoice();
+    // Stop invite polling while in game
+    stopInvitePolling();
     engine.rotateForPlayer(myColor);
 }
 
@@ -350,6 +411,7 @@ function startOfflineGame(mode) {
     updateMoveDrawer();
     if (mode === 'ai' && engine.getPlayerColor() === 'b') engine.scheduleAI(500);
     startAutoSave();
+    stopInvitePolling();
 }
 function newGame() {
     if (gameMode === 'online') return;
@@ -536,12 +598,66 @@ async function onLocalMoveExecuted(move) {
 }
 
 // Room creation/joining
-async function createPublicRoom() { /* unchanged */ }
-async function createPrivateRoom() { /* unchanged */ }
-async function joinPublicRoom() { /* unchanged */ }
-async function joinPrivateRoom() { /* unchanged */ }
-async function rejoinPublicGame() { /* unchanged */ }
-function enterOnlineGame(game) { /* unchanged */ }
+async function createPublicRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const hostKey = generatePlayerKey();
+    try {
+        const game = await db.createGame(null, 'public', currentUserId, hostKey, username);
+        onlineGameCreated(game, hostKey);
+    } catch (e) { ui.toast('Failed to create room: ' + e.message); }
+}
+async function createPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const hostKey = generatePlayerKey();
+    try {
+        const game = await db.createGame(null, 'private', currentUserId, hostKey, username);
+        onlineGameCreated(game, hostKey);
+    } catch (e) { ui.toast('Failed to create room: ' + e.message); }
+}
+async function joinPublicRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const joinerKey = generatePlayerKey();
+    try {
+        const game = await db.joinPublicGame(currentUserId, joinerKey, username);
+        onlineGameJoined(game, joinerKey);
+    } catch (e) { ui.toast('Join failed: ' + e.message); }
+}
+async function joinPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const code = ui.getPrivateRoomCode();
+    if (!code) { ui.toast('Enter a room code.'); return; }
+    const joinerKey = generatePlayerKey();
+    try {
+        const game = await db.joinPrivateGame(code, currentUserId, joinerKey, username);
+        if (game.status === 'active') { enterOnlineGame(game); return; }
+        onlineGameJoined(game, joinerKey);
+    } catch (e) { ui.toast('Join failed: ' + e.message); }
+}
+async function rejoinPublicGame() {
+    if (!currentUserId) return;
+    const frozenId = sessionStorage.getItem('chess3d_frozen_game');
+    if (!frozenId) { ui.toast('No frozen game found.'); return; }
+    try { const game = await db.unfreezeGame(frozenId, currentUserId); enterOnlineGame(game); } catch (e) { ui.toast('Rejoin failed: ' + e.message); }
+}
+function enterOnlineGame(game) {
+    currentOnlineGame = game; myColor = (game.host_player_id === currentUserId) ? 'w' : 'b';
+    sessionPlayerKey = myColor === 'w' ? game.host_player_key : game.joiner_player_key;
+    sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey); sessionStorage.removeItem('chess3d_frozen_game');
+    ui.hideAllPanels(); ui.showGameUI(); ui.setOnlineBottomButtons(true);
+    engine.setMyColor(myColor); engine.setGameMode('online');
+    engine.syncBoardFromServer(game.board_state.brd, game.board_state.turn, game.board_state.cas, game.board_state.ep, game.timer_w, game.timer_b);
+    started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false);
+    lastTimerSync = Date.now(); startOnlineGameLoop(); startVoice(); engine.rotateForPlayer(myColor);
+}
+
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
 
 // Offline detection
