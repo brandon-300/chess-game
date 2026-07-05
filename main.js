@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (countdown sounds restored, online lobby fixed)
+// main.js — Orchestrator for Chess 3D (all fixes applied)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -134,6 +134,8 @@ function onlineGameCreated(game, hostKey) {
     currentOnlineGame = game;
     sessionPlayerKey = hostKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
+    // Hide everything (main menu, panels) and show the lobby
+    ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname, game.room_code);
     startWaitingPoll(game.id);
 }
@@ -143,6 +145,7 @@ function onlineGameJoined(game, joinerKey) {
     sessionPlayerKey = joinerKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
     myColor = 'b';
+    ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname || 'Opponent', game.room_code);
     startWaitingPoll(game.id);
 }
@@ -227,6 +230,9 @@ async function exitOnlineGame() {
         sessionStorage.setItem('chess3d_frozen_game', gameId);
         resetOnlineState(); ui.showMenu();
     }
+    // Explicitly hide the exit-online panel
+    const eop = document.getElementById('exit-online-panel');
+    if (eop) eop.classList.remove('show');
 }
 window.exitOnlineGame = exitOnlineGame;
 
