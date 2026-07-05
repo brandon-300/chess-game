@@ -33,149 +33,112 @@
         #profile-avatar:hover{box-shadow:0 0 12px rgba(201,168,76,0.4);border-color:#fff}
         #profile-avatar img{width:100%;height:100%;object-fit:cover;display:block}
 
-        /* Notifications */
-        #offline-notification{
-            position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:300;background:rgba(30,10,0,0.92);backdrop-filter:blur(10px);
-            border:1px solid var(--gold);border-top:none;border-radius:0 0 8px 8px;padding:10px 24px;color:var(--gold);font-family:'Inter',sans-serif;
-            font-size:clamp(11px,3vw,14px);letter-spacing:.05em;text-align:center;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.5)
+        /* Main menu – redesigned */
+        #ms{
+            position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            background:rgba(4,2,1,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+            z-index:50;padding:20px;overflow-y:auto;
         }
-        #offline-notification.show{display:block}
-        /* Main Menu */
-        #ms{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(12px,3vh,28px);background:rgba(4,2,1,0.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:50;padding:20px 24px;overflow-y:auto}
-        #ms h1{font-family:'Inter',sans-serif;font-size:clamp(32px,8vw,56px);font-weight:700;letter-spacing:.05em;color:var(--gold);text-shadow:0 0 28px rgba(201,168,76,0.5),0 0 60px rgba(201,168,76,0.2);margin-top:0;text-align:center}
-
-        .cards{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;width:100%;max-width:460px}
-        .card{flex:1;min-width:120px;max-width:200px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:6px;padding:clamp(14px,4vw,24px) clamp(12px,3vw,18px);text-align:center;cursor:pointer;transition:all .28s;box-shadow:inset 0 1px 0 var(--glass-shine),0 4px 24px rgba(0,0,0,0.5)}
-        .card.local-mode{border-color:rgba(201,168,76,0.45);box-shadow:inset 0 1px 0 var(--glass-shine),0 0 18px rgba(201,168,76,0.18),0 4px 24px rgba(0,0,0,0.5)}
-        .card:active{transform:translateY(-3px) scale(1.02);border-color:var(--gold);box-shadow:inset 0 1px 0 rgba(201,168,76,0.15),0 0 28px rgba(201,168,76,0.3),0 12px 36px rgba(0,0,0,0.6)}
-        .card .ic{font-size:clamp(32px,8vw,46px);margin-bottom:8px;color:var(--gold)}
-        .card h2{font-family:'Inter',sans-serif;font-size:clamp(10px,3vw,13px);font-weight:600;letter-spacing:.05em;margin-bottom:6px;color:var(--gold)}
-        .card p{font-size:clamp(10px,2.5vw,12px);color:var(--muted);line-height:1.4;font-style:italic}
-
-        .drow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-        .db{
-            font-family:'Inter',sans-serif;font-size:clamp(8px,2.2vw,10px);font-weight:600;letter-spacing:.05em;
-            background:rgba(201,168,76,0.06);border:1px solid var(--gold-d);color:var(--gold);
-            padding:7px clamp(10px,2.8vw,16px);cursor:pointer;text-transform:uppercase;
-            border-radius:9999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .2s
+        .home-play-btn{
+            font-family:'Inter',sans-serif;font-size:clamp(18px,5vw,24px);font-weight:700;letter-spacing:.05em;
+            background:var(--gold);color:#0a0806;border:none;padding:14px 48px;border-radius:8px;
+            cursor:pointer;transition:filter .2s;margin-bottom:20px;
         }
-        .db:active,.db:hover{
-            border-color:var(--gold);color:var(--gold);
-            background:rgba(201,168,76,0.14);box-shadow:0 0 10px rgba(201,168,76,0.15)
+        .home-play-btn:hover{filter:brightness(1.1)}
+        .home-cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%;max-width:500px;}
+        .home-card{
+            flex:1;min-width:100px;max-width:160px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);
+            border:1px solid var(--glass-border);border-radius:8px;padding:16px 10px;text-align:center;cursor:pointer;
+            transition:all .2s;box-shadow:inset 0 1px 0 var(--glass-shine),0 4px 12px rgba(0,0,0,0.4)
         }
-        .db.on{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.10)}
+        .home-card:active{transform:translateY(-2px);border-color:var(--gold);box-shadow:0 0 20px rgba(201,168,76,0.2)}
+        .home-card .ic{font-size:28px;color:var(--gold);margin-bottom:6px}
+        .home-card h2{font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--gold);margin-bottom:4px}
+        .home-card p{font-size:10px;color:var(--muted)}
+        .home-bottom-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+        .home-bottom-btns .db{padding:6px 16px;font-size:11px}
 
-        /* Game UI */
+        /* Game UI – top & bottom bars */
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
-        #top{position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;padding:4px 8px;gap:6px;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);box-shadow:0 1px 0 var(--glass-shine);pointer-events:auto;flex-wrap:wrap}
+        #top{
+            position:absolute;top:52px;left:0;right:0;display:flex;align-items:center;padding:6px 12px;gap:8px;
+            background:rgba(6,4,2,0.55);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);
+            pointer-events:auto;flex-wrap:wrap;z-index:15;
+        }
         .tpill{display:flex;align-items:center;gap:5px;flex-shrink:0}
-        .tdot{width:9px;height:9px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
+        .tdot{width:10px;height:10px;border-radius:50%;border:2px solid var(--gold-d);flex-shrink:0;transition:all .3s}
         .tdot.w{background:#cc0000;box-shadow:0 0 6px rgba(204,0,0,.65)}
         .tdot.b{background:#1c0e06}
-        #tlbl{font-family:'Inter',sans-serif;font-size:10px;font-weight:600;letter-spacing:.05em;color:var(--cream);white-space:nowrap}
-        #smsg{font-size:10px;color:var(--gold);font-style:italic;flex:1;text-align:center;overflow:hidden;white-space:nowrap;min-width:0}
+        #tlbl{font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--cream);white-space:nowrap}
         .timers{display:flex;gap:4px;flex-shrink:0}
-        .tmr{display:flex;flex-direction:column;align-items:center;padding:1px 5px;border:1px solid rgba(201,168,76,0.18);border-radius:2px;min-width:42px;background:rgba(14,9,4,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-        .tmr .tn{font-family:'Inter',sans-serif;font-size:6px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
-        .tmr .tv{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.03em;color:var(--cream);line-height:1.2}
+        .tmr{display:flex;flex-direction:column;align-items:center;padding:2px 6px;border:1px solid rgba(201,168,76,0.2);border-radius:4px;min-width:44px;background:rgba(14,9,4,0.5)}
+        .tmr .tn{font-family:'Inter',sans-serif;font-size:7px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+        .tmr .tv{font-family:'Inter',sans-serif;font-size:14px;font-weight:600;letter-spacing:.03em;color:var(--cream)}
         .tmr.active .tv{color:var(--gold)}.tmr.low .tv{color:#e04040;animation:blk .65s ease-in-out infinite alternate}
         @keyframes blk{from{opacity:1}to{opacity:.25}}
-        .thkstrip{display:none;position:absolute;bottom:0;left:0;right:0;height:2px;overflow:hidden}
-        .thkstrip.on{display:block}.thkstrip::after{content:'';display:block;height:100%;width:35%;background:var(--gold);animation:tk 1s ease-in-out infinite alternate}
-        @keyframes tk{from{transform:translateX(-100%)}to{transform:translateX(400%)}}
-        #bot{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(6,4,2,0.6);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);box-shadow:0 -1px 0 var(--glass-shine);pointer-events:auto}
-        .ab{flex:1;font-family:'Inter',sans-serif;font-size:clamp(8px,2.5vw,10px);font-weight:600;letter-spacing:.05em;background:transparent;border:none;border-right:1px solid rgba(201,168,76,0.1);color:var(--gold);padding:10px 4px;cursor:pointer;text-transform:uppercase;white-space:nowrap;transition:all .2s;border-radius:9999px}
-        .ab:last-child{border-right:none}
-        .ab:active{color:var(--gold);background:rgba(201,168,76,0.08)}
-
-        /* Voice controls */
-        .voice-controls{position:relative;display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:2px}
-        .voice-btn{position:relative;width:26px;height:26px;border-radius:50%;background:rgba(14,9,4,0.75);border:1px solid var(--gold-d);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+        .voice-controls{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
+        .voice-btn{position:relative;width:28px;height:28px;border-radius:50%;background:rgba(14,9,4,0.75);border:1px solid var(--gold-d);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
         .voice-btn:hover{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.3)}
-        .voice-btn svg{width:14px;height:14px;fill:var(--gold);transition:fill .2s,opacity .2s}
+        .voice-btn svg{width:14px;height:14px;fill:var(--gold)}
         .voice-btn.off svg{opacity:.35}
         .voice-btn.off::after{content:'';position:absolute;left:15%;right:15%;top:50%;height:2px;background:#e04040;border-radius:2px;transform:translateY(-50%) rotate(-45deg)}
         .voice-btn.mic.on{border-color:#cc3030;box-shadow:0 0 10px rgba(204,48,48,0.45)}
         .voice-btn.mic.on svg{fill:#e04040}
         .voice-btn.speaker.on{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.25)}
+        #voice-status{position:absolute;top:100%;right:0;margin-top:4px;font-size:10px;color:var(--cream);background:#1a0e04;border:1px solid var(--gold-d);border-radius:4px;padding:2px 8px;display:none;white-space:nowrap}
+        #voice-status.show{display:block}
 
-        /* Talking indicator */
-        #voice-status{
-            position:absolute;top:100%;right:0;margin-top:5px;z-index:5;white-space:nowrap;
-            display:none;align-items:center;gap:4px;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:.05em;
-            color:var(--cream);background:#1a0e04;border:1px solid var(--gold-d);border-radius:4px;
-            padding:3px 8px;box-shadow:0 2px 10px rgba(0,0,0,0.5)
+        /* Bottom bar */
+        #bot{
+            position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(6,4,2,0.55);backdrop-filter:blur(16px);
+            border-top:1px solid var(--glass-border);pointer-events:auto;z-index:15;justify-content:center;gap:8px;padding:6px 12px;
         }
-        #voice-status.show{display:flex}
-        #voice-status .spk-ic{display:inline-block;animation:spkblink 1s ease-in-out infinite}
-        @keyframes spkblink{0%,100%{opacity:1}50%{opacity:.2}}
+        .ab{
+            flex:0 1 auto;font-family:'Inter',sans-serif;font-size:clamp(9px,2vw,11px);font-weight:600;letter-spacing:.04em;
+            background:transparent;border:1px solid rgba(201,168,76,0.2);color:var(--gold);padding:8px 14px;cursor:pointer;
+            border-radius:6px;transition:all .2s
+        }
+        .ab:active{background:rgba(201,168,76,0.12);border-color:var(--gold)}
 
-        /* Popups */
-        #pm{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:80;align-items:center;justify-content:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-        #pm.on{display:flex}
-        .pmb{background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);box-shadow:inset 0 1px 0 var(--glass-shine),0 8px 40px rgba(0,0,0,0.7);border-radius:6px;padding:24px;text-align:center}
-        .pmb h2{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.05em;color:var(--gold);margin-bottom:14px}
-        .po{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-        .po-b{width:60px;height:60px;background:rgba(201,168,76,0.04);border:1px solid rgba(201,168,76,0.28);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;transition:all .2s;backdrop-filter:blur(4px)}
-        .po-b:active{background:rgba(201,168,76,0.18);border-color:var(--gold);box-shadow:0 0 12px rgba(201,168,76,0.25)}
-        #go{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:70;backdrop-filter:blur(8px);align-items:center;justify-content:center}
-        #go.on{display:flex}
-        .gob{
-            background:#1a0e04;
-            backdrop-filter:blur(12px);
-            border:1px solid var(--gold);
-            box-shadow:inset 0 1px 0 var(--glass-shine),0 0 40px rgba(201,168,76,0.12),0 16px 60px rgba(0,0,0,0.7);
-            border-radius:8px;padding:26px 40px;text-align:center;
-            animation:goin .4s cubic-bezier(.175,.885,.32,1.275);
-            max-width:88vw;display:flex;flex-direction:column;align-items:center;gap:14px
-        }
-        @keyframes goin{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
-        .gob h2{font-family:'Inter',sans-serif;font-size:clamp(16px,5vw,22px);font-weight:600;color:var(--gold);letter-spacing:.05em;margin-bottom:2px}
-        .gob p{font-size:13px;color:var(--muted);font-style:italic;margin-bottom:4px}
-        .gobtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-        .gobtns button{
-            font-family:'Inter',sans-serif;font-size:clamp(9px,2.5vw,11px);font-weight:600;letter-spacing:.05em;
-            background:rgba(201,168,76,0.06);border:1px solid var(--gold);color:var(--gold);
-            padding:10px 20px;cursor:pointer;text-transform:uppercase;white-space:nowrap;
-            border-radius:9999px;backdrop-filter:blur(4px);transition:all .2s
-        }
-        .gobtns button:active{background:rgba(201,168,76,0.18);box-shadow:0 0 12px rgba(201,168,76,0.2)}
-        .gobtns button.sec{border-color:var(--gold-d);color:var(--muted)}
-        .gobtns button.sec:active{border-color:var(--gold);color:var(--gold)}
+        /* Collapsible drawers */
+        .drawer{position:fixed;top:0;bottom:0;width:260px;background:rgba(10,7,4,0.92);backdrop-filter:blur(20px);z-index:20;pointer-events:auto;transition:transform .25s ease;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}
+        .drawer.left{left:0;transform:translateX(-100%)}
+        .drawer.right{right:0;transform:translateX(100%)}
+        .drawer.left.open{transform:translateX(0)}
+        .drawer.right.open{transform:translateX(0)}
+        .drawer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+        .drawer-header h3{font-size:14px;color:var(--gold)}
+        .drawer-close-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px}
 
-        /* Toast */
+        /* Lobby panel inside game UI */
+        #lobby-panel{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:8px;padding:24px;text-align:center;z-index:30;pointer-events:auto;max-width:320px;width:90%}
+        #lobby-panel.show{display:block}
+        #lobby-panel h2{font-family:'Inter',sans-serif;font-size:18px;color:var(--gold);margin-bottom:12px}
+        .lobby-opponent{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px}
+        .lobby-opponent .avatar{width:36px;height:36px;border-radius:50%;background:var(--muted);border:2px solid var(--gold);overflow:hidden}
+        .lobby-opponent .name{font-size:14px;color:var(--cream)}
+        .lobby-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+        .lobby-btns .ab{padding:8px 20px}
+
+        /* State panels */
+        .state-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:45;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+        .state-overlay.show{display:flex}
+        .state-spinner{width:40px;height:40px;border:3px solid var(--gold-d);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .state-text{color:var(--cream);font-family:'Inter',sans-serif;font-size:14px}
+
+        /* Toast, debug, reconnect (keep existing) */
         #toast{
             position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
             background:#1a0e04;border:1px solid var(--gold);
             box-shadow:0 4px 20px rgba(0,0,0,0.5);
-            border-radius:3px;padding:10px 20px;font-family:'Inter',sans-serif;
-            font-size:11px;letter-spacing:.05em;color:var(--cream);
+            border-radius:8px;padding:10px 20px;font-family:'Inter',sans-serif;
+            font-size:12px;color:var(--cream);
             z-index:90;display:none;
-            white-space:normal;max-width:85vw;text-align:center;line-height:1.5
+            white-space:normal;max-width:85vw;text-align:center
         }
         #toast.show{display:block}
-
-        /* Online / AI panels */
-        .online-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.12),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
-        .online-panel.show{display:flex}
-        .online-panel h2{font-family:'Inter',sans-serif;font-size:clamp(14px,4vw,18px);font-weight:600;color:var(--gold);letter-spacing:.05em;margin-bottom:8px}
-        .online-panel input{background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Inter',sans-serif;font-size:16px;letter-spacing:.05em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s;border-radius:9999px}
-        .online-panel input:focus{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.15)}
-        .online-panel .db{margin:4px 0;min-width:220px;font-size:clamp(10px,2.5vw,12px)}
-        .online-panel .db.back-btn{border-color:var(--gold-d);color:var(--muted);opacity:0.7}
-        .online-panel .db.back-btn:hover{opacity:1}
-        .online-panel .status-text{color:var(--muted);font-style:italic;font-size:12px;margin-top:4px}
-
-        /* Misc panels */
-        #rematch-panel,#exit-choice-panel,#restore-choice-panel,#cloud-choice-panel,#delete-confirm-panel,#exit-online-panel{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:95;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-        #rematch-panel.show,#exit-choice-panel.show,#restore-choice-panel.show,#cloud-choice-panel.show,#delete-confirm-panel.show,#exit-online-panel.show{display:flex}
-        .rematch-box,.exit-choice-box,.restore-choice-box,.cloud-choice-box,.delete-confirm-box,.exit-online-box{background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.4);box-shadow:inset 0 1px 0 var(--glass-shine),0 16px 60px rgba(0,0,0,0.65);padding:30px;text-align:center;display:flex;flex-direction:column;gap:16px;animation:goin .3s cubic-bezier(.175,.885,.32,1.275)}
-        .delete-confirm-box,.exit-online-box{max-width:320px;width:90%}
-        .delete-confirm-box h2,.exit-online-box h2,.restore-choice-box h2,.cloud-choice-box h2,.exit-choice-box h2{font-family:'Inter',sans-serif;font-size:14px;font-weight:600;letter-spacing:.05em;color:var(--gold);text-shadow:0 0 8px rgba(201,168,76,0.3)}
-        .delete-confirm-box p,.exit-online-box p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
-
-        /* Debug / Log */
-        #debug-overlay{position:fixed;bottom:10px;left:10px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:11px;padding:8px 12px;border-radius:4px;max-width:300px;word-break:break-all;pointer-events:none}
+        #debug-overlay{position:fixed;bottom:10px;left:10px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:10px;padding:6px 10px;border-radius:4px;max-width:300px;word-break:break-all;pointer-events:none}
         #error-log{position:fixed;bottom:50px;left:10px;right:10px;z-index:9998;background:rgba(20,0,0,0.9);color:#f44;font-family:monospace;font-size:10px;padding:6px 10px;border-radius:4px;max-height:200px;overflow-y:auto;word-break:break-word;white-space:pre-wrap;pointer-events:none;display:none}
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:4px;color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Inter',sans-serif;font-size:12px;letter-spacing:.05em;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
         #reconnect-indicator.show{display:block}
@@ -190,45 +153,29 @@
         </div>
     </header>
 
-    <div id="offline-notification">You are offline. Some features may not work.<br>Please check your internet connection.</div>
-    <div id="debug-overlay">Loading...</div>
-    <div id="error-log"></div>
-    <canvas id="cv"></canvas>
-
+    <!-- Main menu -->
     <div id="ms">
-        <h1>Chess 3D</h1>
-        <div class="cards" id="main-cards">
-            <div class="card local-mode" id="card-2p"><div class="ic">♟♙</div><h2>Two Players</h2><p>Pass and play locally</p></div>
-            <div class="card local-mode" id="card-ai"><div class="ic">♜</div><h2>vs AI</h2><p>Play against AI</p></div>
-            <div class="card" id="card-online"><div class="ic">🌐</div><h2>Online</h2><p>Play with others</p></div>
+        <h1 style="font-family:'Inter',sans-serif;font-weight:700;font-size:32px;color:var(--gold);margin-bottom:20px">Chess 3D</h1>
+        <button class="home-play-btn" id="home-play-online">▶ Play Online</button>
+        <div class="home-cards" id="home-cards">
+            <div class="home-card" id="card-2p"><div class="ic">♟♙</div><h2>Two Players</h2><p>Pass &amp; play</p></div>
+            <div class="home-card" id="card-ai"><div class="ic">♜</div><h2>vs AI</h2><p>Computer</p></div>
+            <div class="home-card" id="card-friends"><div class="ic">👥</div><h2>Friends</h2><p>Coming soon</p></div>
+            <div class="home-card" id="card-history"><div class="ic">📋</div><h2>History</h2><p>Coming soon</p></div>
+            <div class="home-card" id="card-settings"><div class="ic">⚙️</div><h2>Settings</h2><p>Coming soon</p></div>
         </div>
-
-        <div id="online-menu" class="online-panel"><h2>Online Mode</h2><button class="db" id="btn-public-menu">Public Room</button><button class="db" id="btn-private-menu">Private Room</button><button class="db back-btn" id="btn-online-back">Back</button></div>
-        <div id="public-menu" class="online-panel"><h2>Public Room</h2><button class="db" id="btn-create-public">Create Public Room</button><button class="db" id="btn-join-public">Join Public Room</button><button class="db back-btn" id="btn-public-back">Back</button></div>
-        <div id="private-menu" class="online-panel"><h2>Private Room</h2><button class="db" id="btn-show-create-private">Create Private Room</button><button class="db" id="btn-show-join-private">Join Private Room</button><button class="db back-btn" id="btn-private-back">Back</button></div>
-        <div id="join-private" class="online-panel"><h2>Join Private Room</h2><input type="text" id="private-room-code" placeholder="Room code" maxlength="20"><button class="db" id="btn-join-private">Join</button><button class="db back-btn" id="btn-join-private-back">Back</button></div>
-
-        <div id="countdown-panel" class="online-panel"><h2 id="countdown-welcome"></h2><div style="font-size:48px;color:var(--gold)" id="countdown-number">5</div></div>
-        <div id="waiting-panel" class="online-panel"><h2 id="waiting-title"></h2><p class="status-text" id="waiting-text"></p><button class="db back-btn" id="btn-cancel-waiting">Cancel</button></div>
-        <div id="rematch-panel" class="online-panel"><h2>Rematch</h2><p class="status-text" id="rematch-text"></p><button class="db" id="btn-rematch-accept">Accept</button><button class="db back-btn" id="btn-rematch-decline">Decline</button></div>
-
-        <div id="login-gate-panel" class="online-panel"><h2>Login Required</h2><p>You need an account to play online.<br>Sign in or create a free account to continue.</p><button class="db" id="btn-go-login">Go to Login</button><button class="db back-btn" id="btn-login-gate-back">Back</button></div>
-
-        <div id="ai-diff-panel" class="online-panel"><h2>Choose Difficulty</h2><button class="db" id="btn-ai-novice">Novice</button><button class="db" id="btn-ai-knight">Knight</button><button class="db" id="btn-ai-master">Master</button><button class="db back-btn" id="btn-ai-diff-back">Back</button></div>
-        <div id="ai-color-panel" class="online-panel"><h2>Choose Your Colour</h2><button class="db" id="btn-ai-red">Red</button><button class="db" id="btn-ai-black">Black</button><button class="db back-btn" id="btn-ai-color-back">Back</button></div>
-        <div id="ai-countdown-panel" class="online-panel"><h2>Game Starting in</h2><div style="font-size:48px;color:var(--gold)" id="ai-countdown-number">5</div><button class="db back-btn" id="btn-cancel-ai-countdown">Cancel</button></div>
-
-        <div id="original-buttons">
-            <div style="margin-bottom:12px;margin-top:10px"><div class="drow"><button class="db" id="btn-restore-local">Restore Game</button></div></div>
-            <div style="margin-top:10px"><div class="drow"><button class="db" id="btn-sync-offline-cloud">Sync offline data to Cloud</button><button class="db" id="btn-restore-offline-cloud">Restore offline data from Cloud</button></div></div>
-            <div style="margin-top:8px;margin-bottom:10px"><div class="drow"><button class="db" id="btn-delete-all-synced">Delete all synced data</button></div></div>
+        <div class="home-bottom-btns">
+            <button class="db" id="btn-restore-local">Restore Game</button>
+            <button class="db" id="btn-sync-offline-cloud">Sync to Cloud</button>
+            <button class="db" id="btn-restore-offline-cloud">Restore from Cloud</button>
+            <button class="db" id="btn-delete-all-synced">Delete Synced</button>
         </div>
     </div>
 
+    <!-- Game UI wrapper -->
     <div id="gu">
         <div id="top">
             <div class="tpill"><div class="tdot w" id="tdot"></div><span id="tlbl">Red</span></div>
-            <span id="smsg"></span>
             <div class="timers">
                 <div class="tmr active" id="tmrW"><div class="tn">Red</div><div class="tv" id="tvW">1:00</div></div>
                 <div class="tmr" id="tmrB"><div class="tn">Black</div><div class="tv" id="tvB">1:00</div></div>
@@ -242,28 +189,74 @@
                 </button>
                 <div id="voice-status"></div>
             </div>
-            <div class="thkstrip" id="thkstrip"></div>
         </div>
         <div id="bot">
-            <button class="ab" id="new-game-btn">New Game</button>
             <button class="ab" id="undo-btn">Undo</button>
+            <button class="ab" id="drawer-toggle-left" title="Moves">☰</button>
+            <button class="ab" id="drawer-toggle-right" title="Chat">💬</button>
+            <button class="ab" id="new-game-btn">New Game</button>
             <button class="ab" id="mode-btn">Exit</button>
         </div>
+
+        <!-- Left drawer (moves / history) -->
+        <div class="drawer left" id="left-drawer">
+            <div class="drawer-header">
+                <h3>Moves</h3>
+                <button class="drawer-close-btn" id="close-left-drawer">✕</button>
+            </div>
+            <div id="move-list" style="flex:1;overflow-y:auto;font-size:13px;color:var(--cream);line-height:1.5"></div>
+        </div>
+        <!-- Right drawer (chat) -->
+        <div class="drawer right" id="right-drawer">
+            <div class="drawer-header">
+                <h3>Chat</h3>
+                <button class="drawer-close-btn" id="close-right-drawer">✕</button>
+            </div>
+            <div id="chat-messages" style="flex:1;overflow-y:auto;margin-bottom:8px;font-size:13px;color:var(--cream)"></div>
+            <div style="display:flex;gap:6px">
+                <input id="chat-input" type="text" placeholder="Message..." style="flex:1;padding:8px;border-radius:4px;border:1px solid var(--gold-d);background:var(--panel);color:var(--text)">
+                <button id="chat-send" class="ab" style="padding:8px 12px">Send</button>
+            </div>
+        </div>
+
+        <!-- Lobby panel -->
+        <div id="lobby-panel">
+            <h2>Lobby</h2>
+            <div class="lobby-opponent">
+                <div class="avatar" id="lobby-avatar"></div>
+                <span class="name" id="lobby-opponent-name">—</span>
+            </div>
+            <div class="lobby-btns">
+                <button class="ab" id="lobby-start-btn">Start</button>
+                <button class="ab" id="lobby-leave-btn">Leave</button>
+                <button class="ab" id="lobby-rematch-btn" style="display:none">Rematch</button>
+            </div>
+        </div>
+
+        <!-- State overlays -->
+        <div class="state-overlay" id="state-loading">
+            <div class="state-spinner"></div>
+            <div class="state-text">Loading game...</div>
+        </div>
+        <div class="state-overlay" id="state-empty">
+            <div class="state-text">No game found.</div>
+        </div>
+        <div class="state-overlay" id="state-error">
+            <div class="state-text">Something went wrong. Please try again.</div>
+        </div>
+        <div class="state-overlay" id="state-reconnecting">
+            <div class="state-spinner"></div>
+            <div class="state-text">Reconnecting...</div>
+        </div>
+
+        <!-- Toast -->
+        <div id="toast"></div>
     </div>
 
-    <div id="pm"><div class="pmb"><h2>Promote Pawn</h2><div class="po" id="po"></div></div></div>
-    <div id="go"><div class="gob"><h2 id="got"></h2><p id="gos"></p><div class="gobtns" id="go-btns"></div></div></div>
-    <div id="toast"></div>
+    <div id="debug-overlay">Loading...</div>
+    <div id="error-log"></div>
+    <canvas id="cv"></canvas>
 
-    <div id="exit-choice-panel"><div class="exit-choice-box"><h2>Exit Game</h2><button class="db" id="btn-exit-save">Save Progress</button><button class="db" id="btn-exit-no-save">Don't Save</button><button class="db back-btn" id="btn-exit-cancel">Cancel</button></div></div>
-    <div id="restore-choice-panel"><div class="restore-choice-box"><h2>Choose mode to restore</h2><button class="db" id="btn-restore-ai">AI Match</button><button class="db" id="btn-restore-2p">PvP Match</button><button class="db back-btn" id="btn-restore-cancel">Cancel</button></div></div>
-    <div id="cloud-choice-panel"><div class="cloud-choice-box"><h2>Choose mode to restore</h2><button class="db" id="btn-cloud-restore-ai">AI Match</button><button class="db" id="btn-cloud-restore-2p">PvP Match</button><button class="db back-btn" id="btn-cloud-restore-cancel">Cancel</button></div></div>
-    <div id="delete-confirm-panel"><div class="delete-confirm-box"><h2>Delete Synced Data</h2><p>Are you sure you want to delete all synced offline data from the cloud?</p><button class="db" id="btn-delete-confirm">Delete</button><button class="db back-btn" id="btn-delete-cancel">Cancel</button></div></div>
-    <div id="exit-online-panel"><div class="exit-online-box"><h2>Leave Match?</h2><p>Are you sure you want to leave? The match will be terminated or frozen.</p><button class="db" id="btn-exit-online-yes" style="border-color:#cc0000;color:#cc0000">Leave</button><button class="db back-btn" id="btn-exit-online-stay">Stay</button></div></div>
-
-    <div id="reconnect-indicator">Reconnecting...</div>
-
-    <!-- Load config first so window.SUPABASE_URL / window.SUPABASE_KEY are available -->
     <script src="config.js"></script>
     <script>
         function loadScript(src, cb, fallbackSrc) {
