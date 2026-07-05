@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (drawer, voice, clearMoveDrawer, all fixes)
+// ui_handler.js — Chess 3D (history button wired + all fixes)
 
 import * as engine from './game_engine.js';
 
@@ -35,7 +35,9 @@ function handleDelegatedClick(e) {
             break;
         case 'card-2p': if (callbacks.onStart2P) callbacks.onStart2P(); break;
         case 'card-ai': if (callbacks.onStartAI) callbacks.onStartAI(); break;
-        case 'card-friends': case 'card-history': case 'card-settings': toast('Coming soon…', 2000); break;
+        // History now opens the dedicated page
+        case 'card-history': window.location.href = 'history.html'; break;
+        case 'card-friends': case 'card-settings': toast('Coming soon…', 2000); break;
 
         // Offline / sync
         case 'btn-restore-local': if (callbacks.onRestoreLocal) callbacks.onRestoreLocal(); break;
