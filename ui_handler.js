@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (tick sounds restored, online countdown added)
+// ui_handler.js — Chess 3D (voice indicator fix)
 
 import * as engine from './game_engine.js';
 
@@ -161,9 +161,17 @@ export function hideAllStates() { ['state-loading','state-empty','state-error','
 export function setVoiceControlsVisibility(visible) { const vc = document.getElementById('voice-controls'); if (vc) vc.style.display = visible ? '' : 'none'; }
 export function setMicState(on) { const btn = document.getElementById('mic-toggle-btn'); if (btn) { btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on); } }
 export function setSpeakerState(on) { const btn = document.getElementById('speaker-toggle-btn'); if (btn) { btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on); } }
+
+// UPDATED: shows "🔊 username is talking" with a blinking emoji
 export function setOpponentTalking(talking, nickname) {
     const el = document.getElementById('voice-status');
-    if (el) { if (talking && nickname) { el.textContent = nickname + ' talking…'; el.classList.add('show'); } else { el.classList.remove('show'); } }
+    if (!el) return;
+    if (talking && nickname) {
+        el.innerHTML = '<span class="spk-ic">🔊</span> ' + nickname + ' is talking';
+        el.classList.add('show');
+    } else {
+        el.classList.remove('show');
+    }
 }
 export function resetVoiceState() { setMicState(false); setSpeakerState(true); setOpponentTalking(false, ''); }
 
@@ -262,7 +270,7 @@ function startAiCountdown() {
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         sec--;
-        if (sec <= 5 && sec > 0) engine.playTickSound();   // <-- restored tick sound
+        if (sec <= 5 && sec > 0) engine.playTickSound();
         if (sec <= 0) {
             clearInterval(countdownInterval); countdownInterval = null;
             hideAllPanels();
