@@ -42,7 +42,6 @@ export async function fetchProfileData(userId) {
     return data || { username: null, avatar_url: null };
 }
 
-// NEW: used to display the room owner's avatar in the lobby
 export async function fetchUserAvatar(userId) {
     if (!sb || !userId) return null;
     const { data } = await sb.from('profiles').select('avatar_url').eq('id', userId).maybeSingle();
@@ -250,6 +249,122 @@ export async function saveMatchHistory(userId, opponentName, result, playerColor
         ended_at: new Date().toISOString()
     });
     if (error) throw error;
+}
+
+// ---------- Friends ----------
+export async function searchUsers(query, currentUserId) {
+    if (!sb) return [];
+    const { data } = await sb.from('profiles')
+        .select('id, username, avatar_url, is_online, last_seen')
+        .neq('id', currentUserId)
+        .ilike('username', `%${query}%`)
+        .limit(20);
+    return data || [];
+}
+
+export async function sendFriendRequest(fromUserId, toUserId) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: existing } = await sb.from('friend_requests')
+        .select('id').eq('from_user_id', fromUserId).eq('to_user_id', toUserId)
+        .eq('status', 'pending').maybeSingle();
+    if (existing) throw new Error('Request already pending.');
+
+    const { error } = await sb.from('friend_requests').insert({
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+        status: 'pending'
+    });
+    if (error) throw error;
+}
+
+export async function getPendingRequests(userId) {
+    if (!sb) return { incoming: [], outgoing: [] };
+    const { data: incoming } = await sb.from('friend_requests')
+        .select('id, from_user_id, status, created_at, profiles!friend_requests_from_user_id_fkey(username, avatar_url)')
+        .eq('to_user_id', userId).eq('status', 'pending');
+    const { data: outgoing } = await sb.from('friend_requests')
+        .select('id, to_user_id, status, created_at, profiles!friend_requests_to_user_id_fkey(username, avatar_url)')
+        .eq('from_user_id', userId).eq('status', 'pending');
+    return {
+        incoming: incoming || [],
+        outgoing: outgoing || []
+    };
+}
+
+export async function acceptFriendRequest(requestId, userId) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: req } = await sb.from('friend_requests').select('*').eq('id', requestId).single();
+    if (!req || req.to_user_id !== userId) throw new Error('Not authorized');
+    await sb.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId);
+    await sb.from('friends').insert({ user_id: req.from_user_id, friend_id: req.to_user_id });
+    await sb.from('friends').insert({ user_id: req.to_user_id, friend_id: req.from_user_id });
+}
+
+export async function declineFriendRequest(requestId, userId) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: req } = await sb.from('friend_requests').select('*').eq('id', requestId).single();
+    if (!req || req.to_user_id !== userId) throw new Error('Not authorized');
+    await sb.from('friend_requests').update({ status: 'declined' }).eq('id', requestId);
+}
+
+export async function cancelFriendRequest(requestId, userId) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: req } = await sb.from('friend_requests').select('*').eq('id', requestId).single();
+    if (!req || req.from_user_id !== userId) throw new Error('Not authorized');
+    await sb.from('friend_requests').delete().eq('id', requestId);
+}
+
+export async function getFriendsList(userId) {
+    if (!sb) return [];
+    const { data } = await sb.from('friends')
+        .select('friend_id, profiles!friends_friend_id_fkey(username, avatar_url, is_online, last_seen)')
+        .eq('user_id', userId);
+    return (data || []).map(row => ({
+        id: row.friend_id,
+        username: row.profiles.username,
+        avatar_url: row.profiles.avatar_url,
+        is_online: row.profiles.is_online,
+        last_seen: row.profiles.last_seen
+    }));
+}
+
+export async function removeFriend(userId, friendId) {
+    if (!sb) throw new Error('Supabase not available');
+    await sb.from('friends').delete().eq('user_id', userId).eq('friend_id', friendId);
+    await sb.from('friends').delete().eq('user_id', friendId).eq('friend_id', userId);
+}
+
+export async function createMatchInvite(fromUserId, toUserId, roomCode) {
+    if (!sb) throw new Error('Supabase not available');
+    const { error } = await sb.from('match_invites').insert({
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+        room_code: roomCode,
+        status: 'pending'
+    });
+    if (error) throw error;
+}
+
+export async function getPendingInvites(userId) {
+    if (!sb) return [];
+    const { data } = await sb.from('match_invites')
+        .select('id, from_user_id, room_code, created_at, profiles!match_invites_from_user_id_fkey(username, avatar_url)')
+        .eq('to_user_id', userId).eq('status', 'pending');
+    return data || [];
+}
+
+export async function respondToMatchInvite(inviteId, userId, accept) {
+    if (!sb) throw new Error('Supabase not available');
+    const { data: invite } = await sb.from('match_invites').select('*').eq('id', inviteId).single();
+    if (!invite || invite.to_user_id !== userId) throw new Error('Not authorized');
+    await sb.from('match_invites').update({ status: accept ? 'accepted' : 'declined' }).eq('id', inviteId);
+    if (accept) {
+        // Optionally expire other pending invites between the same users
+        await sb.from('match_invites').update({ status: 'expired' })
+            .eq('from_user_id', invite.from_user_id).eq('to_user_id', userId).eq('status', 'pending');
+        return invite.room_code;
+    }
+    return null;
 }
 
 // ---------- Utilities ----------
