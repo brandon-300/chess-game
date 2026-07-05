@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (draw‑undo + all fixes)
+// main.js — Orchestrator for Chess 3D (game history + all fixes)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -23,7 +23,7 @@ async function ensureVoiceLoaded() {
     catch (e) { showError('import voice_handler.js', e); return false; }
 }
 
-// NEW – called by the draw popup in AI mode
+// NEW – Undo last move in AI draw
 window.undoAIDraw = function() {
     if (gameMode !== 'ai' || !over) return;
     undoMove();              // engine undoes 2 moves (AI + player)
@@ -31,11 +31,50 @@ window.undoAIDraw = function() {
     // over is set to false inside undoMove, so the game continues
 };
 
+// ---- Drawer helper ----
 function updateMoveDrawer() {
     if (gameMode === 'online') return;
     ui.clearMoveDrawer();
     const moves = engine.getMoveLogDisplay();
     moves.forEach(m => ui.appendMoveToDrawer(m));
+}
+
+// ---- Game history helpers ----
+async function saveGameHistory(resultType) {
+    if (!currentUserId) return; // only save for logged-in users
+    const opponentName = getOpponentName();
+    const result = getResultText(resultType);
+    const moves = engine.getMoveLogDisplay();
+    try {
+        await db.saveMatchHistory(currentUserId, opponentName, result, myColor, gameMode, moves);
+    } catch (e) {
+        showError('saveHistory', e);
+    }
+}
+
+function getOpponentName() {
+    if (gameMode === 'ai') return 'Computer';
+    if (gameMode === '2p') return 'Player 2';
+    if (currentOnlineGame) {
+        return currentOnlineGame.host_player_id === currentUserId
+            ? currentOnlineGame.joiner_nickname || 'Opponent'
+            : currentOnlineGame.host_nickname || 'Opponent';
+    }
+    return 'Unknown';
+}
+
+function getResultText(resultType) {
+    if (resultType === 'draw') return 'draw';
+    if (gameMode === 'ai') {
+        if (resultType === engine.getPlayerColor()) return 'win';
+        return 'loss';
+    }
+    if (gameMode === '2p') {
+        return resultType === 'Red' ? 'win' : 'loss';
+    }
+    // online
+    const iWon = (myColor === 'w' && resultType === 'Red') || (myColor === 'b' && resultType === 'Black');
+    return iWon ? 'win' : 'loss';
 }
 
 async function init() {
@@ -112,23 +151,23 @@ async function init() {
                         }
                     }
 
-                    // Build buttons HTML
                     let buttonsHTML = '';
                     if (isOnline && info.resultType !== 'draw') {
                         buttonsHTML = '<button onclick="window.requestRematch()">Rematch</button><button onclick="window.exitOnlineGame()">Exit</button>';
                     } else if (isOnline) {
                         buttonsHTML = '<button onclick="window.exitOnlineGame()">Exit</button>';
                     } else if (gameMode === 'ai' && info.resultType === 'draw') {
-                        // NEW – add "Undo last move" for AI draws
                         buttonsHTML = '<button onclick="window.undoAIDraw()">Undo last move</button>';
                     }
 
                     ui.showGameOver(title, subtitle, buttonsHTML);
                     over = true;
 
+                    // NEW: save to match history (fire-and-forget)
+                    saveGameHistory(info.resultType);
+
                     if (!isOnline) {
                         setTimeout(() => {
-                            // Only auto-close if the game is still over (i.e., the user didn't undo)
                             if (over) {
                                 ui.hideGameOver();
                                 ui.showMenu();
