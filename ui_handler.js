@@ -24,10 +24,7 @@ function handleDelegatedClick(e) {
     switch (id) {
         // Home screen
         case 'home-play-online':
-            if (!callbacks.onOnlineMenu) break;
-            hideAllPanels();
-            const onlineMenu = document.getElementById('online-menu');
-            if (onlineMenu) onlineMenu.classList.add('show');
+            if (callbacks.onOnlineMenu) callbacks.onOnlineMenu();
             break;
         case 'card-2p': if (callbacks.onStart2P) callbacks.onStart2P(); break;
         case 'card-ai': if (callbacks.onStartAI) callbacks.onStartAI(); break;
@@ -127,6 +124,9 @@ export function appendMoveToDrawer(moveText) {
 
 // ---- Lobby ----
 export function showLobbyPanel(opponentName, roomCode) {
+    const gu = document.getElementById('gu'); if (gu) gu.style.display = 'block';
+    const top = document.getElementById('top'); if (top) top.style.display = 'none';
+    const bot = document.getElementById('bot'); if (bot) bot.style.display = 'none';
     const lp = document.getElementById('lobby-panel'); if (lp) lp.classList.add('show');
     const name = document.getElementById('lobby-opponent-name'); if (name) name.textContent = opponentName || 'Waiting…';
     const start = document.getElementById('lobby-start-btn'); const leave = document.getElementById('lobby-leave-btn'); const rematch = document.getElementById('lobby-rematch-btn');
@@ -134,7 +134,11 @@ export function showLobbyPanel(opponentName, roomCode) {
     if (leave) leave.style.display = 'inline-block';
     if (rematch) rematch.style.display = 'none';
 }
-export function hideLobbyPanel() { const lp = document.getElementById('lobby-panel'); if (lp) lp.classList.remove('show'); }
+export function hideLobbyPanel() {
+    const lp = document.getElementById('lobby-panel'); if (lp) lp.classList.remove('show');
+    const top = document.getElementById('top'); if (top) top.style.display = '';
+    const bot = document.getElementById('bot'); if (bot) bot.style.display = '';
+}
 export function showRematchInLobby() {
     const start = document.getElementById('lobby-start-btn'); const leave = document.getElementById('lobby-leave-btn'); const rematch = document.getElementById('lobby-rematch-btn');
     if (start) start.style.display = 'none';
@@ -165,7 +169,13 @@ export function resetVoiceState() { setMicState(false); setSpeakerState(true); s
 
 // ---- General UI ----
 export function showMenu() { const ms = document.getElementById('ms'); if (ms) ms.style.display = 'flex'; const gu = document.getElementById('gu'); if (gu) gu.style.display = 'none'; }
-export function showGameUI() { const ms = document.getElementById('ms'); if (ms) ms.style.display = 'none'; const gu = document.getElementById('gu'); if (gu) gu.style.display = 'block'; hideAllStates(); }
+export function showGameUI() {
+    const ms = document.getElementById('ms'); if (ms) ms.style.display = 'none';
+    const gu = document.getElementById('gu'); if (gu) gu.style.display = 'block';
+    const top = document.getElementById('top'); if (top) top.style.display = '';
+    const bot = document.getElementById('bot'); if (bot) bot.style.display = '';
+    hideAllStates();
+}
 export function hideGameUI() { const gu = document.getElementById('gu'); if (gu) gu.style.display = 'none'; }
 export function hideGameOver() { const go = document.getElementById('go'); if (go) go.classList.remove('on'); }
 export function updateHeaderUI(userId, avatarUrl) {
