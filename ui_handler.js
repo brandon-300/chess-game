@@ -1,4 +1,4 @@
-// ui_handler.js — All DOM manipulation and event wiring for Chess 3D
+// ui_handler.js — Chess 3D (drawer overlay, no chat, sync buttons wired)
 
 import * as engine from './game_engine.js';
 
@@ -25,13 +25,15 @@ function cacheElements() {
         'tmrW', 'tmrB', 'tvW', 'tvB',
         'voice-controls', 'mic-toggle-btn', 'speaker-toggle-btn', 'voice-status',
         'lobby-panel', 'lobby-avatar', 'lobby-opponent-name', 'lobby-start-btn', 'lobby-leave-btn', 'lobby-rematch-btn',
-        'left-drawer', 'right-drawer', 'drawer-toggle-left', 'drawer-toggle-right', 'close-left-drawer', 'close-right-drawer',
-        'move-list', 'chat-messages', 'chat-input', 'chat-send',
+        'left-drawer', 'drawer-overlay', 'drawer-toggle-left', 'close-left-drawer',
+        'move-list',
         'state-loading', 'state-empty', 'state-error', 'state-reconnecting',
         'toast',
         'new-game-btn', 'undo-btn', 'mode-btn',
         'go', 'got', 'gos', 'go-btns',
-        'pm', 'po'
+        'pm', 'po',
+        // legacy panels
+        'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel', 'delete-confirm-panel', 'exit-online-panel'
     ];
     ids.forEach(id => { els[id] = document.getElementById(id); });
     if (els['profile-avatar']) {
@@ -42,7 +44,6 @@ function cacheElements() {
 function attachListeners() {
     const btn = (id, handler) => { const el = els[id]; if (el) el.addEventListener('click', handler); };
 
-    // Home screen buttons
     btn('home-play-online', () => callbacks.onOnlineMenu());
     btn('card-2p', () => callbacks.onStart2P());
     btn('card-ai', () => callbacks.onStartAI());
@@ -50,70 +51,70 @@ function attachListeners() {
         if (els[id]) els[id].addEventListener('click', () => toast('Coming soon…', 2000));
     });
 
-    // Offline sync buttons (fixed)
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
     btn('btn-delete-all-synced', () => {
-        // Show delete confirmation (we'll reuse the old panel if it exists)
-        const confirmPanel = document.getElementById('delete-confirm-panel');
-        if (confirmPanel) {
-            confirmPanel.classList.add('show');
-            // Wire confirm/cancel buttons inside the panel (one-time)
-            document.getElementById('btn-delete-confirm')?.addEventListener('click', () => {
-                confirmPanel.classList.remove('show');
-                callbacks.onDeleteSynced();
-            }, { once: true });
-            document.getElementById('btn-delete-cancel')?.addEventListener('click', () => {
-                confirmPanel.classList.remove('show');
-            }, { once: true });
-        }
+        if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.add('show');
     });
 
-    // Bottom bar buttons
+    // Bottom bar
     btn('new-game-btn', () => callbacks.onNewGame());
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
 
-    // Voice controls
+    // Voice
     if (els['mic-toggle-btn']) els['mic-toggle-btn'].addEventListener('click', () => callbacks.onToggleMic && callbacks.onToggleMic());
     if (els['speaker-toggle-btn']) els['speaker-toggle-btn'].addEventListener('click', () => callbacks.onToggleSpeaker && callbacks.onToggleSpeaker());
 
-    // Drawer toggles
-    if (els['drawer-toggle-left']) els['drawer-toggle-left'].addEventListener('click', () => toggleLeftDrawer());
-    if (els['drawer-toggle-right']) els['drawer-toggle-right'].addEventListener('click', () => toggleRightDrawer());
-    if (els['close-left-drawer']) els['close-left-drawer'].addEventListener('click', () => closeLeftDrawer());
-    if (els['close-right-drawer']) els['close-right-drawer'].addEventListener('click', () => closeRightDrawer());
+    // Drawer toggle
+    if (els['drawer-toggle-left']) els['drawer-toggle-left'].addEventListener('click', toggleLeftDrawer);
+    if (els['close-left-drawer']) els['close-left-drawer'].addEventListener('click', closeLeftDrawer);
+    // Overlay closes drawers
+    if (els['drawer-overlay']) els['drawer-overlay'].addEventListener('click', () => {
+        closeLeftDrawer();
+    });
 
-    // Lobby buttons
+    // Lobby
     btn('lobby-start-btn', () => callbacks.onCountdownFinished && callbacks.onCountdownFinished());
     btn('lobby-leave-btn', () => callbacks.onCancelWaiting && callbacks.onCancelWaiting());
     btn('lobby-rematch-btn', () => callbacks.onAcceptRematch && callbacks.onAcceptRematch());
 
-    // Chat (basic send)
-    if (els['chat-send']) els['chat-send'].addEventListener('click', () => {
-        const msg = els['chat-input'].value.trim();
-        if (msg && callbacks.onChatSend) {
-            callbacks.onChatSend(msg);
-            els['chat-input'].value = '';
-        }
-    });
+    // Legacy panel buttons
+    btn('btn-delete-confirm', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); callbacks.onDeleteSynced(); });
+    btn('btn-delete-cancel', () => { if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.remove('show'); });
+    btn('btn-exit-save', () => callbacks.onExitSave());
+    btn('btn-exit-no-save', () => callbacks.onExitWithoutSave());
+    btn('btn-exit-cancel', () => { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); });
+    btn('btn-exit-online-yes', () => callbacks.onExitOnlineYes());
+    btn('btn-exit-online-stay', () => { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); });
+    btn('btn-restore-ai', () => { if (els['restore-choice-panel']) els['restore-choice-panel'].classList.remove('show'); callbacks.onRestoreAI && callbacks.onRestoreAI(); });
+    btn('btn-restore-2p', () => { if (els['restore-choice-panel']) els['restore-choice-panel'].classList.remove('show'); callbacks.onRestore2P && callbacks.onRestore2P(); });
+    btn('btn-restore-cancel', () => { if (els['restore-choice-panel']) els['restore-choice-panel'].classList.remove('show'); });
+    btn('btn-cloud-restore-ai', () => { if (els['cloud-choice-panel']) els['cloud-choice-panel'].classList.remove('show'); callbacks.onCloudRestoreAI && callbacks.onCloudRestoreAI(); });
+    btn('btn-cloud-restore-2p', () => { if (els['cloud-choice-panel']) els['cloud-choice-panel'].classList.remove('show'); callbacks.onCloudRestore2P && callbacks.onCloudRestore2P(); });
+    btn('btn-cloud-restore-cancel', () => { if (els['cloud-choice-panel']) els['cloud-choice-panel'].classList.remove('show'); });
 
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
 // ---- Drawer helpers ----
 export function toggleLeftDrawer() {
-    els['left-drawer'].classList.toggle('open');
+    const drawer = els['left-drawer'];
+    const overlay = els['drawer-overlay'];
+    if (!drawer || !overlay) return;
+    const isOpen = drawer.classList.contains('open');
+    if (isOpen) {
+        drawer.classList.remove('open');
+        overlay.classList.remove('show');
+    } else {
+        drawer.classList.add('open');
+        overlay.classList.add('show');
+    }
 }
 export function closeLeftDrawer() {
-    els['left-drawer'].classList.remove('open');
-}
-export function toggleRightDrawer() {
-    els['right-drawer'].classList.toggle('open');
-}
-export function closeRightDrawer() {
-    els['right-drawer'].classList.remove('open');
+    if (els['left-drawer']) els['left-drawer'].classList.remove('open');
+    if (els['drawer-overlay']) els['drawer-overlay'].classList.remove('show');
 }
 export function appendMoveToDrawer(moveText) {
     if (els['move-list']) {
@@ -128,7 +129,6 @@ export function appendMoveToDrawer(moveText) {
 export function showLobbyPanel(opponentName, roomCode) {
     if (els['lobby-panel']) els['lobby-panel'].classList.add('show');
     if (els['lobby-opponent-name']) els['lobby-opponent-name'].textContent = opponentName || 'Waiting…';
-    // Show start/leave, hide rematch
     if (els['lobby-start-btn']) els['lobby-start-btn'].style.display = 'inline-block';
     if (els['lobby-leave-btn']) els['lobby-leave-btn'].style.display = 'inline-block';
     if (els['lobby-rematch-btn']) els['lobby-rematch-btn'].style.display = 'none';
@@ -144,9 +144,7 @@ export function showRematchInLobby() {
 
 // ---- State overlays ----
 function showState(id) {
-    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => {
-        if (els[s]) els[s].classList.remove('show');
-    });
+    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => { if (els[s]) els[s].classList.remove('show'); });
     if (els[id]) els[id].classList.add('show');
 }
 export function showLoading() { showState('state-loading'); }
@@ -154,12 +152,10 @@ export function showEmpty() { showState('state-empty'); }
 export function showError() { showState('state-error'); }
 export function showReconnecting() { showState('state-reconnecting'); }
 export function hideAllStates() {
-    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => {
-        if (els[s]) els[s].classList.remove('show');
-    });
+    ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => { if (els[s]) els[s].classList.remove('show'); });
 }
 
-// ---- Existing UI functions ----
+// ---- Existing UI functions (unchanged) ----
 export function setVoiceControlsVisibility(visible) {
     if (els['voice-controls']) els['voice-controls'].style.display = visible ? '' : 'none';
 }
@@ -214,7 +210,7 @@ export function updateTimers(w, b, activeTurn) {
     if (els['tmrW']) els['tmrW'].className = 'tmr' + (activeTurn === 'w' ? ' active' : '') + (w <= 10 && activeTurn === 'w' ? ' low' : '');
     if (els['tmrB']) els['tmrB'].className = 'tmr' + (activeTurn === 'b' ? ' active' : '') + (b <= 10 && activeTurn === 'b' ? ' low' : '');
 }
-export function updateThinkingIndicator(thinking) { /* can use top bar spinner */ }
+export function updateThinkingIndicator(thinking) {}
 export function setOnlineBottomButtons(isOnline) {
     if (els['undo-btn']) els['undo-btn'].style.display = isOnline ? 'none' : '';
     if (els['new-game-btn']) els['new-game-btn'].style.display = isOnline ? 'none' : '';
@@ -229,8 +225,7 @@ export function showGameOver(title, subtitle, buttonsHTML) {
 }
 export function showPromotion(color) {
     const po = els['po']; if (!po) return; po.innerHTML = '';
-    const pieces = ['Q','R','B','N'];
-    pieces.forEach(t => {
+    ['Q','R','B','N'].forEach(t => {
         const btn = document.createElement('div'); btn.className = 'po-b';
         const glyphs = { wQ:'\u2655',wR:'\u2656',wB:'\u2657',wN:'\u2658', bQ:'\u265B',bR:'\u265C',bB:'\u265D',bN:'\u265E' };
         btn.textContent = glyphs[color + t];
@@ -251,25 +246,21 @@ export function getPrivateRoomCode() { return els['private-room-code'] ? els['pr
 export function updateDebug(text) { if (els['debug-overlay']) els['debug-overlay'].textContent = text; }
 
 function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
-export function showLoginGate() { /* kept for compatibility */ }
+export function showLoginGate() {}
 
-// ---- Additional panel helpers (used by main.js) ----
-export function showPanel(panelId) {
-    const p = document.getElementById(panelId);
-    if (p) p.classList.add('show');
-}
+// Keep the panel helpers that main.js expects
+export function showPanel(panelId) { const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
 export function hideAllPanels() {
     ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
      'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
      'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel']
     .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
 }
-export function showWaitingRoom(name, code) { /* replaced by lobby */ }
-export function showCountdown(name, code) { /* can still use existing countdown if desired */ }
-export function showRematchUI(text) { /* can use lobby rematch */ }
+export function showWaitingRoom() {}
+export function showCountdown() {}
+export function showRematchUI() {}
 export function showExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.add('show'); }
 export function hideExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); }
 export function showExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.add('show'); }
 export function hideExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); }
-export function setRejoinButtonsVisibility() {} // no-op
-export function updateChatMessages(msgs) { /* future */ }
+export function setRejoinButtonsVisibility() {}
