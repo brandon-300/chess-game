@@ -234,6 +234,7 @@ export function updateThinkingIndicator() {}
 
 export function showPanel(panelId) { hideAllPanels(); const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
 export function hideAllPanels() {
+    const ms = document.getElementById('ms'); if (ms) ms.style.display = 'none';
     const ids = [
         'online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
         'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
