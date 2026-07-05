@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (UI‑cleanup version, all fixes)
+// main.js — Orchestrator for Chess 3D (countdown sounds restored, online lobby fixed)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -157,8 +157,11 @@ function startWaitingPoll(gameId) {
                 stopWaitingPoll();
                 currentOnlineGame = data;
                 const opponentName = currentUserId === data.host_player_id ? data.joiner_nickname : data.host_nickname;
-                ui.showLobbyPanel(opponentName, data.room_code);
-                setTimeout(() => startOnlineGame(), 5000);
+                ui.hideLobbyPanel();
+                // Use countdown panel with ticks
+                ui.startOnlineCountdown(data.host_nickname, data.room_code, () => {
+                    startOnlineGame();
+                });
             } else if (data.status === 'active') {
                 stopWaitingPoll();
                 currentOnlineGame = data;
@@ -272,7 +275,6 @@ function exitWithSave() {
     ui.showMenu();
     engine.resetState();
     started = false;
-    // Also hide the exit choice panel
     const ecp = document.getElementById('exit-choice-panel');
     if (ecp) ecp.classList.remove('show');
 }
@@ -283,7 +285,6 @@ function exitWithoutSave() {
         ui.showMenu();
         engine.resetState();
         started = false;
-        // Also hide the exit choice panel
         const ecp = document.getElementById('exit-choice-panel');
         if (ecp) ecp.classList.remove('show');
     }
@@ -380,10 +381,49 @@ async function syncTimers() { /* unchanged */ }
 async function onLocalMoveExecuted(move) { /* unchanged */ }
 
 // Room creation/joining
-async function createPublicRoom() { /* unchanged */ }
-async function createPrivateRoom() { /* unchanged */ }
-async function joinPublicRoom() { /* unchanged */ }
-async function joinPrivateRoom() { /* unchanged */ }
+async function createPublicRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const hostKey = generatePlayerKey();
+    try {
+        const game = await db.createGame(null, 'public', currentUserId, hostKey, username);
+        onlineGameCreated(game, hostKey);
+    } catch (e) { ui.toast('Failed to create room: ' + e.message); }
+}
+async function createPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const hostKey = generatePlayerKey();
+    try {
+        const game = await db.createGame(null, 'private', currentUserId, hostKey, username);
+        onlineGameCreated(game, hostKey);
+    } catch (e) { ui.toast('Failed to create room: ' + e.message); }
+}
+async function joinPublicRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const joinerKey = generatePlayerKey();
+    try {
+        const game = await db.joinPublicGame(currentUserId, joinerKey, username);
+        onlineGameJoined(game, joinerKey);
+    } catch (e) { ui.toast('Join failed: ' + e.message); }
+}
+async function joinPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const code = ui.getPrivateRoomCode();
+    if (!code) { ui.toast('Enter a room code.'); return; }
+    const joinerKey = generatePlayerKey();
+    try {
+        const game = await db.joinPrivateGame(code, currentUserId, joinerKey, username);
+        if (game.status === 'active') { enterOnlineGame(game); return; }
+        onlineGameJoined(game, joinerKey);
+    } catch (e) { ui.toast('Join failed: ' + e.message); }
+}
 async function rejoinPublicGame() { /* unchanged */ }
 function enterOnlineGame(game) { /* unchanged */ }
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
