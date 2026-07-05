@@ -164,7 +164,14 @@
         .legacy-panel p{font-size:13px;color:var(--muted);font-style:italic;line-height:1.6}
 
         .online-panel{display:none;width:100%;max-width:440px;margin:0 auto;text-align:center;gap:14px;flex-direction:column;align-items:center;background:var(--glass-bg);backdrop-filter:var(--glass-blur);border:1px solid rgba(201,168,76,0.35);border-radius:8px;box-shadow:inset 0 1px 0 var(--glass-shine),0 0 28px rgba(201,168,76,0.12),0 8px 40px rgba(0,0,0,0.55);padding:clamp(18px,5vw,28px)}
-        .online-panel.show{display:flex}
+        /* FIXED: make online/AI panels visible as a centered overlay above the canvas */
+        .online-panel.show {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 60;
+            margin: 0;
+        }
         .online-panel h2{font-family:'Inter',sans-serif;font-size:clamp(14px,4vw,18px);font-weight:600;color:var(--gold);letter-spacing:.05em;margin-bottom:8px}
         .online-panel input{background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Inter',sans-serif;font-size:16px;letter-spacing:.05em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s;border-radius:9999px}
         .online-panel input:focus{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.15)}
