@@ -14,8 +14,13 @@ async function loadModules() {
     try { db = await import('./database.js'); } catch (e) { showError('import database.js', e); return false; }
     try { engine = await import('./game_engine.js'); } catch (e) { showError('import game_engine.js', e); return false; }
     try { ui = await import('./ui_handler.js'); } catch (e) { showError('import ui_handler.js', e); return false; }
-    try { voice = await import('./voice_handler.js'); } catch (e) { showError('import voice_handler.js', e); return false; }
     return true;
+}
+
+async function ensureVoiceLoaded() {
+    if (voice) return true;
+    try { voice = await import('./voice_handler.js'); return true; }
+    catch (e) { showError('import voice_handler.js', e); return false; }
 }
 
 async function init() {
@@ -325,12 +330,14 @@ async function deleteAllSyncedData() {
 
 // Voice controls (unchanged)
 async function toggleMic() {
+    if (!voice) return;
     if (voice.isMicOn()) { voice.disableMic(); ui.setMicState(false); return; }
     try { await voice.enableMic(); ui.setMicState(true); } catch (e) { ui.setMicState(false); }
 }
-function toggleSpeaker() { const next = !voice.isSpeakerOn(); voice.setSpeakerEnabled(next); ui.setSpeakerState(next); }
-function startVoice() {
+function toggleSpeaker() { if (!voice) return; const next = !voice.isSpeakerOn(); voice.setSpeakerEnabled(next); ui.setSpeakerState(next); }
+async function startVoice() {
     if (!currentOnlineGame) return;
+    if (!await ensureVoiceLoaded()) { ui.toast('Voice chat unavailable.'); return; }
     const isPolite = currentOnlineGame.host_player_id !== currentUserId;
     voiceChannel = db.subscribeVoiceSignal(currentOnlineGame.id, (payload) => voice.handleRemoteSignal(payload));
     voice.initVoice({
@@ -343,7 +350,7 @@ function startVoice() {
     ui.resetVoiceState();
 }
 function stopVoice() {
-    voice.closeConnection();
+    if (voice) voice.closeConnection();
     if (voiceChannel) { db.unsubscribeVoiceSignal(voiceChannel); voiceChannel = null; }
     ui.setVoiceControlsVisibility(false);
 }
