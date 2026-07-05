@@ -43,6 +43,8 @@
         }
         .info { flex: 1; }
         .name { font-weight: 600; }
+        .name a { color: var(--text); text-decoration: none; cursor: pointer; }
+        .name a:hover { color: var(--accent); text-decoration: underline; }
         .status { font-size: 12px; color: var(--muted); }
         .status.online { color: var(--success); }
         .action-btn {
@@ -63,10 +65,6 @@
             color: var(--text); font-size: 14px; outline: none;
         }
         .search-box input:focus { border-color: var(--accent); }
-        .search-box button {
-            padding: 10px 16px; border: none; border-radius: 6px;
-            background: var(--accent); color: #0a0806; font-weight: 600; cursor: pointer;
-        }
 
         .back-link {
             display: inline-flex; align-items: center; gap: 6px;
@@ -101,7 +99,6 @@
         <div id="add-tab" class="panel">
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search by username...">
-                <button id="searchBtn">Search</button>
             </div>
             <div id="searchResults"></div>
         </div>
@@ -115,7 +112,8 @@
             const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             let currentUserId = null;
-            let allUsers = []; // cached list of all users except current
+            let allUsers = [];
+            let friendIds = new Set();
             const $ = id => document.getElementById(id);
 
             function showToast(msg, isError = false) {
@@ -138,13 +136,20 @@
                 });
             });
 
-            // ---- Load all users once ----
+            // ---- Load all users and friend IDs ----
             async function loadAllUsers() {
                 const { data } = await supabase.from('profiles')
                     .select('id, username, avatar_url')
                     .neq('id', currentUserId)
                     .order('username', { ascending: true });
                 allUsers = data || [];
+            }
+
+            async function loadFriendIds() {
+                const { data } = await supabase.from('friends')
+                    .select('friend_id')
+                    .eq('user_id', currentUserId);
+                friendIds = new Set((data || []).map(r => r.friend_id));
             }
 
             // ---- Render add tab ----
@@ -159,26 +164,27 @@
                     container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">No users found.</div>';
                     return;
                 }
-                container.innerHTML = filtered.map(u => `
+                container.innerHTML = filtered.map(u => {
+                    const isFriend = friendIds.has(u.id);
+                    return `
                     <div class="friend-row">
                         <div class="avatar" style="background-image:url(${u.avatar_url || ''})"></div>
                         <div class="info">
-                            <div class="name">${escapeHTML(u.username)}</div>
+                            <div class="name">
+                                <a href="profile.html?user=${u.id}">${escapeHTML(u.username)}</a>
+                            </div>
                         </div>
-                        <button class="action-btn primary" onclick="sendRequest('${u.id}')">Add Friend</button>
+                        ${isFriend
+                            ? '<span style="font-size:12px;color:var(--muted)">Friends</span>'
+                            : `<button class="action-btn primary" onclick="sendRequest('${u.id}')">Add Friend</button>`
+                        }
                     </div>
-                `).join('');
+                `}).join('');
             }
 
-            // ---- Real-time search ----
+            // Real-time search
             $('searchInput').addEventListener('input', () => {
-                const query = $('searchInput').value;
-                renderAddTab(query);
-            });
-            // Search button also triggers filter
-            $('searchBtn').addEventListener('click', () => {
-                const query = $('searchInput').value;
-                renderAddTab(query);
+                renderAddTab($('searchInput').value);
             });
 
             // ---- Load friends list ----
@@ -202,7 +208,9 @@
                     <div class="friend-row">
                         <div class="avatar" style="background-image:url(${f.avatar_url || ''})"></div>
                         <div class="info">
-                            <div class="name">${escapeHTML(f.username)}</div>
+                            <div class="name">
+                                <a href="profile.html?user=${f.id}">${escapeHTML(f.username)}</a>
+                            </div>
                             <div class="status${f.is_online ? ' online' : ''}">${f.is_online ? 'Online' : 'Offline'}</div>
                         </div>
                         <button class="action-btn primary" onclick="inviteFriend('${f.id}')">Invite</button>
@@ -225,7 +233,11 @@
                 else incoming.forEach(req => {
                     html += `<div class="friend-row">
                         <div class="avatar" style="background-image:url(${req.profiles.avatar_url || ''})"></div>
-                        <div class="info"><div class="name">${escapeHTML(req.profiles.username)}</div></div>
+                        <div class="info">
+                            <div class="name">
+                                <a href="profile.html?user=${req.from_user_id}">${escapeHTML(req.profiles.username)}</a>
+                            </div>
+                        </div>
                         <button class="action-btn primary" onclick="acceptRequest('${req.id}')">Accept</button>
                         <button class="action-btn danger" onclick="declineRequest('${req.id}')">Decline</button>
                     </div>`;
@@ -235,7 +247,11 @@
                 else outgoing.forEach(req => {
                     html += `<div class="friend-row">
                         <div class="avatar" style="background-image:url(${req.profiles.avatar_url || ''})"></div>
-                        <div class="info"><div class="name">${escapeHTML(req.profiles.username)}</div></div>
+                        <div class="info">
+                            <div class="name">
+                                <a href="profile.html?user=${req.to_user_id}">${escapeHTML(req.profiles.username)}</a>
+                            </div>
+                        </div>
                         <button class="action-btn danger" onclick="cancelRequest('${req.id}')">Cancel</button>
                     </div>`;
                 });
@@ -273,6 +289,7 @@
                 if (!confirm('Remove this friend?')) return;
                 await supabase.from('friends').delete().eq('user_id', currentUserId).eq('friend_id', friendId);
                 await supabase.from('friends').delete().eq('user_id', friendId).eq('friend_id', currentUserId);
+                friendIds.delete(friendId);
                 loadFriends();
             };
 
@@ -282,6 +299,7 @@
                 await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId);
                 await supabase.from('friends').insert({ user_id: req.from_user_id, friend_id: req.to_user_id });
                 await supabase.from('friends').insert({ user_id: req.to_user_id, friend_id: req.from_user_id });
+                friendIds.add(req.from_user_id);
                 loadRequests();
                 loadFriends();
             };
@@ -297,12 +315,32 @@
             };
 
             window.sendRequest = async (toUserId) => {
+                // Check if already friends
+                if (friendIds.has(toUserId)) {
+                    showToast('You are already friends.', true);
+                    return;
+                }
+                // Check for pending request
                 const { data: exist } = await supabase.from('friend_requests')
                     .select('id').eq('from_user_id', currentUserId).eq('to_user_id', toUserId).eq('status', 'pending').maybeSingle();
-                if (exist) { showToast('Request already pending.', true); return; }
-                await supabase.from('friend_requests').insert({ from_user_id: currentUserId, to_user_id, status: 'pending' });
-                showToast('Friend request sent!');
-                renderAddTab($('searchInput').value); // refresh the list to show the user was added
+                if (exist) {
+                    showToast('Request already pending.', true);
+                    return;
+                }
+                // Check if they already sent you a request
+                const { data: incoming } = await supabase.from('friend_requests')
+                    .select('id').eq('from_user_id', toUserId).eq('to_user_id', currentUserId).eq('status', 'pending').maybeSingle();
+                if (incoming) {
+                    showToast('This user already sent you a request. Accept it instead.', true);
+                    return;
+                }
+                const { error } = await supabase.from('friend_requests').insert({ from_user_id: currentUserId, to_user_id, status: 'pending' });
+                if (error) {
+                    showToast('Error sending request: ' + error.message, true);
+                } else {
+                    showToast('Friend request sent!');
+                    renderAddTab($('searchInput').value);
+                }
             };
 
             async function init() {
@@ -313,6 +351,7 @@
                 }
                 currentUserId = session.user.id;
                 await loadAllUsers();
+                await loadFriendIds();
                 loadFriends();
                 renderAddTab();
             }
