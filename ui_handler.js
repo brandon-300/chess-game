@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (voice indicator fix)
+// ui_handler.js — Chess 3D (drawer overlay click fixed)
 
 import * as engine from './game_engine.js';
 
@@ -17,7 +17,14 @@ export function initUI(cb) {
 
 function handleDelegatedClick(e) {
     const btn = e.target.closest('button');
-    if (!btn) return;
+    if (!btn) {
+        // Check if the click was on the drawer overlay (the dark background)
+        if (e.target.id === 'drawer-overlay' || e.target.closest('#drawer-overlay')) {
+            closeLeftDrawer();
+            return;
+        }
+        return;
+    }
     const id = btn.id;
     if (!id) return;
 
@@ -207,10 +214,15 @@ export function updateTimers(w, b, activeTurn) {
     if (tmrB) tmrB.className = 'tmr' + (activeTurn === 'b' ? ' active' : '') + (b <= 10 && activeTurn === 'b' ? ' low' : '');
 }
 export function setOnlineBottomButtons(isOnline) {
-    const undo = document.getElementById('undo-btn'); const ng = document.getElementById('new-game-btn'); const mode = document.getElementById('mode-btn');
+    const undo = document.getElementById('undo-btn');
+    const ng = document.getElementById('new-game-btn');
+    const mode = document.getElementById('mode-btn');
+    const drawer = document.getElementById('drawer-toggle-left');
     if (undo) undo.style.display = isOnline ? 'none' : '';
     if (ng) ng.style.display = isOnline ? 'none' : '';
     if (mode) mode.textContent = isOnline ? 'Leave Match' : 'Exit';
+    // Hide the moves drawer button during online matches
+    if (drawer) drawer.style.display = isOnline ? 'none' : '';
 }
 export function showGameOver(title, subtitle, buttonsHTML) {
     const got = document.getElementById('got'); if (got) got.textContent = title;
@@ -284,7 +296,7 @@ function startAiCountdown() {
 
 function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
 
-// Online countdown (used when opponent joins)
+// Online countdown
 export function startOnlineCountdown(hostNickname, roomCode, onFinished) {
     hideAllPanels();
     const panel = document.getElementById('countdown-panel');
