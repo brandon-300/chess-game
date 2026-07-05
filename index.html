@@ -101,6 +101,8 @@
         .voice-btn.speaker.on{border-color:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.25)}
         #voice-status{position:absolute;top:100%;right:0;margin-top:4px;font-size:10px;color:var(--cream);background:#1a0e04;border:1px solid var(--gold-d);border-radius:4px;padding:2px 8px;display:none;white-space:nowrap}
         #voice-status.show{display:block}
+        #voice-status .spk-ic{display:inline-block;animation:spkblink 1s ease-in-out infinite}
+        @keyframes spkblink{0%,100%{opacity:1}50%{opacity:.2}}
 
         #bot{
             position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(6,4,2,0.55);backdrop-filter:blur(16px);
@@ -171,7 +173,7 @@
             transform: translate(-50%, -50%);
             z-index: 60;
             margin: 0;
-            display: flex;   /* <--- this was missing, causing blank panels */
+            display: flex;
         }
         .online-panel h2{font-family:'Inter',sans-serif;font-size:clamp(14px,4vw,18px);font-weight:600;color:var(--gold);letter-spacing:.05em;margin-bottom:8px}
         .online-panel input{background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid var(--gold-d);color:var(--gold);padding:10px;font-family:'Inter',sans-serif;font-size:16px;letter-spacing:.05em;width:100%;max-width:280px;text-align:center;outline:none;transition:border-color .2s;border-radius:9999px}
