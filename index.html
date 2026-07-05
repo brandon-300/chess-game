@@ -139,7 +139,6 @@
         @keyframes spin{to{transform:rotate(360deg)}}
         .state-text{color:var(--cream);font-family:'Inter',sans-serif;font-size:14px}
 
-        /* ---------- Game‑over popup ---------- */
         #go{
             display:none; position:fixed; inset:0;
             background:rgba(0,0,0,0.65); z-index:70;
@@ -230,7 +229,8 @@
             <button class="home-card" id="card-2p"><span class="ic">♟♙</span><h2>Two Players</h2><p>Pass &amp; play</p></button>
             <button class="home-card" id="card-ai"><span class="ic">♜</span><h2>vs AI</h2><p>Computer</p></button>
             <button class="home-card" id="card-friends"><span class="ic">👥</span><h2>Friends</h2><p>Coming soon</p></button>
-            <button class="home-card" id="card-history"><span class="ic">📋</span><h2>History</h2><p>Coming soon</p></button>
+            <!-- UPDATED: History card now shows "View History" -->
+            <button class="home-card" id="card-history"><span class="ic">📋</span><h2>History</h2><p>View History</p></button>
             <button class="home-card" id="card-settings"><span class="ic">⚙️</span><h2>Settings</h2><p>Coming soon</p></button>
         </div>
         <div class="home-bottom-btns">
@@ -290,7 +290,6 @@
         <div class="state-overlay" id="state-reconnecting"><div class="state-spinner"></div><div class="state-text">Reconnecting...</div></div>
     </div>
 
-    <!-- ---------- GAME‑OVER POPUP ---------- -->
     <div id="go">
         <div class="gob">
             <h2 id="got"></h2>
