@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (drawer wired, sync, voice, lobby, exit)
+// main.js — Orchestrator for Chess 3D (draw‑undo + all fixes)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -23,7 +23,14 @@ async function ensureVoiceLoaded() {
     catch (e) { showError('import voice_handler.js', e); return false; }
 }
 
-// ---- Drawer helper ----
+// NEW – called by the draw popup in AI mode
+window.undoAIDraw = function() {
+    if (gameMode !== 'ai' || !over) return;
+    undoMove();              // engine undoes 2 moves (AI + player)
+    ui.hideGameOver();       // close popup
+    // over is set to false inside undoMove, so the game continues
+};
+
 function updateMoveDrawer() {
     if (gameMode === 'online') return;
     ui.clearMoveDrawer();
@@ -69,7 +76,6 @@ async function init() {
 
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
 
-        // Wire move callback for drawer updates (offline only)
         engine.setMoveCallback((move) => {
             if (gameMode !== 'online' && started) {
                 updateMoveDrawer();
@@ -86,8 +92,10 @@ async function init() {
                 if (info) {
                     let title, subtitle;
                     if (gameMode === 'ai') {
-                        if (info.resultType === 'draw') { title = "It's a draw!"; subtitle = 'Stalemate'; }
-                        else {
+                        if (info.resultType === 'draw') {
+                            title = "It's a draw!";
+                            subtitle = 'Stalemate / Threefold repetition';
+                        } else {
                             const iWon = info.resultType === engine.getPlayerColor();
                             title = iWon ? 'Congratulations! You won!' : 'You lost!';
                             subtitle = iWon ? 'You defeated the AI' : 'The AI defeated you';
@@ -103,12 +111,34 @@ async function init() {
                             subtitle = iWon ? 'You won the match!' : 'Better luck next time';
                         }
                     }
-                    ui.showGameOver(title, subtitle,
-                        isOnline && info.resultType !== 'draw'
-                            ? '<button onclick="window.requestRematch()">Rematch</button><button onclick="window.exitOnlineGame()">Exit</button>'
-                            : isOnline ? '<button onclick="window.exitOnlineGame()">Exit</button>' : '');
+
+                    // Build buttons HTML
+                    let buttonsHTML = '';
+                    if (isOnline && info.resultType !== 'draw') {
+                        buttonsHTML = '<button onclick="window.requestRematch()">Rematch</button><button onclick="window.exitOnlineGame()">Exit</button>';
+                    } else if (isOnline) {
+                        buttonsHTML = '<button onclick="window.exitOnlineGame()">Exit</button>';
+                    } else if (gameMode === 'ai' && info.resultType === 'draw') {
+                        // NEW – add "Undo last move" for AI draws
+                        buttonsHTML = '<button onclick="window.undoAIDraw()">Undo last move</button>';
+                    }
+
+                    ui.showGameOver(title, subtitle, buttonsHTML);
                     over = true;
-                    if (!isOnline) { setTimeout(() => { ui.hideGameOver(); ui.showMenu(); engine.resetState(); started = false; gameMode = null; over = false; }, 5000); }
+
+                    if (!isOnline) {
+                        setTimeout(() => {
+                            // Only auto-close if the game is still over (i.e., the user didn't undo)
+                            if (over) {
+                                ui.hideGameOver();
+                                ui.showMenu();
+                                engine.resetState();
+                                started = false;
+                                gameMode = null;
+                                over = false;
+                            }
+                        }, 5000);
+                    }
                 }
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
