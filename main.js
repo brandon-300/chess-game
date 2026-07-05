@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (all fixes applied)
+// main.js — Orchestrator for Chess 3D (full sync + lobby avatar)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -130,23 +130,36 @@ function showOnlineMenu() {
 }
 
 // ---- Lobby Integration ----
-function onlineGameCreated(game, hostKey) {
+async function onlineGameCreated(game, hostKey) {
     currentOnlineGame = game;
     sessionPlayerKey = hostKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
-    // Hide everything (main menu, panels) and show the lobby
     ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname, game.room_code);
+    // Set host avatar
+    const avatarUrl = await db.fetchUserAvatar(game.host_player_id);
+    const av = document.getElementById('lobby-avatar');
+    if (av && avatarUrl) {
+        av.style.background = `url(${avatarUrl}) center/cover`;
+        av.style.borderColor = 'var(--gold)';
+    }
     startWaitingPoll(game.id);
 }
 
-function onlineGameJoined(game, joinerKey) {
+async function onlineGameJoined(game, joinerKey) {
     currentOnlineGame = game;
     sessionPlayerKey = joinerKey;
     sessionStorage.setItem('chess3d_playerkey_' + game.id, joinerKey);
     myColor = 'b';
     ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname || 'Opponent', game.room_code);
+    // Set host avatar
+    const avatarUrl = await db.fetchUserAvatar(game.host_player_id);
+    const av = document.getElementById('lobby-avatar');
+    if (av && avatarUrl) {
+        av.style.background = `url(${avatarUrl}) center/cover`;
+        av.style.borderColor = 'var(--gold)';
+    }
     startWaitingPoll(game.id);
 }
 
@@ -161,7 +174,6 @@ function startWaitingPoll(gameId) {
                 currentOnlineGame = data;
                 const opponentName = currentUserId === data.host_player_id ? data.joiner_nickname : data.host_nickname;
                 ui.hideLobbyPanel();
-                // Use countdown panel with ticks
                 ui.startOnlineCountdown(data.host_nickname, data.room_code, () => {
                     startOnlineGame();
                 });
@@ -230,7 +242,6 @@ async function exitOnlineGame() {
         sessionStorage.setItem('chess3d_frozen_game', gameId);
         resetOnlineState(); ui.showMenu();
     }
-    // Explicitly hide the exit-online panel
     const eop = document.getElementById('exit-online-panel');
     if (eop) eop.classList.remove('show');
 }
@@ -379,14 +390,68 @@ function getOpponentNickname() {
     return currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.joiner_nickname : currentOnlineGame.host_nickname;
 }
 
-// Online sync
+// ========== FULL ONLINE SYNC (restored) ==========
 function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterval(pollGameState, 1000); }
 function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
-async function pollGameState() { /* unchanged */ }
-async function syncTimers() { /* unchanged */ }
-async function onLocalMoveExecuted(move) { /* unchanged */ }
 
-// Room creation/joining
+async function pollGameState() {
+    if (!currentOnlineGame || moveSyncing || over) return;
+    try {
+        const gameData = await db.fetchGameState(currentOnlineGame.id);
+        if (!gameData) return;
+        if (gameData.status === 'terminated') {
+            if (currentUserId !== gameData.host_player_id) ui.toast('Match terminated by the host.');
+            resetOnlineState(); ui.showMenu(); return;
+        }
+        if (gameData.status === 'frozen') {
+            if (!frozen) {
+                frozen = true; engine.setFrozen(true);
+                if (voice && voice.isMicOn()) { voice.disableMic(); ui.setMicState(false); }
+                if (currentUserId !== gameData.leaver_id) {
+                    ui.toast('Opponent left – waiting for rejoin…');
+                    sessionStorage.setItem('chess3d_frozen_game', gameData.id);
+                } else sessionStorage.setItem('chess3d_frozen_game', gameData.id);
+            }
+            return;
+        }
+        if (frozen && gameData.status === 'active') {
+            frozen = false; engine.setFrozen(false);
+            ui.toast('Opponent rejoined!');
+            sessionStorage.removeItem('chess3d_frozen_game');
+            stopVoice(); startVoice();
+        }
+        const serverState = JSON.stringify(gameData.board_state);
+        if (serverState !== lastKnownServerState) {
+            lastKnownServerState = serverState;
+            engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b);
+        }
+    } catch (e) {}
+}
+
+async function syncTimers() {
+    if (!currentOnlineGame) return;
+    try { await db.sb.from('online_games').update({ timer_w: engine.getTimerW(), timer_b: engine.getTimerB() }).eq('id', currentOnlineGame.id); } catch (e) {}
+}
+
+async function onLocalMoveExecuted(move) {
+    if (gameMode !== 'online' || !currentOnlineGame || moveSyncing || frozen) return;
+    moveSyncing = true;
+    try {
+        const savedState = await db.pushBoardState(
+            currentOnlineGame.id,
+            engine.getBoardArray(),
+            engine.getTurn(),
+            engine.getCastling(),
+            engine.getEnPassant(),
+            engine.getTimerW(),
+            engine.getTimerB()
+        );
+        lastKnownServerState = savedState;
+        lastTimerSync = Date.now();
+    } catch (e) { ui.toast('Move sync failed.'); } finally { moveSyncing = false; }
+}
+
+// ---- Room creation/joining ----
 async function createPublicRoom() {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
@@ -430,8 +495,23 @@ async function joinPrivateRoom() {
         onlineGameJoined(game, joinerKey);
     } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
-async function rejoinPublicGame() { /* unchanged */ }
-function enterOnlineGame(game) { /* unchanged */ }
+async function rejoinPublicGame() {
+    if (!currentUserId) return;
+    const frozenId = sessionStorage.getItem('chess3d_frozen_game');
+    if (!frozenId) { ui.toast('No frozen game found.'); return; }
+    try { const game = await db.unfreezeGame(frozenId, currentUserId); enterOnlineGame(game); } catch (e) { ui.toast('Rejoin failed: ' + e.message); }
+}
+function enterOnlineGame(game) {
+    currentOnlineGame = game; myColor = (game.host_player_id === currentUserId) ? 'w' : 'b';
+    sessionPlayerKey = myColor === 'w' ? game.host_player_key : game.joiner_player_key;
+    sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey); sessionStorage.removeItem('chess3d_frozen_game');
+    ui.hideAllPanels(); ui.showGameUI(); ui.setOnlineBottomButtons(true);
+    engine.setMyColor(myColor); engine.setGameMode('online');
+    engine.syncBoardFromServer(game.board_state.brd, game.board_state.turn, game.board_state.cas, game.board_state.ep, game.timer_w, game.timer_b);
+    started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false);
+    lastTimerSync = Date.now(); startOnlineGameLoop(); startVoice(); engine.rotateForPlayer(myColor);
+}
+
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
 
 // Offline detection
