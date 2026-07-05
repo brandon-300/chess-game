@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (full delegation, cards as buttons)
+// ui_handler.js — Chess 3D (tick sounds restored, online countdown added)
 
 import * as engine from './game_engine.js';
 
@@ -253,6 +253,7 @@ export function setRejoinButtonsVisibility() {}
 
 function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
 
+// ---- Countdown helpers ----
 function startAiCountdown() {
     hideAllPanels(); showPanel('ai-countdown-panel');
     let sec = 5;
@@ -261,8 +262,41 @@ function startAiCountdown() {
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         sec--;
-        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished(); }
-        else { const el = document.getElementById('ai-countdown-number'); if (el) el.textContent = sec; }
+        if (sec <= 5 && sec > 0) engine.playTickSound();   // <-- restored tick sound
+        if (sec <= 0) {
+            clearInterval(countdownInterval); countdownInterval = null;
+            hideAllPanels();
+            if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished();
+        } else {
+            const el = document.getElementById('ai-countdown-number');
+            if (el) el.textContent = sec;
+        }
     }, 1000);
 }
+
 function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
+
+// Online countdown (used when opponent joins)
+export function startOnlineCountdown(hostNickname, roomCode, onFinished) {
+    hideAllPanels();
+    const panel = document.getElementById('countdown-panel');
+    const welcome = document.getElementById('countdown-welcome');
+    const number = document.getElementById('countdown-number');
+    if (panel) panel.classList.add('show');
+    if (welcome) welcome.textContent = `Welcome to ${hostNickname} room – Room ID: ${roomCode}`;
+    let sec = 5;
+    if (number) number.textContent = sec;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        sec--;
+        if (sec <= 5 && sec > 0) engine.playTickSound();
+        if (sec <= 0) {
+            clearInterval(countdownInterval); countdownInterval = null;
+            if (panel) panel.classList.remove('show');
+            if (onFinished) onFinished();
+        } else {
+            const el = document.getElementById('countdown-number');
+            if (el) el.textContent = sec;
+        }
+    }, 1000);
+}
