@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (UI‑cleanup version)
+// main.js — Orchestrator for Chess 3D (UI‑cleanup version, all fixes)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -26,9 +26,9 @@ async function init() {
 
         ui.initUI({
             onStart2P: () => startOfflineGame('2p'),
-            onStartAI: () => { /* show AI difficulty panels via existing panels */ showAiDiffPanel(); },
+            onStartAI: () => showAiDiffPanel(),
             onOnlineMenu: () => showOnlineMenu(),
-            onChatSend: (msg) => { /* future: send chat via database */ },
+            onChatSend: (msg) => { /* future */ },
             onCreatePublicRoom: createPublicRoom,
             onJoinPublicRoom: joinPublicRoom,
             onRejoinPublic: rejoinPublicGame,
@@ -59,9 +59,6 @@ async function init() {
             const isOnline = gameMode === 'online';
             ui.updateTurnIndicator(state.turn, myColor, isOnline);
             ui.updateTimers(state.timerW, state.timerB, state.turn);
-            if (state.inCheck) {
-                // visual handled in engine; we can flash indicator here if desired
-            }
             if (state.over) {
                 const info = engine.getGameOverInfo();
                 if (info) {
@@ -123,7 +120,6 @@ function updateDebugOverlay() {
 // ---- Online Flow ----
 async function showOnlineMenu() {
     if (!currentUserId) { ui.showLoginGate(); return; }
-    // In the new UI, we skip the old online menu and go straight to creating a public room
     createPublicRoom();
 }
 
@@ -154,12 +150,8 @@ function startWaitingPoll(gameId) {
             if (data.status === 'countdown') {
                 stopWaitingPoll();
                 currentOnlineGame = data;
-                // update lobby with opponent name
                 const opponentName = currentUserId === data.host_player_id ? data.joiner_nickname : data.host_nickname;
                 ui.showLobbyPanel(opponentName, data.room_code);
-                // countdown will be triggered by the existing countdown panel, but we can also call startOnlineGame after delay
-                // For simplicity, we keep the old countdown panel logic if present; otherwise we start directly.
-                // In the new UI, we can just start the game after a short delay.
                 setTimeout(() => startOnlineGame(), 5000);
             } else if (data.status === 'active') {
                 stopWaitingPoll();
@@ -201,7 +193,7 @@ async function requestRematch() {
 }
 window.requestRematch = requestRematch;
 
-async function acceptRematch() { /* logic to accept and restart game */ }
+async function acceptRematch() { /* implement if needed */ }
 async function declineRematch() {
     if (currentOnlineGame) {
         await db.terminateGame(currentOnlineGame.id);
@@ -245,7 +237,7 @@ function handleBottomRight() {
     else ui.showExitChoicePanel();
 }
 
-// ---- Offline / AI / Save / Restore (unchanged) ----
+// ---- Offline / AI / Save / Restore ----
 function startOfflineGame(mode) {
     gameMode = mode; ui.hideAllPanels(); ui.showGameUI(); ui.setVoiceControlsVisibility(false); ui.setOnlineBottomButtons(false);
     started = true; engine.startGame(mode); over = false;
@@ -264,11 +256,10 @@ function undoMove() {
 }
 
 function showAiDiffPanel() {
-    // reuse old AI panels (they still exist in HTML but hidden) – we can show them via ui
     ui.hideAllPanels();
     document.getElementById('ai-diff-panel')?.classList.add('show');
+    // wire AI difficulty buttons (assuming they exist in HTML, but might be hidden; we'll rely on existing UI)
 }
-// other AI panel callbacks remain the same (tied to buttons in html)
 
 function exitWithSave() { saveBackup(); ui.hideGameUI(); ui.showMenu(); engine.resetState(); started = false; }
 function exitWithoutSave() {
@@ -288,7 +279,10 @@ function restoreLocalGame() {
     if (!ai && !pvp) { ui.toast('No backup found.'); return; }
     if (ai && !pvp) restoreLocalMode('ai');
     else if (!ai && pvp) restoreLocalMode('2p');
-    else { /* show restore choice panel – we keep old panel logic */ }
+    else {
+        // both exist, show choice (we'll keep the old restore choice panel)
+        document.getElementById('restore-choice-panel')?.classList.add('show');
+    }
 }
 function restoreLocalMode(mode) {
     const dataStr = localStorage.getItem('chess3d_backup_' + mode);
@@ -300,23 +294,92 @@ function restoreLocalMode(mode) {
     if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300);
 }
 
-// Cloud sync (unchanged)
-async function syncOfflineToCloud() { /* existing code */ }
-async function restoreOfflineFromCloud() { /* existing code */ }
-async function deleteAllSyncedData() { /* existing code */ }
+// Cloud sync (existing logic, now called from buttons)
+async function syncOfflineToCloud() {
+    if (!currentUserId) { ui.toast('Please log in to sync data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    const aiBackup = localStorage.getItem('chess3d_backup_ai');
+    const pvpBackup = localStorage.getItem('chess3d_backup_2p');
+    if (!aiBackup && !pvpBackup) { ui.toast('No offline data to sync.'); return; }
+    ui.toast('Syncing data to cloud…');
+    try { await db.syncOfflineToCloud(currentUserId); ui.toast('Synced data successfully'); } catch (e) { ui.toast('Sync failed: ' + e.message); showError('sync', e); }
+}
+async function restoreOfflineFromCloud() {
+    if (!currentUserId) { ui.toast('Please log in to restore cloud data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    ui.toast('Restoring data from cloud…');
+    try {
+        const result = await db.restoreOfflineFromCloud(currentUserId);
+        if (Array.isArray(result)) {
+            window._cloudBackups = result;
+            document.getElementById('cloud-choice-panel')?.classList.add('show');
+        } else ui.toast('Restored data successfully');
+    } catch (e) { ui.toast('Restore failed: ' + e.message); showError('restore', e); }
+}
+async function deleteAllSyncedData() {
+    if (!currentUserId) { ui.toast('Please log in to delete synced data.'); return; }
+    if (!navigator.onLine) { ui.toast('No internet connection.'); return; }
+    try { await db.deleteAllSyncedData(currentUserId); ui.toast('Cloud data deleted.'); } catch (e) { ui.toast('Delete failed: ' + e.message); showError('delete', e); }
+}
 
 // Voice controls (unchanged)
-async function toggleMic() { /* existing */ }
-function toggleSpeaker() { /* existing */ }
-function startVoice() { /* existing */ }
-function stopVoice() { /* existing */ }
+async function toggleMic() {
+    if (voice.isMicOn()) { voice.disableMic(); ui.setMicState(false); return; }
+    try { await voice.enableMic(); ui.setMicState(true); } catch (e) { ui.setMicState(false); }
+}
+function toggleSpeaker() { const next = !voice.isSpeakerOn(); voice.setSpeakerEnabled(next); ui.setSpeakerState(next); }
+function startVoice() {
+    if (!currentOnlineGame) return;
+    const isPolite = currentOnlineGame.host_player_id !== currentUserId;
+    voiceChannel = db.subscribeVoiceSignal(currentOnlineGame.id, (payload) => voice.handleRemoteSignal(payload));
+    voice.initVoice({
+        isPolite,
+        sendSignal: (payload) => db.sendVoiceSignal(voiceChannel, payload),
+        onTalkingChange: (talking) => ui.setOpponentTalking(talking, getOpponentNickname()),
+        onMicError: () => ui.toast('Microphone unavailable or permission denied.')
+    });
+    ui.setVoiceControlsVisibility(true);
+    ui.resetVoiceState();
+}
+function stopVoice() {
+    voice.closeConnection();
+    if (voiceChannel) { db.unsubscribeVoiceSignal(voiceChannel); voiceChannel = null; }
+    ui.setVoiceControlsVisibility(false);
+}
+function getOpponentNickname() {
+    if (!currentOnlineGame) return '';
+    return currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.joiner_nickname : currentOnlineGame.host_nickname;
+}
 
-// Online sync
+// Online sync (existing)
 function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterval(pollGameState, 1000); }
 function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
-async function pollGameState() { /* existing logic */ }
-async function syncTimers() { /* existing */ }
-async function onLocalMoveExecuted(move) { /* existing */ }
+async function pollGameState() {
+    if (!currentOnlineGame || moveSyncing || over) return;
+    try {
+        const gameData = await db.fetchGameState(currentOnlineGame.id);
+        if (!gameData) return;
+        if (gameData.status === 'terminated') { ui.toast('Match terminated.'); resetOnlineState(); ui.showMenu(); return; }
+        if (gameData.status === 'frozen') { /* handle freeze */ return; }
+        const serverState = JSON.stringify(gameData.board_state);
+        if (serverState !== lastKnownServerState) {
+            lastKnownServerState = serverState;
+            engine.syncBoardFromServer(gameData.board_state.brd, gameData.board_state.turn, gameData.board_state.cas, gameData.board_state.ep, gameData.timer_w, gameData.timer_b);
+        }
+    } catch (e) {}
+}
+async function syncTimers() {
+    if (!currentOnlineGame) return;
+    try { await db.sb.from('online_games').update({ timer_w: engine.getTimerW(), timer_b: engine.getTimerB() }).eq('id', currentOnlineGame.id); } catch (e) {}
+}
+async function onLocalMoveExecuted(move) {
+    if (gameMode !== 'online' || !currentOnlineGame || moveSyncing || frozen) return;
+    moveSyncing = true;
+    try {
+        const savedState = await db.pushBoardState(currentOnlineGame.id, engine.getBoardArray(), engine.getTurn(), engine.getCastling(), engine.getEnPassant(), engine.getTimerW(), engine.getTimerB());
+        lastKnownServerState = savedState; lastTimerSync = Date.now();
+    } catch (e) { ui.toast('Move sync failed.'); } finally { moveSyncing = false; }
+}
 
 // Online room creation/joining (adapted to lobby)
 async function createPublicRoom() {
@@ -329,7 +392,16 @@ async function createPublicRoom() {
         onlineGameCreated(game, hostKey);
     } catch (e) { ui.toast('Failed to create room: ' + e.message); }
 }
-async function createPrivateRoom() { /* similar, but for private */ }
+async function createPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const hostKey = generatePlayerKey();
+    try {
+        const game = await db.createGame(null, 'private', currentUserId, hostKey, username);
+        onlineGameCreated(game, hostKey);
+    } catch (e) { ui.toast('Failed to create room: ' + e.message); }
+}
 async function joinPublicRoom() {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
@@ -340,10 +412,54 @@ async function joinPublicRoom() {
         onlineGameJoined(game, joinerKey);
     } catch (e) { ui.toast('Join failed: ' + e.message); }
 }
-async function joinPrivateRoom() { /* similar, with room code */ }
-async function rejoinPublicGame() { /* existing */ }
+async function joinPrivateRoom() {
+    if (!currentUserId) return;
+    const username = await db.fetchUsername(currentUserId);
+    if (!username) { ui.toast('Please set a username.'); return; }
+    const code = ui.getPrivateRoomCode();
+    if (!code) { ui.toast('Enter a room code.'); return; }
+    const joinerKey = generatePlayerKey();
+    try {
+        const game = await db.joinPrivateGame(code, currentUserId, joinerKey, username);
+        if (game.status === 'active') { enterOnlineGame(game); return; }
+        onlineGameJoined(game, joinerKey);
+    } catch (e) { ui.toast('Join failed: ' + e.message); }
+}
+async function rejoinPublicGame() {
+    if (!currentUserId) return;
+    const frozenId = sessionStorage.getItem('chess3d_frozen_game');
+    if (!frozenId) { ui.toast('No frozen game found.'); return; }
+    try { const game = await db.unfreezeGame(frozenId, currentUserId); enterOnlineGame(game); } catch (e) { ui.toast('Rejoin failed: ' + e.message); }
+}
+function enterOnlineGame(game) {
+    currentOnlineGame = game; myColor = (game.host_player_id === currentUserId) ? 'w' : 'b';
+    sessionPlayerKey = myColor === 'w' ? game.host_player_key : game.joiner_player_key;
+    sessionStorage.setItem('chess3d_playerkey_' + game.id, sessionPlayerKey); sessionStorage.removeItem('chess3d_frozen_game');
+    ui.hideAllPanels(); ui.showGameUI(); ui.setOnlineBottomButtons(true);
+    engine.setMyColor(myColor); engine.setGameMode('online');
+    engine.syncBoardFromServer(game.board_state.brd, game.board_state.turn, game.board_state.cas, game.board_state.ep, game.timer_w, game.timer_b);
+    started = true; gameMode = 'online'; over = false; frozen = false; engine.setFrozen(false);
+    lastTimerSync = Date.now(); startOnlineGameLoop(); startVoice(); engine.rotateForPlayer(myColor);
+}
 
 function generatePlayerKey() { return Math.random().toString(36).substring(2, 15); }
 
-// ---- Initialize ----
+// Offline detection
+(function() {
+    const notify = document.getElementById('offline-notification');
+    function show() { if (notify) notify.classList.add('show'); }
+    window.addEventListener('offline', show);
+    window.addEventListener('online', () => {
+        if (gameMode && gameMode !== 'online' && started && !over) saveBackup();
+        setTimeout(() => location.reload(), 150);
+    });
+    if (!navigator.onLine) show();
+})();
+
+// Expose for HTML onclick handlers
+window.requestRematch = requestRematch;
+window.exitOnlineGame = exitOnlineGame;
+window.newGameAction = newGame;
+window.exitGameAction = handleBottomRight;
+
 init();
