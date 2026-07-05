@@ -51,6 +51,7 @@ async function init() {
             onSyncOfflineCloud: () => syncOfflineToCloud(),
             onRestoreOfflineCloud: () => restoreOfflineFromCloud(),
             onDeleteSynced: () => deleteAllSyncedData(),
+            onAiCountdownFinished: () => startOfflineGame('ai'),
         });
 
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
@@ -118,9 +119,9 @@ function updateDebugOverlay() {
 }
 
 // ---- Online Flow ----
-async function showOnlineMenu() {
+function showOnlineMenu() {
     if (!currentUserId) { ui.showLoginGate(); return; }
-    createPublicRoom();
+    ui.showPanel('online-menu');
 }
 
 // ---- Lobby Integration ----
