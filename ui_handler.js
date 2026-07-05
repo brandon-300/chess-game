@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (drawer overlay click fixed)
+// ui_handler.js — Chess 3D (drawer, voice, clearMoveDrawer, all fixes)
 
 import * as engine from './game_engine.js';
 
@@ -18,7 +18,7 @@ export function initUI(cb) {
 function handleDelegatedClick(e) {
     const btn = e.target.closest('button');
     if (!btn) {
-        // Check if the click was on the drawer overlay (the dark background)
+        // Close drawer if overlay clicked
         if (e.target.id === 'drawer-overlay' || e.target.closest('#drawer-overlay')) {
             closeLeftDrawer();
             return;
@@ -124,6 +124,10 @@ export function closeLeftDrawer() {
     if (drawer) drawer.classList.remove('open');
     if (overlay) overlay.classList.remove('show');
 }
+export function clearMoveDrawer() {
+    const ml = document.getElementById('move-list');
+    if (ml) ml.innerHTML = '';
+}
 export function appendMoveToDrawer(moveText) {
     const ml = document.getElementById('move-list');
     if (ml) { const div = document.createElement('div'); div.textContent = moveText; ml.appendChild(div); ml.scrollTop = ml.scrollHeight; }
@@ -169,7 +173,6 @@ export function setVoiceControlsVisibility(visible) { const vc = document.getEle
 export function setMicState(on) { const btn = document.getElementById('mic-toggle-btn'); if (btn) { btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on); } }
 export function setSpeakerState(on) { const btn = document.getElementById('speaker-toggle-btn'); if (btn) { btn.classList.toggle('on', !!on); btn.classList.toggle('off', !on); } }
 
-// UPDATED: shows "🔊 username is talking" with a blinking emoji
 export function setOpponentTalking(talking, nickname) {
     const el = document.getElementById('voice-status');
     if (!el) return;
@@ -221,7 +224,6 @@ export function setOnlineBottomButtons(isOnline) {
     if (undo) undo.style.display = isOnline ? 'none' : '';
     if (ng) ng.style.display = isOnline ? 'none' : '';
     if (mode) mode.textContent = isOnline ? 'Leave Match' : 'Exit';
-    // Hide the moves drawer button during online matches
     if (drawer) drawer.style.display = isOnline ? 'none' : '';
 }
 export function showGameOver(title, subtitle, buttonsHTML) {
@@ -296,7 +298,6 @@ function startAiCountdown() {
 
 function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
 
-// Online countdown
 export function startOnlineCountdown(hostNickname, roomCode, onFinished) {
     hideAllPanels();
     const panel = document.getElementById('countdown-panel');
