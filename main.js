@@ -1,4 +1,4 @@
-// main.js — Orchestrator for Chess 3D (all fixes: faster sync, voice, lobby, exit)
+// main.js — Orchestrator for Chess 3D (drawer wired, sync, voice, lobby, exit)
 
 function showError(source, err) {
     const log = document.getElementById('error-log');
@@ -21,6 +21,14 @@ async function ensureVoiceLoaded() {
     if (voice) return true;
     try { voice = await import('./voice_handler.js'); return true; }
     catch (e) { showError('import voice_handler.js', e); return false; }
+}
+
+// ---- Drawer helper ----
+function updateMoveDrawer() {
+    if (gameMode === 'online') return;
+    ui.clearMoveDrawer();
+    const moves = engine.getMoveLogDisplay();
+    moves.forEach(m => ui.appendMoveToDrawer(m));
 }
 
 async function init() {
@@ -60,6 +68,14 @@ async function init() {
         });
 
         engine.initEngine(document.getElementById('cv'), onLocalMoveExecuted);
+
+        // Wire move callback for drawer updates (offline only)
+        engine.setMoveCallback((move) => {
+            if (gameMode !== 'online' && started) {
+                updateMoveDrawer();
+            }
+        });
+
         engine.setFrameCallback((state) => {
             if (!started) return;
             const isOnline = gameMode === 'online';
@@ -96,7 +112,6 @@ async function init() {
                 }
             }
             if (state.promotionPending) ui.showPromotion(engine.getTurn());
-            // Faster timer sync: push every 1s
             if (isOnline && currentOnlineGame && !moveSyncing && !over && Date.now() - lastTimerSync > 1000) { lastTimerSync = Date.now(); syncTimers(); }
         });
 
@@ -137,7 +152,6 @@ async function onlineGameCreated(game, hostKey) {
     sessionStorage.setItem('chess3d_playerkey_' + game.id, hostKey);
     ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname, game.room_code);
-    // Set host avatar
     const avatarUrl = await db.fetchUserAvatar(game.host_player_id);
     const av = document.getElementById('lobby-avatar');
     if (av && avatarUrl) {
@@ -154,7 +168,6 @@ async function onlineGameJoined(game, joinerKey) {
     myColor = 'b';
     ui.hideAllPanels();
     ui.showLobbyPanel(game.host_nickname || 'Opponent', game.room_code);
-    // Set host avatar
     const avatarUrl = await db.fetchUserAvatar(game.host_player_id);
     const av = document.getElementById('lobby-avatar');
     if (av && avatarUrl) {
@@ -218,7 +231,7 @@ async function requestRematch() {
 }
 window.requestRematch = requestRematch;
 
-async function acceptRematch() { /* implement if needed */ }
+async function acceptRematch() { }
 async function declineRematch() {
     if (currentOnlineGame) {
         await db.terminateGame(currentOnlineGame.id);
@@ -268,18 +281,21 @@ function handleBottomRight() {
 function startOfflineGame(mode) {
     gameMode = mode; ui.hideAllPanels(); ui.showGameUI(); ui.setVoiceControlsVisibility(false); ui.setOnlineBottomButtons(false);
     started = true; engine.startGame(mode); over = false;
+    updateMoveDrawer();
     if (mode === 'ai' && engine.getPlayerColor() === 'b') engine.scheduleAI(500);
     startAutoSave();
 }
 function newGame() {
     if (gameMode === 'online') return;
     engine.newGame(); over = false; ui.hideGameOver();
+    updateMoveDrawer();
     if (gameMode === 'ai' && engine.getPlayerColor() === 'b') engine.scheduleAI(500);
     saveBackup();
 }
 function undoMove() {
     if (gameMode === 'online') return;
     engine.undoMove(); saveBackup();
+    updateMoveDrawer();
 }
 
 function showAiDiffPanel() {
@@ -308,7 +324,6 @@ function exitWithoutSave() {
     }
 }
 
-// Offline save/restore
 let autoSaveInterval = null;
 function saveBackup() { if (over || gameMode === 'online') return; localStorage.setItem('chess3d_backup_' + gameMode, JSON.stringify(engine.getBackupData())); }
 function startAutoSave() { stopAutoSave(); autoSaveInterval = setInterval(() => { if (!over && started && gameMode !== 'online') saveBackup(); }, 2000); }
@@ -329,6 +344,7 @@ function restoreLocalMode(mode) {
     gameMode = mode; engine.setGameMode(mode); engine.restoreBackup(data);
     ui.hideAllPanels(); ui.showGameUI(); ui.setVoiceControlsVisibility(false); ui.setOnlineBottomButtons(false);
     started = true; over = false; startAutoSave();
+    updateMoveDrawer();
     if (mode === 'ai' && engine.getTurn() !== engine.getPlayerColor()) engine.scheduleAI(300);
 }
 
@@ -391,7 +407,7 @@ function getOpponentNickname() {
     return currentOnlineGame.host_player_id === currentUserId ? currentOnlineGame.joiner_nickname : currentOnlineGame.host_nickname;
 }
 
-// ========== FULL ONLINE SYNC (restored, faster) ==========
+// Online sync
 function startOnlineGameLoop() { stopOnlineGameLoop(); pollInterval = setInterval(pollGameState, 500); }
 function stopOnlineGameLoop() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
@@ -438,21 +454,12 @@ async function onLocalMoveExecuted(move) {
     if (gameMode !== 'online' || !currentOnlineGame || moveSyncing || frozen) return;
     moveSyncing = true;
     try {
-        const savedState = await db.pushBoardState(
-            currentOnlineGame.id,
-            engine.getBoardArray(),
-            engine.getTurn(),
-            engine.getCastling(),
-            engine.getEnPassant(),
-            engine.getTimerW(),
-            engine.getTimerB()
-        );
-        lastKnownServerState = savedState;
-        lastTimerSync = Date.now();
+        const savedState = await db.pushBoardState(currentOnlineGame.id, engine.getBoardArray(), engine.getTurn(), engine.getCastling(), engine.getEnPassant(), engine.getTimerW(), engine.getTimerB());
+        lastKnownServerState = savedState; lastTimerSync = Date.now();
     } catch (e) { ui.toast('Move sync failed.'); } finally { moveSyncing = false; }
 }
 
-// ---- Room creation/joining ----
+// Room creation/joining
 async function createPublicRoom() {
     if (!currentUserId) return;
     const username = await db.fetchUsername(currentUserId);
