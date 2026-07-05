@@ -42,6 +42,13 @@ export async function fetchProfileData(userId) {
     return data || { username: null, avatar_url: null };
 }
 
+// NEW: used to display the room owner's avatar in the lobby
+export async function fetchUserAvatar(userId) {
+    if (!sb || !userId) return null;
+    const { data } = await sb.from('profiles').select('avatar_url').eq('id', userId).maybeSingle();
+    return data?.avatar_url || null;
+}
+
 // ---------- Online Games ----------
 export async function fetchGameState(gameId) {
     if (!sb) return null;
