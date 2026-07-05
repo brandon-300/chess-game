@@ -42,21 +42,35 @@ function cacheElements() {
 function attachListeners() {
     const btn = (id, handler) => { const el = els[id]; if (el) el.addEventListener('click', handler); };
 
+    // Home screen buttons
     btn('home-play-online', () => callbacks.onOnlineMenu());
     btn('card-2p', () => callbacks.onStart2P());
     btn('card-ai', () => callbacks.onStartAI());
-    // Friends, History, Settings placeholders
     ['card-friends','card-history','card-settings'].forEach(id => {
         if (els[id]) els[id].addEventListener('click', () => toast('Coming soon…', 2000));
     });
 
+    // Offline sync buttons (fixed)
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
     btn('btn-delete-all-synced', () => {
-        if (els['delete-confirm-panel']) els['delete-confirm-panel'].classList.add('show');
+        // Show delete confirmation (we'll reuse the old panel if it exists)
+        const confirmPanel = document.getElementById('delete-confirm-panel');
+        if (confirmPanel) {
+            confirmPanel.classList.add('show');
+            // Wire confirm/cancel buttons inside the panel (one-time)
+            document.getElementById('btn-delete-confirm')?.addEventListener('click', () => {
+                confirmPanel.classList.remove('show');
+                callbacks.onDeleteSynced();
+            }, { once: true });
+            document.getElementById('btn-delete-cancel')?.addEventListener('click', () => {
+                confirmPanel.classList.remove('show');
+            }, { once: true });
+        }
     });
 
+    // Bottom bar buttons
     btn('new-game-btn', () => callbacks.onNewGame());
     btn('undo-btn', () => callbacks.onUndo());
     btn('mode-btn', () => callbacks.onModeBtn());
@@ -145,7 +159,7 @@ export function hideAllStates() {
     });
 }
 
-// ---- Existing UI functions (unchanged) ----
+// ---- Existing UI functions ----
 export function setVoiceControlsVisibility(visible) {
     if (els['voice-controls']) els['voice-controls'].style.display = visible ? '' : 'none';
 }
@@ -241,7 +255,6 @@ export function showLoginGate() { /* kept for compatibility */ }
 
 // ---- Additional panel helpers (used by main.js) ----
 export function showPanel(panelId) {
-    // used for online-mode panels
     const p = document.getElementById(panelId);
     if (p) p.classList.add('show');
 }
