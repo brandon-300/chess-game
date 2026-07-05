@@ -115,6 +115,7 @@
             const SUPABASE_ANON_KEY = window.SUPABASE_KEY;
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             let currentUserId = null;
+            let allUsers = []; // cached list of all users except current
             const $ = id => document.getElementById(id);
 
             function showToast(msg, isError = false) {
@@ -133,14 +134,55 @@
                     document.getElementById(btn.dataset.tab).classList.add('active');
                     if (btn.dataset.tab === 'friends-tab') loadFriends();
                     if (btn.dataset.tab === 'requests-tab') loadRequests();
+                    if (btn.dataset.tab === 'add-tab') renderAddTab();
                 });
             });
 
-            // Load friends list
+            // ---- Load all users once ----
+            async function loadAllUsers() {
+                const { data } = await supabase.from('profiles')
+                    .select('id, username, avatar_url')
+                    .neq('id', currentUserId)
+                    .order('username', { ascending: true });
+                allUsers = data || [];
+            }
+
+            // ---- Render add tab ----
+            function renderAddTab(filter = '') {
+                const container = $('searchResults');
+                const term = filter.toLowerCase().trim();
+                const filtered = term
+                    ? allUsers.filter(u => u.username.toLowerCase().includes(term))
+                    : allUsers;
+
+                if (!filtered.length) {
+                    container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">No users found.</div>';
+                    return;
+                }
+                container.innerHTML = filtered.map(u => `
+                    <div class="friend-row">
+                        <div class="avatar" style="background-image:url(${u.avatar_url || ''})"></div>
+                        <div class="info">
+                            <div class="name">${escapeHTML(u.username)}</div>
+                        </div>
+                        <button class="action-btn primary" onclick="sendRequest('${u.id}')">Add Friend</button>
+                    </div>
+                `).join('');
+            }
+
+            // ---- Real-time search ----
+            $('searchInput').addEventListener('input', () => {
+                const query = $('searchInput').value;
+                renderAddTab(query);
+            });
+            // Search button also triggers filter
+            $('searchBtn').addEventListener('click', () => {
+                const query = $('searchInput').value;
+                renderAddTab(query);
+            });
+
+            // ---- Load friends list ----
             async function loadFriends() {
-                const { data: friends } = await supabase.rpc('get_friends_list', { user_id: currentUserId });
-                // Since we don't have RPC, we'll use the SDK directly (but need to import from database.js). 
-                // We'll duplicate the logic inline using supabase directly.
                 const { data } = await supabase.from('friends')
                     .select('friend_id, profiles!friends_friend_id_fkey(username, avatar_url, is_online, last_seen)')
                     .eq('user_id', currentUserId);
@@ -169,7 +211,7 @@
                 `).join('');
             }
 
-            // Load pending requests
+            // ---- Load pending requests ----
             async function loadRequests() {
                 const { data: incoming } = await supabase.from('friend_requests')
                     .select('id, from_user_id, profiles!friend_requests_from_user_id_fkey(username, avatar_url)')
@@ -200,38 +242,11 @@
                 container.innerHTML = html;
             }
 
-            // Search users
-            $('searchBtn').addEventListener('click', async () => {
-                const query = $('searchInput').value.trim();
-                if (!query) return;
-                const { data } = await supabase.from('profiles')
-                    .select('id, username, avatar_url')
-                    .neq('id', currentUserId)
-                    .ilike('username', `%${query}%`)
-                    .limit(20);
-                const container = $('searchResults');
-                if (!data.length) { container.innerHTML = '<div style="color:var(--muted)">No users found.</div>'; return; }
-                container.innerHTML = data.map(u => `
-                    <div class="friend-row">
-                        <div class="avatar" style="background-image:url(${u.avatar_url || ''})"></div>
-                        <div class="info"><div class="name">${escapeHTML(u.username)}</div></div>
-                        <button class="action-btn primary" onclick="sendRequest('${u.id}')">Add Friend</button>
-                    </div>
-                `).join('');
-            });
-
             function escapeHTML(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
-            // Global actions
+            // ---- Global actions ----
             window.inviteFriend = async (friendId) => {
-                // Generate a room code and create a private room, then invite
                 const code = Math.random().toString(36).substring(2,10).toUpperCase();
-                // We need to create the room in online_games. We'll do a quick insert.
-                // Since we don't have the full game creation logic here, we'll call the main.js function via parent? No.
-                // Better: use the same createGame API. We'll inline the logic from database.js (since we imported supabase).
-                // But database.js functions are not available here. We'll do a fetch to /api? No, we just duplicate the insert.
-                // Simpler: navigate to index.html with a query parameter? No.
-                // We'll use the Supabase client directly to insert a game and then invite.
                 const { data: profile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single();
                 const { error } = await supabase.from('online_games').insert({
                     room_code: code,
@@ -245,7 +260,6 @@
                     timer_w: 60, timer_b: 60
                 });
                 if (error) { showToast('Could not create room', true); return; }
-                // Insert invite
                 await supabase.from('match_invites').insert({
                     from_user_id: currentUserId,
                     to_user_id: friendId,
@@ -269,6 +283,7 @@
                 await supabase.from('friends').insert({ user_id: req.from_user_id, friend_id: req.to_user_id });
                 await supabase.from('friends').insert({ user_id: req.to_user_id, friend_id: req.from_user_id });
                 loadRequests();
+                loadFriends();
             };
 
             window.declineRequest = async (requestId) => {
@@ -287,6 +302,7 @@
                 if (exist) { showToast('Request already pending.', true); return; }
                 await supabase.from('friend_requests').insert({ from_user_id: currentUserId, to_user_id, status: 'pending' });
                 showToast('Friend request sent!');
+                renderAddTab($('searchInput').value); // refresh the list to show the user was added
             };
 
             async function init() {
@@ -296,7 +312,9 @@
                     return;
                 }
                 currentUserId = session.user.id;
+                await loadAllUsers();
                 loadFriends();
+                renderAddTab();
             }
             init();
         })();
