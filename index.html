@@ -33,6 +33,14 @@
         #profile-avatar:hover{box-shadow:0 0 12px rgba(201,168,76,0.4);border-color:#fff}
         #profile-avatar img{width:100%;height:100%;object-fit:cover;display:block}
 
+        /* Notifications */
+        #offline-notification{
+            position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:300;background:rgba(30,10,0,0.92);backdrop-filter:blur(10px);
+            border:1px solid var(--gold);border-top:none;border-radius:0 0 8px 8px;padding:10px 24px;color:var(--gold);font-family:'Inter',sans-serif;
+            font-size:clamp(11px,3vw,14px);letter-spacing:.05em;text-align:center;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.5)
+        }
+        #offline-notification.show{display:block}
+
         /* Main menu – redesigned */
         #ms{
             position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -57,6 +65,15 @@
         .home-card p{font-size:10px;color:var(--muted)}
         .home-bottom-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
         .home-bottom-btns .db{padding:6px 16px;font-size:11px}
+
+        /* Generic small button style */
+        .db{
+            font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.04em;
+            background:rgba(201,168,76,0.06);border:1px solid var(--gold-d);color:var(--gold);
+            padding:6px 16px;cursor:pointer;text-transform:uppercase;
+            border-radius:9999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:all .2s
+        }
+        .db:active,.db:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,0.14);box-shadow:0 0 10px rgba(201,168,76,0.15)}
 
         /* Game UI – top & bottom bars */
         #gu{display:none;position:fixed;inset:0;pointer-events:none;z-index:10}
@@ -127,7 +144,7 @@
         @keyframes spin{to{transform:rotate(360deg)}}
         .state-text{color:var(--cream);font-family:'Inter',sans-serif;font-size:14px}
 
-        /* Toast, debug, reconnect (keep existing) */
+        /* Toast, debug, reconnect */
         #toast{
             position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
             background:#1a0e04;border:1px solid var(--gold);
@@ -138,7 +155,12 @@
             white-space:normal;max-width:85vw;text-align:center
         }
         #toast.show{display:block}
-        #debug-overlay{position:fixed;bottom:10px;left:10px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;font-size:10px;padding:6px 10px;border-radius:4px;max-width:300px;word-break:break-all;pointer-events:none}
+        #debug-overlay{
+            position:fixed;bottom:70px;left:10px;z-index:9999;
+            background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;
+            font-size:10px;padding:6px 10px;border-radius:4px;
+            max-width:300px;word-break:break-all;pointer-events:none
+        }
         #error-log{position:fixed;bottom:50px;left:10px;right:10px;z-index:9998;background:rgba(20,0,0,0.9);color:#f44;font-family:monospace;font-size:10px;padding:6px 10px;border-radius:4px;max-height:200px;overflow-y:auto;word-break:break-word;white-space:pre-wrap;pointer-events:none;display:none}
         #reconnect-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,5,2,0.75);backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:4px;color:var(--gold);padding:10px 20px;z-index:100;display:none;font-family:'Inter',sans-serif;font-size:12px;letter-spacing:.05em;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
         #reconnect-indicator.show{display:block}
@@ -257,6 +279,7 @@
     <div id="error-log"></div>
     <canvas id="cv"></canvas>
 
+    <!-- Load config first -->
     <script src="config.js"></script>
     <script>
         function loadScript(src, cb, fallbackSrc) {
