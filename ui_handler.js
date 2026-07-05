@@ -1,4 +1,4 @@
-// ui_handler.js — Chess 3D (drawer overlay, no chat, sync buttons wired)
+// ui_handler.js — Chess 3D (full wiring with legacy panels)
 
 import * as engine from './game_engine.js';
 
@@ -33,7 +33,11 @@ function cacheElements() {
         'go', 'got', 'gos', 'go-btns',
         'pm', 'po',
         // legacy panels
-        'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel', 'delete-confirm-panel', 'exit-online-panel'
+        'exit-choice-panel', 'restore-choice-panel', 'cloud-choice-panel', 'delete-confirm-panel', 'exit-online-panel',
+        // online panels
+        'online-menu', 'public-menu', 'private-menu', 'join-private', 'countdown-panel', 'waiting-panel', 'rematch-panel', 'login-gate-panel',
+        // AI panels
+        'ai-diff-panel', 'ai-color-panel', 'ai-countdown-panel'
     ];
     ids.forEach(id => { els[id] = document.getElementById(id); });
     if (els['profile-avatar']) {
@@ -44,13 +48,20 @@ function cacheElements() {
 function attachListeners() {
     const btn = (id, handler) => { const el = els[id]; if (el) el.addEventListener('click', handler); };
 
-    btn('home-play-online', () => callbacks.onOnlineMenu());
+    // Home screen
+    btn('home-play-online', () => {
+        if (!callbacks.onOnlineMenu) return;
+        // Show the online menu panel
+        hideAllPanels();
+        if (els['online-menu']) els['online-menu'].classList.add('show');
+    });
     btn('card-2p', () => callbacks.onStart2P());
     btn('card-ai', () => callbacks.onStartAI());
     ['card-friends','card-history','card-settings'].forEach(id => {
         if (els[id]) els[id].addEventListener('click', () => toast('Coming soon…', 2000));
     });
 
+    // Cloud & restore buttons
     btn('btn-restore-local', () => callbacks.onRestoreLocal());
     btn('btn-sync-offline-cloud', () => callbacks.onSyncOfflineCloud());
     btn('btn-restore-offline-cloud', () => callbacks.onRestoreOfflineCloud());
@@ -67,13 +78,10 @@ function attachListeners() {
     if (els['mic-toggle-btn']) els['mic-toggle-btn'].addEventListener('click', () => callbacks.onToggleMic && callbacks.onToggleMic());
     if (els['speaker-toggle-btn']) els['speaker-toggle-btn'].addEventListener('click', () => callbacks.onToggleSpeaker && callbacks.onToggleSpeaker());
 
-    // Drawer toggle
+    // Drawer
     if (els['drawer-toggle-left']) els['drawer-toggle-left'].addEventListener('click', toggleLeftDrawer);
     if (els['close-left-drawer']) els['close-left-drawer'].addEventListener('click', closeLeftDrawer);
-    // Overlay closes drawers
-    if (els['drawer-overlay']) els['drawer-overlay'].addEventListener('click', () => {
-        closeLeftDrawer();
-    });
+    if (els['drawer-overlay']) els['drawer-overlay'].addEventListener('click', closeLeftDrawer);
 
     // Lobby
     btn('lobby-start-btn', () => callbacks.onCountdownFinished && callbacks.onCountdownFinished());
@@ -95,6 +103,34 @@ function attachListeners() {
     btn('btn-cloud-restore-2p', () => { if (els['cloud-choice-panel']) els['cloud-choice-panel'].classList.remove('show'); callbacks.onCloudRestore2P && callbacks.onCloudRestore2P(); });
     btn('btn-cloud-restore-cancel', () => { if (els['cloud-choice-panel']) els['cloud-choice-panel'].classList.remove('show'); });
 
+    // Online flow buttons (from existing panels)
+    btn('btn-public-menu', () => { hideAllPanels(); showPanel('public-menu'); });
+    btn('btn-private-menu', () => { hideAllPanels(); showPanel('private-menu'); });
+    btn('btn-online-back', () => { hideAllPanels(); showMenu(); });
+    btn('btn-create-public', () => callbacks.onCreatePublicRoom());
+    btn('btn-join-public', () => callbacks.onJoinPublicRoom());
+    btn('btn-public-back', () => { hideAllPanels(); showPanel('online-menu'); });
+    btn('btn-show-create-private', () => callbacks.onCreatePrivateRoom());
+    btn('btn-show-join-private', () => { hideAllPanels(); showPanel('join-private'); });
+    btn('btn-private-back', () => { hideAllPanels(); showPanel('online-menu'); });
+    btn('btn-join-private', () => callbacks.onJoinPrivateRoom());
+    btn('btn-join-private-back', () => { hideAllPanels(); showPanel('private-menu'); });
+    btn('btn-cancel-waiting', () => callbacks.onCancelWaiting());
+    btn('btn-rematch-accept', () => callbacks.onAcceptRematch());
+    btn('btn-rematch-decline', () => callbacks.onDeclineRematch());
+    btn('btn-go-login', () => { window.location.href = 'user_login.html'; });
+    btn('btn-login-gate-back', () => { hideAllPanels(); showMenu(); });
+
+    // AI buttons
+    btn('btn-ai-novice', () => { engine.setAiDepth(1); hideAllPanels(); showPanel('ai-color-panel'); });
+    btn('btn-ai-knight', () => { engine.setAiDepth(3); hideAllPanels(); showPanel('ai-color-panel'); });
+    btn('btn-ai-master', () => { engine.setAiDepth(5); hideAllPanels(); showPanel('ai-color-panel'); });
+    btn('btn-ai-diff-back', () => { hideAllPanels(); showMenu(); });
+    btn('btn-ai-red', () => { engine.setPlayerColor('w'); startAiCountdown(); });
+    btn('btn-ai-black', () => { engine.setPlayerColor('b'); startAiCountdown(); });
+    btn('btn-ai-color-back', () => { hideAllPanels(); showPanel('ai-diff-panel'); });
+    btn('btn-cancel-ai-countdown', cancelAiCountdown);
+
     if (els['login-btn']) els['login-btn'].addEventListener('click', () => { window.location.href = 'user_login.html'; });
 }
 
@@ -104,13 +140,8 @@ export function toggleLeftDrawer() {
     const overlay = els['drawer-overlay'];
     if (!drawer || !overlay) return;
     const isOpen = drawer.classList.contains('open');
-    if (isOpen) {
-        drawer.classList.remove('open');
-        overlay.classList.remove('show');
-    } else {
-        drawer.classList.add('open');
-        overlay.classList.add('show');
-    }
+    if (isOpen) { drawer.classList.remove('open'); overlay.classList.remove('show'); }
+    else { drawer.classList.add('open'); overlay.classList.add('show'); }
 }
 export function closeLeftDrawer() {
     if (els['left-drawer']) els['left-drawer'].classList.remove('open');
@@ -118,8 +149,7 @@ export function closeLeftDrawer() {
 }
 export function appendMoveToDrawer(moveText) {
     if (els['move-list']) {
-        const div = document.createElement('div');
-        div.textContent = moveText;
+        const div = document.createElement('div'); div.textContent = moveText;
         els['move-list'].appendChild(div);
         els['move-list'].scrollTop = els['move-list'].scrollHeight;
     }
@@ -133,9 +163,7 @@ export function showLobbyPanel(opponentName, roomCode) {
     if (els['lobby-leave-btn']) els['lobby-leave-btn'].style.display = 'inline-block';
     if (els['lobby-rematch-btn']) els['lobby-rematch-btn'].style.display = 'none';
 }
-export function hideLobbyPanel() {
-    if (els['lobby-panel']) els['lobby-panel'].classList.remove('show');
-}
+export function hideLobbyPanel() { if (els['lobby-panel']) els['lobby-panel'].classList.remove('show'); }
 export function showRematchInLobby() {
     if (els['lobby-start-btn']) els['lobby-start-btn'].style.display = 'none';
     if (els['lobby-leave-btn']) els['lobby-leave-btn'].style.display = 'none';
@@ -155,7 +183,7 @@ export function hideAllStates() {
     ['state-loading','state-empty','state-error','state-reconnecting'].forEach(s => { if (els[s]) els[s].classList.remove('show'); });
 }
 
-// ---- Existing UI functions (unchanged) ----
+// ---- Existing UI functions ----
 export function setVoiceControlsVisibility(visible) {
     if (els['voice-controls']) els['voice-controls'].style.display = visible ? '' : 'none';
 }
@@ -169,35 +197,20 @@ export function setSpeakerState(on) {
 }
 export function setOpponentTalking(talking, nickname) {
     const el = els['voice-status']; if (!el) return;
-    if (talking && nickname) {
-        el.textContent = nickname + ' talking…';
-        el.classList.add('show');
-    } else {
-        el.classList.remove('show');
-    }
+    if (talking && nickname) { el.textContent = nickname + ' talking…'; el.classList.add('show'); }
+    else { el.classList.remove('show'); }
 }
-export function resetVoiceState() {
-    setMicState(false);
-    setSpeakerState(true);
-    setOpponentTalking(false, '');
-}
+export function resetVoiceState() { setMicState(false); setSpeakerState(true); setOpponentTalking(false, ''); }
 
-export function showMenu() {
-    if (els['ms']) els['ms'].style.display = 'flex';
-    if (els['gu']) els['gu'].style.display = 'none';
-}
+export function showMenu() { if (els['ms']) els['ms'].style.display = 'flex'; if (els['gu']) els['gu'].style.display = 'none'; }
 export function showGameUI() { if (els['ms']) els['ms'].style.display = 'none'; if (els['gu']) els['gu'].style.display = 'block'; hideAllStates(); }
 export function hideGameUI() { if (els['gu']) els['gu'].style.display = 'none'; }
 export function hideGameOver() { if (els['go']) els['go'].classList.remove('on'); }
 
 export function updateHeaderUI(userId, avatarUrl) {
     if (!els['login-btn'] || !els['profile-avatar'] || !els['profile-avatar-img']) return;
-    if (userId) {
-        els['login-btn'].style.display = 'none'; els['profile-avatar'].style.display = 'block';
-        els['profile-avatar-img'].src = avatarUrl || '';
-    } else {
-        els['login-btn'].style.display = 'inline-block'; els['profile-avatar'].style.display = 'none';
-    }
+    if (userId) { els['login-btn'].style.display = 'none'; els['profile-avatar'].style.display = 'block'; els['profile-avatar-img'].src = avatarUrl || ''; }
+    else { els['login-btn'].style.display = 'inline-block'; els['profile-avatar'].style.display = 'none'; }
 }
 export function updateTurnIndicator(turn, myColor, isOnline) {
     if (!els['tdot'] || !els['tlbl']) return;
@@ -235,10 +248,8 @@ export function showPromotion(color) {
     if (els['pm']) els['pm'].classList.add('on');
 }
 export function toast(msg, duration = 2800) {
-    const el = els['toast'];
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('show');
+    const el = els['toast']; if (!el) return;
+    el.textContent = msg; el.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
@@ -246,21 +257,42 @@ export function getPrivateRoomCode() { return els['private-room-code'] ? els['pr
 export function updateDebug(text) { if (els['debug-overlay']) els['debug-overlay'].textContent = text; }
 
 function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + sec.toString().padStart(2,'0'); }
-export function showLoginGate() {}
+export function showLoginGate() { hideAllPanels(); if (els['login-gate-panel']) els['login-gate-panel'].classList.add('show'); }
 
-// Keep the panel helpers that main.js expects
-export function showPanel(panelId) { const p = document.getElementById(panelId); if (p) p.classList.add('show'); }
-export function hideAllPanels() {
-    ['online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
-     'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
-     'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
+export function showPanel(panelId) {
+    hideAllPanels();
+    const p = document.getElementById(panelId);
+    if (p) p.classList.add('show');
 }
-export function showWaitingRoom() {}
-export function showCountdown() {}
-export function showRematchUI() {}
+export function hideAllPanels() {
+    const panelIds = [
+        'online-menu','public-menu','private-menu','join-private','countdown-panel','waiting-panel','rematch-panel',
+        'login-gate-panel','ai-diff-panel','ai-color-panel','ai-countdown-panel',
+        'exit-choice-panel','restore-choice-panel','cloud-choice-panel','delete-confirm-panel','exit-online-panel'
+    ];
+    panelIds.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
+}
+export function showWaitingRoom(name, code) {}
+export function showCountdown(name, code) {}
+export function showRematchUI(text) {}
 export function showExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.add('show'); }
 export function hideExitChoicePanel() { if (els['exit-choice-panel']) els['exit-choice-panel'].classList.remove('show'); }
 export function showExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.add('show'); }
 export function hideExitOnlinePanel() { if (els['exit-online-panel']) els['exit-online-panel'].classList.remove('show'); }
 export function setRejoinButtonsVisibility() {}
+
+// AI countdown helper
+let countdownInterval = null;
+function startAiCountdown() {
+    hideAllPanels(); showPanel('ai-countdown-panel');
+    let sec = 5;
+    const numEl = document.getElementById('ai-countdown-number');
+    if (numEl) numEl.textContent = sec;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        sec--;
+        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; hideAllPanels(); if (callbacks.onAiCountdownFinished) callbacks.onAiCountdownFinished(); }
+        else { const el = document.getElementById('ai-countdown-number'); if (el) el.textContent = sec; }
+    }, 1000);
+}
+function cancelAiCountdown() { if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; } hideAllPanels(); showMenu(); }
