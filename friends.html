@@ -152,7 +152,7 @@
                 friendIds = new Set((data || []).map(r => r.friend_id));
             }
 
-            // ---- Render add tab ----
+            // ---- Render add tab with click listeners ----
             function renderAddTab(filter = '') {
                 const container = $('searchResults');
                 const term = filter.toLowerCase().trim();
@@ -176,10 +176,18 @@
                         </div>
                         ${isFriend
                             ? '<span style="font-size:12px;color:var(--muted)">Friends</span>'
-                            : `<button class="action-btn primary" onclick="sendRequest('${u.id}')">Add Friend</button>`
+                            : `<button class="action-btn primary" data-action="send-request" data-userid="${u.id}">Add Friend</button>`
                         }
                     </div>
                 `}).join('');
+
+                // Attach click listeners after rendering
+                container.querySelectorAll('[data-action="send-request"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const userId = btn.dataset.userid;
+                        sendRequest(userId);
+                    });
+                });
             }
 
             // Real-time search
@@ -213,10 +221,18 @@
                             </div>
                             <div class="status${f.is_online ? ' online' : ''}">${f.is_online ? 'Online' : 'Offline'}</div>
                         </div>
-                        <button class="action-btn primary" onclick="inviteFriend('${f.id}')">Invite</button>
-                        <button class="action-btn danger" onclick="removeFriend('${f.id}')">Remove</button>
+                        <button class="action-btn primary" data-action="invite-friend" data-userid="${f.id}">Invite</button>
+                        <button class="action-btn danger" data-action="remove-friend" data-userid="${f.id}">Remove</button>
                     </div>
                 `).join('');
+
+                // Attach listeners
+                container.querySelectorAll('[data-action="invite-friend"]').forEach(btn => {
+                    btn.addEventListener('click', () => inviteFriend(btn.dataset.userid));
+                });
+                container.querySelectorAll('[data-action="remove-friend"]').forEach(btn => {
+                    btn.addEventListener('click', () => removeFriend(btn.dataset.userid));
+                });
             }
 
             // ---- Load pending requests ----
@@ -238,8 +254,8 @@
                                 <a href="profile.html?user=${req.from_user_id}">${escapeHTML(req.profiles.username)}</a>
                             </div>
                         </div>
-                        <button class="action-btn primary" onclick="acceptRequest('${req.id}')">Accept</button>
-                        <button class="action-btn danger" onclick="declineRequest('${req.id}')">Decline</button>
+                        <button class="action-btn primary" data-action="accept-request" data-requestid="${req.id}">Accept</button>
+                        <button class="action-btn danger" data-action="decline-request" data-requestid="${req.id}">Decline</button>
                     </div>`;
                 });
                 html += '<h3 style="margin:16px 0 12px;color:var(--accent)">Outgoing</h3>';
@@ -252,16 +268,27 @@
                                 <a href="profile.html?user=${req.to_user_id}">${escapeHTML(req.profiles.username)}</a>
                             </div>
                         </div>
-                        <button class="action-btn danger" onclick="cancelRequest('${req.id}')">Cancel</button>
+                        <button class="action-btn danger" data-action="cancel-request" data-requestid="${req.id}">Cancel</button>
                     </div>`;
                 });
                 container.innerHTML = html;
+
+                // Attach listeners
+                container.querySelectorAll('[data-action="accept-request"]').forEach(btn => {
+                    btn.addEventListener('click', () => acceptRequest(btn.dataset.requestid));
+                });
+                container.querySelectorAll('[data-action="decline-request"]').forEach(btn => {
+                    btn.addEventListener('click', () => declineRequest(btn.dataset.requestid));
+                });
+                container.querySelectorAll('[data-action="cancel-request"]').forEach(btn => {
+                    btn.addEventListener('click', () => cancelRequest(btn.dataset.requestid));
+                });
             }
 
             function escapeHTML(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
-            // ---- Global actions ----
-            window.inviteFriend = async (friendId) => {
+            // ---- Actions (now regular functions, not window.globals) ----
+            async function inviteFriend(friendId) {
                 const code = Math.random().toString(36).substring(2,10).toUpperCase();
                 const { data: profile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single();
                 const { error } = await supabase.from('online_games').insert({
@@ -283,17 +310,17 @@
                     status: 'pending'
                 });
                 showToast('Invite sent!');
-            };
+            }
 
-            window.removeFriend = async (friendId) => {
+            async function removeFriend(friendId) {
                 if (!confirm('Remove this friend?')) return;
                 await supabase.from('friends').delete().eq('user_id', currentUserId).eq('friend_id', friendId);
                 await supabase.from('friends').delete().eq('user_id', friendId).eq('friend_id', currentUserId);
                 friendIds.delete(friendId);
                 loadFriends();
-            };
+            }
 
-            window.acceptRequest = async (requestId) => {
+            async function acceptRequest(requestId) {
                 const { data: req } = await supabase.from('friend_requests').select('*').eq('id', requestId).single();
                 if (!req || req.to_user_id !== currentUserId) return;
                 await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId);
@@ -302,32 +329,29 @@
                 friendIds.add(req.from_user_id);
                 loadRequests();
                 loadFriends();
-            };
+            }
 
-            window.declineRequest = async (requestId) => {
+            async function declineRequest(requestId) {
                 await supabase.from('friend_requests').update({ status: 'declined' }).eq('id', requestId).eq('to_user_id', currentUserId);
                 loadRequests();
-            };
+            }
 
-            window.cancelRequest = async (requestId) => {
+            async function cancelRequest(requestId) {
                 await supabase.from('friend_requests').delete().eq('id', requestId).eq('from_user_id', currentUserId);
                 loadRequests();
-            };
+            }
 
-            window.sendRequest = async (toUserId) => {
-                // Check if already friends
+            async function sendRequest(toUserId) {
                 if (friendIds.has(toUserId)) {
                     showToast('You are already friends.', true);
                     return;
                 }
-                // Check for pending request
                 const { data: exist } = await supabase.from('friend_requests')
                     .select('id').eq('from_user_id', currentUserId).eq('to_user_id', toUserId).eq('status', 'pending').maybeSingle();
                 if (exist) {
                     showToast('Request already pending.', true);
                     return;
                 }
-                // Check if they already sent you a request
                 const { data: incoming } = await supabase.from('friend_requests')
                     .select('id').eq('from_user_id', toUserId).eq('to_user_id', currentUserId).eq('status', 'pending').maybeSingle();
                 if (incoming) {
@@ -341,7 +365,7 @@
                     showToast('Friend request sent!');
                     renderAddTab($('searchInput').value);
                 }
-            };
+            }
 
             async function init() {
                 const { data: { session } } = await supabase.auth.getSession();
